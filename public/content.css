@@ -1,0 +1,37 @@
+/* Shared editorial layout. No external fonts, trackers or framework dependency. */
+.doc-header{max-width:850px;padding:52px 0 40px}
+.doc-header h1{font-size:clamp(36px,5vw,60px);line-height:1.08;letter-spacing:-2px;margin:16px 0 20px}
+.doc-header>p{max-width:660px;font-size:18px;line-height:1.7;color:var(--muted)}
+.doc-header .doc-date{font-size:12px;margin-top:24px}
+.doc-layout{display:grid;grid-template-columns:205px minmax(0,1fr);gap:54px;padding-bottom:64px}
+.doc-layout aside{align-self:start;position:sticky;top:24px}
+.doc-layout aside nav{display:grid;gap:4px;margin-bottom:22px}
+.doc-layout aside nav a{padding:9px 0;font-size:13px;line-height:1.5;color:var(--muted)}
+.doc-body{max-width:790px;min-width:0}
+.doc-body section{scroll-margin-top:24px;padding:30px 0;border-top:1px solid var(--edge)}
+.doc-body h2{font-size:25px;letter-spacing:-.7px;margin:0 0 18px;line-height:1.25}
+.doc-body p,.doc-body li{font-size:15px;line-height:1.85;color:var(--muted);overflow-wrap:anywhere}
+.doc-body strong{color:var(--fg)}
+.doc-body ol,.doc-body ul{padding-left:22px}
+.doc-body li{padding-left:5px;margin:10px 0}
+.doc-body a,.resource-links a,.footer-links a{text-decoration:underline;text-underline-offset:4px}
+.doc-body a:hover,.doc-layout aside a:hover{color:var(--green)}
+.doc-body code{font-size:12px;overflow-wrap:anywhere;color:var(--fg)}
+.doc-body pre{padding:18px;background:var(--panel);border:1px solid var(--edge);border-radius:10px;overflow:auto;line-height:1.8;max-width:100%}
+.doc-body pre code{overflow-wrap:normal;white-space:pre}
+.table-scroll{max-width:100%;overflow-x:auto;border:1px solid var(--edge);border-radius:10px}
+.table-scroll:focus-visible{outline:2px solid var(--green);outline-offset:4px}
+.doc-body table{border-collapse:collapse;width:100%;min-width:470px;font-size:13px;line-height:1.7}
+.doc-body th,.doc-body td{text-align:left;vertical-align:top;padding:14px;border-bottom:1px solid var(--edge)}
+.doc-body td{color:var(--muted)}
+.doc-body caption{text-align:left;padding:14px;color:var(--fg);font-weight:650}
+.doc-body tbody tr:last-child td{border-bottom:0}
+.doc-page .top nav{display:flex}
+.footer-links{display:flex;flex-wrap:wrap;gap:16px;font-size:12px;line-height:1.8}
+.resource-links{padding:30px 0 44px;border-top:1px solid var(--edge)}
+.resource-links h2{font-size:24px;letter-spacing:-.6px}
+.resource-links p{color:var(--muted);line-height:1.8;font-size:14px;max-width:740px}
+.resource-links nav{display:flex;flex-wrap:wrap;gap:16px;font-size:13px}
+@media(max-width:760px){.doc-layout{grid-template-columns:minmax(0,1fr);gap:20px}.doc-layout aside{position:static}.doc-layout aside nav{grid-template-columns:repeat(2,minmax(0,1fr))}.doc-header{padding-top:34px}.doc-body h2{font-size:23px}}
+@media(max-width:540px){.doc-page .top{height:auto;min-height:100px;flex-wrap:wrap;gap:14px;padding-top:20px;padding-bottom:20px}.doc-page .top nav{margin-left:0;width:100%;gap:20px}.doc-header h1{letter-spacing:-1.4px}.doc-header>p{font-size:16px}.doc-layout aside nav a{font-size:12px}.doc-page footer{align-items:flex-start}}
+@media(prefers-reduced-motion:reduce){html:root{scroll-behavior:auto}}

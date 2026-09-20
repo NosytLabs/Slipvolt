@@ -7,6 +7,15 @@ The public experience stays simple. Operational complexity lives at **`/admin/`*
 > Status: prelaunch software. No project mint, treasury signing key, payment processor, token launch, automatic swap, or automatic developer payout is included. The code can make real OpenBroker calls once a dedicated server-side `OPENBROKER_API_KEY` is configured.
 
 
+## Customer documentation
+
+- [Help and API guide](public/help/index.html), served at `/help/`: wallet setup, supported endpoints, allowance resets, pricing examples, errors and key recovery.
+- [Data-handling disclosure](public/privacy/index.html), served at `/privacy/`: local records, upstream processing, cookies and retention limitations.
+- [Draft service rules](public/terms/index.html), served at `/terms/`: current access versus planned staking/payments, funding and developer compensation.
+- [Launch content checklist](docs/CONTENT.md): facts and policies that must be finalized before launch. Public guides do not imply legal review or a deployed service.
+
+The account area links to a wallet-authenticated export of the latest 100 usage records. `public/llms.txt` now matches the implemented function-tool support.
+
 ## Account tools and launch readiness (0.9.0)
 
 - Owners can revoke every API key for their wallet without losing usage history, or sign out all browser sessions without revoking API keys. These are separate confirmed actions.

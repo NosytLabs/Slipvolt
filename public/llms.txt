@@ -11,7 +11,8 @@ Create customer key: POST /api/member-key (signed cookie + same-origin request)
 List/revoke keys: GET /api/keys, DELETE /api/keys/{id}
 Inference: POST /v1/chat/completions, Bearer sv_... (legacy grd_ recognized)
 Text-only Chat Completions; stream=true supports SSE with final usage.
-Tools, multimodal input and non-schema fields are not supported.
+Function tool definitions and returned tool calls are supported; Slipvolt never executes tools.
+Multimodal inputs, embeddings, Responses, Assistants and non-schema fields are not supported.
 Exact schema: GET /openapi.json
 
 GET /api/network: sanitized cached aggregate OpenBroker statistics, NOT project activity.
@@ -26,3 +27,15 @@ Changing wallets can defeat per-wallet fairness; the global pool remains finite.
 Duplicate Idempotency-Key returns 409. Do not retry uncertain requests blindly.
 Incomplete streams/uncertain billing retain a hold and require operator review.
 No real token mint, deployment, treasury swap, or funded inference is implied.
+
+Customer help: /help/ (setup, compatibility, limits, error recovery and safe support).
+Data handling: /privacy/ (prelaunch disclosure; not an end-to-end retention guarantee).
+Service rules: /terms/ (draft; not finalized paid-service or token-sale terms).
+Daily reset: 00:00 UTC; no rollover; unresolved reservations survive the reset.
+Recent usage CSV: GET /api/usage/export (wallet cookie required; latest 100 records only).
+Revoke all API keys: POST /api/keys/revoke-all (wallet cookie + same origin).
+Sign out all sessions: POST /api/auth/logout-all (separate from key revocation).
+Planned metered pricing is not enabled checkout or automatic overage billing.
+At the proposed $0.075 input / $0.30 output per-million rates, an 80/20 mix costs
+$0.12 per million total tokens; 1 billion represents $120 hypothetical revenue.
+Holder usage is funded allowance, not booked metered revenue.

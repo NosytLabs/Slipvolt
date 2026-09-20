@@ -6,7 +6,8 @@ def build(target):
     public=ROOT/'public'
     html=(public/'index.html').read_text()
     html=html.replace('<html lang="en">','<html lang="en" data-preview="offline">')
-    html=html.replace('<link rel="stylesheet" href="styles.css">','<style>'+(public/'styles.css').read_text()+'</style>')
+    for stylesheet in ('styles.css','content.css'):
+        html=html.replace(f'<link rel="stylesheet" href="{stylesheet}">','<style>'+(public/stylesheet).read_text()+'</style>')
     html=html.replace('<script src="core.js" defer></script>','').replace('<script src="app.js" defer></script>','').replace('<script src="request-examples.js" defer></script>','').replace('<script src="account-tools.js" defer></script>','')
     html=html.replace('href="favicon.svg"','href="data:image/svg+xml;base64,'+base64.b64encode((public/'favicon.svg').read_bytes()).decode()+'"')
     html=html.replace('</body>','<script>'+'\n'.join((public/n).read_text() for n in ['core.js','request-examples.js','app.js','account-tools.js']).replace('</script','<\\/script')+'</script></body>')

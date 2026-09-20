@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your data, explained · Slipvolt</title>
+<meta name="description" content="What the Slipvolt code handles, what reaches upstream providers and what still needs a production privacy policy.">
+<link rel="icon" href="../favicon.svg"><link rel="stylesheet" href="../styles.css"><link rel="stylesheet" href="../content.css">
+</head>
+<body class="doc-page">
+<a class="skip" href="#main">Skip to content</a>
+<header class="top"><a class="brand" href="../"><span class="bolt" aria-hidden="true">ϟ</span> slipvolt.</a><nav aria-label="Documentation navigation"><a href="../help/">Help</a><a href="../privacy/">Privacy</a><a href="../terms/">Service rules</a></nav></header>
+<main id="main">
+<div class="doc-header"><span class="eyebrow">DATA HANDLING</span><h1>Your data, explained</h1><p>What the software records—and what it cannot promise about the rest of the request path.</p><p class="doc-date">Reviewed September 20, 2026 · Prelaunch documentation</p></div>
+<div class="doc-layout"><aside><nav aria-label="On this page"><a href="#scope">What this notice covers</a>
+<a href="#data">Data the application handles</a>
+<a href="#providers">Where requests go</a>
+<a href="#cookies">Cookies and browser data</a>
+<a href="#control">Control and retention</a>
+</nav><a class="text-link" href="../#playground">Back to the playground →</a></aside><article class="doc-body">
+<section id="scope"><h2>What this notice covers</h2>
+<p>This is a prelaunch technical disclosure for this repository, not a completed production privacy policy. The deployed operator’s identity, private contact, retention periods and hosting arrangements must be published before customer onboarding.</p>
+<p>Wallet sign-in is <strong>not anonymous</strong>. Public blockchain activity and service records can link requests to a wallet. A login without email is not a promise of anonymity.</p>
+</section>
+<section id="data"><h2>Data the application handles</h2>
+<ul><li><strong>Account and security:</strong> wallet address, one-time sign-in challenge text and expiry, hashed session identifiers, hashed API keys, key prefixes/names, creation times and revocation state.</li><li><strong>Usage and accounting:</strong> model, request identifiers, timestamps, token counts, reservations, cost estimates or confirmed costs, and settlement/review state.</li><li><strong>Operations:</strong> IP-derived hashed rate-limit buckets, administrator actions, wallet-policy notes, reconciliation evidence and business-ledger entries.</li></ul>
+<p>The local inference ledger is not designed to store prompt or completion bodies. Requests still pass through the application in memory and are sent upstream. Operator-entered notes and evidence can retain whatever text is entered: do not put secrets or private prompts in them.</p>
+</section>
+<section id="providers"><h2>Where requests go</h2>
+<p>Prompts, conversation history and tool definitions are processed through <strong>OpenBroker</strong> and the Gonka network. The configured Solana <strong>RPC</strong> provider receives wallet/mint queries for holder verification. Hosting, proxies and wallet extensions have their own processing and logging behavior.</p>
+<p>This is <strong>not an end-to-end zero-retention guarantee</strong>. Upstream training, retention, subprocessors, processing locations and contractual protections have not been independently verified here. Do not submit confidential or regulated data without reviewing the deployed service and upstream terms.</p>
+<p>Public network widgets use aggregate statistics. A configured native GNK reserve address is public; publication of the separate OpenBroker service balance is optional. Neither is an individual customer redemption balance.</p>
+</section>
+<section id="cookies"><h2>Cookies and browser data</h2>
+<p><code>gridraft_session</code> is the required sign-in cookie. The code sets HttpOnly and SameSite=Strict; Secure is enabled in production mode. The existing cookie name is retained for compatibility even when display branding changes.</p>
+<p>The customer interface does not persist API-key secrets in localStorage or sessionStorage. The current page and your clipboard may contain a copied key. Closing a page is not key revocation. These documentation pages include no analytics scripts, third-party embeds or input forms; deployment-level services may add their own logging.</p>
+</section>
+<section id="control"><h2>Control and retention</h2>
+<p>Revoke keys, end browser sessions and export recent usage through <a href="../help/#account">account controls</a>. The export is limited to the latest 100 records. Revocation and sign-out do not erase billing records.</p>
+<p>There is <strong>no self-service account deletion</strong> in this build. No fixed deletion or retention schedule for usage records, operator notes, host logs or backups has been approved. Before launch, the operator must publish those periods, a private request channel, and a verified deletion/export process. Do not put privacy requests in public GitHub issues.</p>
+</section>
+</article></div>
+</main>
+<footer><span class="brand">slipvolt.</span><nav class="footer-links" aria-label="Footer navigation"><a href="../">App</a><a href="../help/">Help</a><a href="../privacy/">Privacy</a><a href="../terms/">Service rules</a></nav><p>Independent of Gonka. No promise of returns.</p></footer>
+</body></html>
