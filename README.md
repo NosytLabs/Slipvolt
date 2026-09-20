@@ -1,0 +1,172 @@
+# Slipvolt — hold, connect, use AI
+
+Slipvolt is a holder-access AI API built on **OpenBroker / Gonka**. A qualifying Solana wallet signs in, creates a revocable `sv_` API key, and uses a finite native-GNK-funded allowance through an OpenAI-compatible Chat Completions endpoint.
+
+The public experience stays simple. Operational complexity lives at **`/admin/`**.
+
+> Status: prelaunch software. No project mint, treasury signing key, payment processor, token launch, automatic swap, or automatic developer payout is included. The code can make real OpenBroker calls once a dedicated server-side `OPENBROKER_API_KEY` is configured.
+
+## Current upstream policy snapshot — September 20, 2026
+
+OpenBroker currently lists three active models. Slipvolt intersects the live OpenBroker catalog with current Gonka model metadata:
+
+| Model | Context | Max completion | Slipvolt default output |
+|---|---:|---:|---:|
+| MiniMax M2.7 | 180,000 | 16,384 | 4,096 |
+| DeepSeek V4 Flash 0731 | 400,000 | 16,384 | 4,096 |
+| GLM 5.3 Flash | 400,000 | 16,384 | 4,096 |
+
+The 16,384 output ceiling comes from Gonka's current model metadata; OpenBroker's own documentation supports `max_tokens` but does not publish a separate numeric ceiling. Live metadata is checked at runtime and admin settings may only tighten the cap.
+
+Gonka's documented Chat Completions safeguards are mirrored where practical: 10 MiB body, <=2,048 messages, `n<=5`, <=16 stop strings, standard function tools, SSE streaming, and `max_tokens` / `max_completion_tokens` compatibility.
+
+See [API policy](docs/API-POLICY.md).
+
+## Pricing and GNK accounting
+
+OpenBroker documents **10 ngonka per token per attempt**, commonly **10–25 ngonka/token effective** because the DevShard gateway races/retries hosts (~15 typical), plus separate epoch accounting. OpenBroker states that its markup is 0%.
+
+Slipvolt's configurable planned metered/overage reference card defaults to:
+
+- **$0.075 / 1M input tokens**
+- **$0.30 / 1M output tokens**
+
+Holder allowance is funded separately and no checkout is enabled in the default holder mode. This rate card is useful for modeling future overage/business access; it is not presented as already activated billing.
+
+At an 80/20 input/output mix, the reference revenue is **$0.12 per million total tokens**. Therefore 1 billion tokens is about **$120 revenue**, not $120,000. High compute gross-margin percentages do not imply high absolute profit without high usage volume.
+
+## User flow
+
+1. Hold the configured Solana token.
+2. Connect Phantom/Solflare and sign a login-only message.
+3. Slipvolt checks finalized token holdings.
+4. Create a private `sv_` API key; the operator's `obk-` credential never reaches the browser.
+5. Call `/v1/chat/completions` or use the playground.
+6. Wallet/global daily allowances, RPM/concurrency, live model availability and spendable native GNK all constrain dispatch.
+
+Selling below the threshold blocks new requests when the finalized balance check reflects the change. Multiple API keys share one wallet allowance.
+
+## Run locally
+
+Python 3.13 is tested.
+
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt   # tests/browser checks
+python -m gridraft.cli init-env
+python -m gridraft.cli serve
+```
+
+Open:
+
+- Public app: `http://127.0.0.1:8000/`
+- Admin: `http://127.0.0.1:8000/admin/`
+
+`init-env` creates a private pepper and admin key. Preserve `KEY_PEPPER` and the database across upgrades.
+
+## Required production configuration
+
+At minimum:
+
+```env
+APP_ENV=production
+APP_ORIGIN=https://your-domain.example
+KEY_PEPPER=<stable 32+ chars>
+ADMIN_API_KEY=<separate 32+ char secret>
+OPENBROKER_API_KEY=obk-...
+ACCESS_MODE=holder_allowance
+HOLDER_MINT=<actual Solana mint>
+MIN_HOLDING_RAW=<raw base units>
+HOLDER_TOKEN_DECIMALS=<mint decimals>
+HOLDER_TOKEN_SYMBOL=<ticker/name>
+SOLANA_RPC_URL=https://...
+```
+
+Recommended defaults are in `.env.example`. Keep SQLite on persistent single-instance storage; do not put this build unchanged on ephemeral multi-instance serverless storage.
+
+## Admin console
+
+`/admin/` provides:
+
+- OpenBroker spendable GNK and provider usage/cost.
+- Local native-GNK allowance allocation and reconciliation state.
+- Provider/model health and capacity.
+- Wallet/global RPM and concurrency, with 30 RPM / 4 concurrent per wallet as the initial defaults.
+- Wallet/global daily token allowances.
+- Default/hard output caps and planned input/output pricing.
+- Maintenance mode and per-model enable/disable controls.
+- Wallet search, user disable/enable, per-wallet quota overrides, key inspection/revocation and operator audit history.
+- Recent requests and uncertain reservations.
+- Actual business cash ledger for creator fees/API revenue/subscriptions and hosting/RPC/support/refunds/taxes/developer payouts/GNK purchases.
+- Selectable 7/30/90-day provider usage, configured-rate contribution reference and approximate provider-balance runway.
+
+See [admin operations](docs/ADMIN.md).
+
+## Funding native GNK
+
+The web server does **not** hold treasury signing keys or automatically swap assets.
+
+Operationally:
+
+1. Acquire native GNK into an owner-controlled Gonka wallet using a currently verified route.
+2. Transfer the operating amount to **your dedicated OpenBroker dashboard deposit address** (not the registration wallet and not OpenBroker's public operator wallet).
+3. Verify `/v1/balance` with the dedicated `obk-` key.
+4. Use the admin console or `allocate-gnk` CLI only to mirror already-credited GNK into Slipvolt's local allowance ledger.
+
+HOT/NEAR Intents currently advertises native GNK routes from SOL/USDC and is the first route to quote-test. The official Ethereum WGNK bridge is a fallback with a critical same-signing-key Gonka destination rule. Always verify route, fees, min received and destination with a small test before moving operating funds.
+
+See [operating model](docs/OPERATING-MODEL.md) and [research](docs/RESEARCH.md).
+
+## OpenAI-compatible API
+
+```bash
+curl https://YOUR_HOST/v1/chat/completions \
+  -H "Authorization: Bearer $SLIPVOLT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model":"MiniMaxAI/MiniMax-M2.7",
+    "messages":[{"role":"user","content":"Hello"}],
+    "max_tokens":4096,
+    "stream":false
+  }'
+```
+
+Supported surface includes text Chat Completions, standard roles, sampling fields, `max_tokens` / `max_completion_tokens`, SSE streaming, function tool definitions/tool calls, `response_format`, `structured_outputs`, `n<=5`, stop sequences, logit/logprob options, reasoning/thinking hints and selected vLLM-compatible sampling extensions. Slipvolt passes tools to the model but **never executes a tool itself**.
+
+`GET /v1/models` returns the live intersection with `context_length` and `max_completion_tokens` metadata.
+
+## Real OpenBroker smoke check
+
+The repository includes a read-only catalog/balance check and an explicitly opt-in paid inference smoke test. Keep the provider key in the environment.
+
+```bash
+python scripts/check_openbroker.py
+python scripts/check_openbroker.py --allow-paid-inference --acknowledge-cost \
+  --model MiniMaxAI/MiniMax-M2.7
+```
+
+Do not blindly retry uncertain requests; inspect OpenBroker usage first.
+
+## Verification
+
+```bash
+./scripts/verify.sh
+```
+
+The suite covers wallet auth, holder checks, key lifecycle, quota/rate concurrency, billing reservations/reconciliation, streaming, tool calls, current model metadata policy, admin authorization/config/user controls/GNK allocation/business ledger, frontend helpers and browser UI checks.
+
+Passing fixtures do not establish real Phantom/Solflare interoperability, live provider latency, a successful paid OpenBroker call, Solana mainnet traffic, token popularity, profitability, or a production security audit.
+
+## Business model
+
+A reasonable structure is:
+
+- holder token unlocks a bounded funded allowance;
+- optional future paid overage/business usage uses explicit metered pricing;
+- Pump.fun creator fees can be additional realized operating revenue;
+- operating costs/reserves and native-GNK compute are funded before developer distributions;
+- developer compensation comes from disclosed actual surplus, not from treating token market cap as cash.
+
+The admin ledger records actual cash entries rather than projecting market cap or unclaimed fees as revenue. No outcome, trading-volume or profit guarantee is made.
