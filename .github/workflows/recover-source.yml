@@ -1,0 +1,142 @@
+name: Recover verified source
+on:
+  push:
+    branches: [release/oma-compute-audit]
+    paths: [.github/workflows/recover-source.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  recover:
+    if: github.repository == 'NosytLabs/Slipvolt' && github.ref == 'refs/heads/release/oma-compute-audit'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recover only source files matching the tested release manifest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, pathlib, urllib.request
+          root = pathlib.Path.cwd()
+          parts = ['c796adbae6b2ff51fba5b335b4fe34e6a8935a91','09369ec11b91e689cc041f8a6175df5b4e679142','d4c7cca8582a561303f0b0599815c91d5bb99dee','4b4f456ed5e8ad6083307062dfb9bb5b1397b432','549d9ed83500b797072f37f77e0825561bc7ea40','46fb425fd92a56c8adb2a4a44a617de7c9ac404b','bbc8c2e689b7353fbdab8e37419cd2cde5cad1f4']
+          manifest = '''7ee40000fc7b0f549bc35e05f8c075f4282bcc80 .dockerignore
+          1f13842f7bd65fc300cb20cb444ecc414b419db7 .env.example
+          a2e919b10653e34dd2ef8eb78ac26fe161676f61 .github/workflows/test.yml
+          3ef07b69b2e4f4e21adda53218c4c175988d5036 .gitignore
+          c81fd0b1a260ec2fc651a104d4ae71be83716c14 Dockerfile
+          1d75e3d133f4e1d715b1e61eed4320f4d3b80c7a README.md
+          a505c10e283cc5d345617b3cd8283c36f2dd99bf compose.yaml
+          e2f5b98b45981b6687fe6e74fb07b66721fb3b64 docs/ADMIN.md
+          3a7fbcedd9c88401c662f5a0e9b599bbd79d3395 docs/API-POLICY.md
+          be8a152f85ab76c3b100eca639aef70c1f15d8ec docs/CHANGELOG.md
+          3b9ab119470986acb32f32503fb58addfce19b10 docs/DEPLOYMENT.md
+          05ed8d966eca36b869c2d1fd817a92869405def0 docs/DESIGN.md
+          b6cf047fc43a3f992bb652f2e759d6ddb8d47aac docs/FOUNDER-POLICY.md
+          d95963f0ee5980a304fd659b796e17b2d092d368 docs/LAUNCH-AND-UTILITY.md
+          ab60b0e6230b83a75c2313e00a5790017b52c644 docs/LAUNCH_RUNBOOK.md
+          0bf733543cde274fe57f99b9b21fe0d83cb1b9ae docs/OPERATING-MODEL.md
+          5c06da12289cf8805feb03859a76f377598a2095 docs/PUBLISHING.md
+          7b4eb970e44bfbaccf5b6982a895988c2537a018 docs/QUICKNODE.md
+          2d7a4a0ab98b8101cf9c740d0a02945d93850382 docs/RESEARCH.md
+          898bd9691c33254bc5d647bf5a255e54b27c8c3a docs/SECURITY.md
+          2b1167ea5c44d79cb7cc4a5dc71437b9ec8e1636 docs/VERIFICATION.md
+          e69de29bb2d1d6434b8b29ae775ad8c2e48c5391 gridraft/__init__.py
+          67265468df3c218a2cd49746c6f1363ae09ca30a gridraft/app.py
+          e3a6bbea492af210cdfdf37c370c2d8b1337991d gridraft/broker.py
+          72f34bee086ba140c1b31c8d307fbb4681744bd5 gridraft/cli.py
+          04ebde219b5f0ca185f4a32de5b44d22ae6c264b gridraft/economics.py
+          3cc58d6c24cbb9e9b80667117048e2a9b82e0a43 gridraft/gonka.py
+          6edf036e880ea6d6c982f26d0807e5a8e5276458 gridraft/integrations.py
+          7a6fd6dfbf3674cf8cb35f4475859afac84392fc gridraft/ledger_totals.py
+          ea9641838db7db6e41e66d039b55456ce6a3faa8 gridraft/main.py
+          b41e0557d7321573be72c48f86bdeae743bee641 gridraft/member_gateway.py
+          b7dd3e5ed56ec45c7247528a0b0eef37bf4eb424 gridraft/membership.py
+          e86963f3fc54aa06a49f578399942ff29de61c3d gridraft/model_policy.py
+          2bae1923300fdd2a7c30aad1037adab4d1a01d52 gridraft/request_policy.py
+          4d48f915ab1c1c982acd2992d239e6e4e17ea6cc gridraft/security.py
+          d83fe8ba055102c1f909c8c479d1cf680b757522 gridraft/store.py
+          f299f1f047f344898383e800ccf248e0c2a61fd1 operator/README.md
+          5a7925c00ee012ae2204aa375f12cd1aeca1b42a operator/calculate.cjs
+          fa92aeb456481acc4229cf4df488c786335e87b4 operator/profit-core.js
+          4c7c3475223fcd285726d69db2dc925fc8f99b7c operator/profit-planner.html
+          f26b0cfb4b53ce05c9c69387b55bcd64071067c9 operator/scenario.json
+          ea095199df89ae25a927a60eb2e840be4b3eafc6 public/admin/app.js
+          42cfb2eccb70238c18ca154ae9c7058f79bf6cca public/admin/connections.js
+          b4447cc7ea1a2e011ae7eccd117edfd36d87c272 public/admin/index.html
+          c742f1a01a54c022601f271dda86a74ad859eb97 public/admin/styles.css
+          dee28f09bba5afa4873155ea61e0af96315d809e public/app.js
+          fde86d4612478e19ffbf5caa33cd49800387a022 public/core.js
+          917f0d10bab7123487f7f9e1bcaa13b0fcf5d675 public/favicon.svg
+          104ce897ae5cbe4b93cce45976000872f9da64b7 public/index.html
+          96de0f4b75207d6574a96455a371e6213c165c80 public/llms.txt
+          d35ff49a2379ed5f520e2a1fbee3360b8b42d2aa public/styles.css
+          d7c509e53993f341579c8518a5c4e8cda2d3562f requirements-dev.txt
+          525c635b683b97da410130b154c371586eda75de requirements.txt
+          e4eaed40380574450b2993e0bb7fa3acee298c57 scripts/check_admin_ui.py
+          c1d3b41ab25ae01d62afe7a37943cac905094360 scripts/check_connections.py
+          a873598dd9daba11eeb655a725f76ce2609e7b8e scripts/check_holder_ui.py
+          8b8b86ff7103fadfe452e1a02365f4d91ee8fdb3 scripts/check_openbroker.py
+          27a27c12ac905a9db14561bfef9f8439c0637bac scripts/package_preview.py
+          5fa9568331bb30b05982192da1924141952274f3 scripts/verify.sh
+          203c29aa27d32876bbd3eb609c561dd4b77ceabc tests/admin-ui.test.cjs
+          216637196026994fd94b27daf06b6e9b0655648c tests/business.test.cjs
+          75c53a69aa3ced47f5edfcf53a13b389385d63fc tests/frontend.test.cjs
+          cfeea5ee4af39a5d3c75835500938b81a829287e tests/test_admin_console.py
+          f49d7640761d58a8de924ee41af231fe6dccae26 tests/test_api_policy.py
+          550b206c5eb87c02e57a51ab68362abbc284b8e6 tests/test_gridraft.py
+          48bbefbdd524c7d81f1c73c28e2068a50212479a tests/test_improvements.py
+          ca197fb716a12126f29795c5b7b45ccbfe83ec66 tests/test_integrations.py
+          196c84e46a32844f2fe1da4e0ec1d4deb0f1cf36 tests/test_launch_readiness.py
+          aeec966eab043e9727dc8ac470f1a94358cda9d9 tests/test_member_edges.py
+          eceb139560fc1a944312095475224b42b73eeab8 tests/test_membership.py
+          b96809f3b50a26b3897f625e5965610ee161d62b tests/test_merge_regressions.py
+          2ef3a86191ca49452da5ccd8c6011e458cd12122 tests/test_operator_hardening.py'''
+          expected = {line.strip().split(' ',1)[1]: line.strip().split(' ',1)[0] for line in manifest.splitlines()}
+          def blob_sha(raw):
+              return hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+          decompressor = lzma.LZMADecompressor()
+          pieces=[]
+          for sha in parts:
+              req=urllib.request.Request('https://api.github.com/repos/NosytLabs/Slipvolt/git/blobs/'+sha,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+              with urllib.request.urlopen(req,timeout=30) as response: data=json.load(response)
+              raw=base64.b64decode(data['content'])
+              assert blob_sha(raw)==sha, 'Uploaded blob integrity mismatch'
+              pieces.append(decompressor.decompress(raw,max_length=2_000_000))
+          # The previous upload was interrupted. Only complete entries whose hash
+          # matches the exact tested source are recovered; nothing is guessed.
+          text=b''.join(pieces).decode('utf-8',errors='ignore')
+          assert text.startswith('{')
+          pos=1; decoder=json.JSONDecoder(); imported=[]; mismatched=[]
+          while pos<len(text):
+              if text[pos:pos+1]=='}': break
+              try:
+                  name,end=decoder.raw_decode(text,pos)
+                  assert text[end]==':'
+                  value,end=decoder.raw_decode(text,end+1)
+              except (ValueError,IndexError): break
+              pos=end+1
+              if name not in expected: continue
+              raw=value['content'].encode('utf-8')
+              if blob_sha(raw)!=expected[name]:
+                  mismatched.append(name); continue
+              # CI is installed only with the complete source, later.
+              if name.startswith('.github/'): continue
+              dest=root/name
+              assert dest.resolve().is_relative_to(root)
+              dest.parent.mkdir(parents=True,exist_ok=True)
+              dest.write_bytes(raw)
+              dest.chmod(0o755 if value.get('executable') else 0o644)
+              imported.append(name)
+          report={'imported':imported,'mismatched':mismatched,'missing':[n for n in expected if n not in imported], 'complete_source':False}
+          pathlib.Path('RECOVERY_REPORT.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          PY
+      - name: Commit recovery on staging only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m 'build: recover matching release files from staged source chunks'
+          git push origin HEAD:release/oma-compute-audit
