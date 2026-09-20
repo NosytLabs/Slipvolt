@@ -1,0 +1,23 @@
+name: Slipvolt tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+      - run: node --test tests/*.test.cjs
+      - run: node --check public/app.js && node --check public/admin/app.js && node --check public/admin/connections.js && node --check public/core.js && node --check public/account-tools.js && node --check public/request-examples.js && node --check public/admin/readiness.js && node --check operator/profit-core.js && node --check operator/calculate.cjs
+      - run: python -m compileall -q gridraft scripts
+      - run: python -m playwright install --with-deps chromium
+      - run: python scripts/check_holder_ui.py
+      - run: python scripts/check_admin_ui.py
