@@ -1,0 +1,19 @@
+{
+  "volumeUsd": 1000000,
+  "creatorFeeBps": 30,
+  "customers": 100,
+  "planUsd": 29,
+  "planMillions": 500,
+  "utilizationPct": 100,
+  "holderMillions": 1500,
+  "gnkUsd": 1,
+  "effectiveNgonka": 15,
+  "epochGnk": 50,
+  "operatingUsd": 600,
+  "paymentBps": 290,
+  "paymentFixedUsd": 0.3,
+  "refundsUsd": 0,
+  "reserveTopupUsd": 1500,
+  "developerSharePct": 70,
+  "targetUsd": 5000
+}

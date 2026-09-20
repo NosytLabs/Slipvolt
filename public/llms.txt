@@ -1,0 +1,28 @@
+# Slipvolt — treasury-funded Gonka access
+
+Hold a configured Solana project token; authenticate with a signed message;
+create a revocable customer API key; use a capped daily AI input+output allowance.
+No on-chain key mint or second checkout. Coins stay in the wallet.
+Stage and limits: GET /api/status
+Source-labeled catalog: GET /api/models
+Live catalog: GET /v1/models (503 when verification unavailable)
+Authenticated allowance/usage: GET /api/membership
+Create customer key: POST /api/member-key (signed cookie + same-origin request)
+List/revoke keys: GET /api/keys, DELETE /api/keys/{id}
+Inference: POST /v1/chat/completions, Bearer sv_... (legacy grd_ recognized)
+Text-only Chat Completions; stream=true supports SSE with final usage.
+Tools, multimodal input and non-schema fields are not supported.
+Exact schema: GET /openapi.json
+
+GET /api/network: sanitized cached aggregate OpenBroker statistics, NOT project activity.
+GET /api/treasury: optional native wallet balance and separately opt-in broker credit.
+Never combine those numbers as a verified user entitlement or redemption value.
+Never enter an obk- master key into the customer site or request a wallet seed.
+The service issues its own keys and keeps the provider credential server-side.
+New calls re-check finalized token holdings, available GNK, wallet allowance and
+shared global/pool limits. More keys do not multiply a wallet's allowance.
+Changing wallets can defeat per-wallet fairness; the global pool remains finite.
+
+Duplicate Idempotency-Key returns 409. Do not retry uncertain requests blindly.
+Incomplete streams/uncertain billing retain a hold and require operator review.
+No real token mint, deployment, treasury swap, or funded inference is implied.

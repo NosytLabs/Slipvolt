@@ -6,6 +6,18 @@ The public experience stays simple. Operational complexity lives at **`/admin/`*
 
 > Status: prelaunch software. No project mint, treasury signing key, payment processor, token launch, automatic swap, or automatic developer payout is included. The code can make real OpenBroker calls once a dedicated server-side `OPENBROKER_API_KEY` is configured.
 
+
+## Account tools and launch readiness (0.9.0)
+
+- Owners can revoke every API key for their wallet without losing usage history, or sign out all browser sessions without revoking API keys. These are separate confirmed actions.
+- The playground has an explicit output budget, stop control, response copy, request trace ID, and wallet-shared rate information. Canceling the browser request does not prove zero provider cost.
+- cURL, Python, and JavaScript examples reflect the selected model and output budget, and use an environment variable rather than inserting a private key. Automatic retries are disabled in examples where applicable.
+- `/api/admin/readiness` and the admin checklist distinguish missing configuration, accounting blockers, and items still needing real testing. A configured key is never presented as a successful inference test.
+- The checklist highlights the difference between a context window and a funded allowance: 400K context cannot be fully used under a 250K daily quota. A 1M shared pool covers four full 250K allowances, not every possible holder.
+- `SITE_NAME=OMA-AI` changes the running public brand without renaming this repository or moving the unrelated OMA production deployment. Key prefixes, cookies, and database identity remain migration-compatible.
+
+Staking, payment settlement, token launching, and automatic treasury transactions remain out of scope of this release.
+
 ## Current upstream policy snapshot — September 20, 2026
 
 OpenBroker currently lists three active models. Slipvolt intersects the live OpenBroker catalog with current Gonka model metadata:
@@ -20,7 +32,7 @@ The 16,384 output ceiling comes from Gonka's current model metadata; OpenBroker'
 
 Gonka's documented Chat Completions safeguards are mirrored where practical: 10 MiB body, <=2,048 messages, `n<=5`, <=16 stop strings, standard function tools, SSE streaming, and `max_tokens` / `max_completion_tokens` compatibility.
 
-See [API policy](docs/API-POLICY.md).
+See [API policy](docs/API-POLICY.md). Numeric upstream metadata is **not** a funded OpenBroker account benchmark; context admission uses a conservative byte estimate and may reject early.
 
 ## Pricing and GNK accounting
 
@@ -65,6 +77,19 @@ Open:
 - Admin: `http://127.0.0.1:8000/admin/`
 
 `init-env` creates a private pepper and admin key. Preserve `KEY_PEPPER` and the database across upgrades.
+
+## QuickNode and new operational safeguards
+
+Read [QuickNode setup](docs/QUICKNODE.md) and [launch / holder / lock / payment decisions](docs/LAUNCH-AND-UTILITY.md).
+
+The server now has private Solana RPC configuration, paced read-only calls, mainnet identity checks, exact mint-decimal validation, admin diagnostics and indicative Metis quotes. **No swap or payment execution is enabled.** WSS and 0x are configuration-only. Customer allowance still needs no second checkout.
+
+Fixed: missing context admission checks; reserving only one output for `n>1`; unenforced per-wallet quota overrides; suspension during provider lookup; stale displayed operator caps; duplicate GNK allocation errors; missing-cost displays implying zero; and admin credentials persisted in browser storage.
+
+```bash
+python scripts/check_connections.py --env-file .env
+python scripts/check_connections.py --env-file .env --priority-fees
+```
 
 ## Required production configuration
 
@@ -148,6 +173,13 @@ python scripts/check_openbroker.py --allow-paid-inference --acknowledge-cost \
 ```
 
 Do not blindly retry uncertain requests; inspect OpenBroker usage first.
+
+## Publishing this exact project
+
+The local history is based on the actual `NosytLabs/Slipvolt` README commit
+`dd0c4db53486f97e21a135ad55b8fea9388c331c`; it is not a new unrelated repository.
+See [publishing](docs/PUBLISHING.md). Do not force-push or replace unrelated branches.
+No public deployment follows automatically from copying source into GitHub.
 
 ## Verification
 

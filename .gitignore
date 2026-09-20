@@ -1,0 +1,17 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+data/
+*.db*
+node_modules/
+artifacts/
+
+evidence-current/
+# Generated verification/release artifacts
+evidence/
+verification/
+slipvolt-preview.html
+*.bundle
+*.zip
