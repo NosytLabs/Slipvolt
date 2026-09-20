@@ -1,12 +1,20 @@
 name: Slipvolt tests
-on: [push, pull_request]
+# Cost containment: start checks explicitly from Actions.
+on:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
