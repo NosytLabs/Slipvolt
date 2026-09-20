@@ -21,3 +21,4 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - run: python scripts/check_holder_ui.py
       - run: python scripts/check_admin_ui.py
+      - run: python scripts/check_content_ui.py

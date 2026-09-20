@@ -16,4 +16,5 @@ node --check operator/calculate.cjs
 python -m compileall -q gridraft
 python scripts/check_holder_ui.py
 python scripts/check_admin_ui.py
+python scripts/check_content_ui.py
 python scripts/package_preview.py slipvolt-preview.html
