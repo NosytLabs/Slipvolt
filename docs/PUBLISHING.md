@@ -1,35 +1,36 @@
-# Publish the verified project to NosytLabs/Slipvolt
+# Publishing Slipvolt
 
-The existing GitHub repository was inspected directly. At audit start it contained only `README.md` on root commit `dd0c4db53486f97e21a135ad55b8fea9388c331c`.
+## Canonical repository
 
-The original README bytes match Git blob `62711a95cbd30fcbb93537d47e478252a37b1091`. The root tree/commit were reconstructed and their SHA values verified against GitHub metadata. The canonical source import and fixes are descendants of that exact root, so the release can be fast-forwarded normally if remote main is unchanged.
+The full application is published at https://github.com/NosytLabs/Slipvolt on `main`.
 
-This execution environment exposes GitHub reads but not file/tree/ref writes. Its command-line runtime also cannot resolve external hosts and has no authenticated Git CLI session. Therefore there is **no claimed remote source upload, GitHub CI run or deployment** from this audit.
+PR #1 was merged on September 20, 2026. The verified application release is commit `22aaf364c400d4be9e616ac3304bf1944319b5e6`, with source tree `bd54dc97d3895b584dfb2e10c3244da78ad3e8cb`. All 78 tracked files matched the tested local source before merge. Temporary upload-recovery workflows and manifests are absent from the merged tree.
 
-## From the companion Git bundle
+GitHub Actions run `35490832137` passed Python tests, Node tests, JavaScript syntax checks, Python compilation, and both browser suites before merge. This is repository/CI publication, **not a live service deployment**.
 
-On a machine with GitHub write access and internet, from the directory containing the bundle:
+- Merge: https://github.com/NosytLabs/Slipvolt/pull/1
+- CI: https://github.com/NosytLabs/Slipvolt/actions/runs/35490832137
+
+## Work from the actual repository
 
 ```bash
-git clone slipvolt-ready.bundle Slipvolt
+git clone https://github.com/NosytLabs/Slipvolt.git
 cd Slipvolt
-git remote set-url origin https://github.com/NosytLabs/Slipvolt.git
-git fetch origin main
-git merge-base --is-ancestor origin/main main
-git push -u origin main
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python -m playwright install --with-deps chromium
+sh scripts/verify.sh
 ```
 
-Stop if the ancestry check fails. Fetch and review the new remote commits; do not force-push over them. The repository bundle contains only committed source and tests, not the supplied RPC credential or local runtime database.
+For further changes, create a branch from current `origin/main`, run the complete test suite, open a pull request, and merge only after checks pass. Fetch and reconcile intervening work; do not force-push over it.
 
-## From an existing checkout
+## Deployment is separate
 
-```bash
-git fetch /absolute/path/to/slipvolt-ready.bundle main:review/slipvolt-ready
-git diff --stat main...review/slipvolt-ready
-# Review and run scripts/verify.sh on the review branch before merging.
-git switch main
-git merge --ff-only review/slipvolt-ready
-git push origin main
-```
+The service requires persistent single-instance storage for the SQLite ledger, private server configuration, an actual project mint and holder threshold, and a dedicated funded OpenBroker account. The tests use controlled wallet/provider responses and do not verify funded production operation.
 
-Run `sh scripts/verify.sh` after installing Python/Node dependencies and Chromium. Source ZIPs do not contain `.git`; use the bundle for exact ancestry. The application still requires private host configuration and persistent storage after publishing. Do not commit `.env`, databases or logs.
+See `DEPLOYMENT.md`, `QUICKNODE.md`, and `SECURITY.md`. Configure `.env` or your host's secret store outside Git. Never commit private RPC URLs, provider credentials, databases or logs. Rotate credentials previously shared in chat before production use.
+
+## Earlier archives
+
+Companion ZIPs and Git bundles from before publication are historical snapshots, not a substitute for fetching current `main`. Do not push an old bundle over the canonical repository. The separate `NosytLabs/oma-ai` repository and its hosting configuration were not changed by this release.
