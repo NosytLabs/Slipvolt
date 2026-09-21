@@ -32,6 +32,8 @@ class Membership:
               UNIQUE(key_id,idem));
             CREATE INDEX IF NOT EXISTS member_usage_wallet ON member_usage(wallet,created);
             CREATE INDEX IF NOT EXISTS member_usage_state ON member_usage(state);
+            CREATE INDEX IF NOT EXISTS member_usage_created ON member_usage(created);
+            CREATE INDEX IF NOT EXISTS member_usage_wallet_state ON member_usage(wallet,state);
             ''')
         initialize_pool_totals(store)
 
@@ -81,17 +83,29 @@ class Membership:
         return {**t,'daily_tokens':daily,'remaining_tokens':max(0,daily-t['used_tokens']-t['reserved_tokens']),
             'quota_unit':'AI input + output tokens','pool':self.pool()}
 
-    def reserve(self,key_id,wallet,model,idem,tokens,*,wallet_daily,global_daily,ngonka_per_token,upstream_available,rpm,wallet_concurrency=2,global_rpm=300,global_concurrency=50):
+    def reserve(self,*args,**kwargs):
+        return self._admit(*args,**kwargs,commit=True)
+
+    def preview(self,*args,**kwargs):
+        """Run the same admission checks without inserting or charging anything."""
+        try:
+            self._admit(*args,**kwargs,commit=False)
+            return {'allowed':True,'reason_code':None}
+        except ValueError as exc:
+            return {'allowed':False,'reason_code':str(exc)}
+
+    def _admit(self,key_id,wallet,model,idem,tokens,*,wallet_daily,global_daily,ngonka_per_token,upstream_available,rpm,wallet_concurrency=2,global_rpm=300,global_concurrency=50,commit=True):
         integer(tokens,1);integer(ngonka_per_token,1,1000000);integer(upstream_available)
         amount=tokens*ngonka_per_token;integer(amount,1)
         now=time.time();rid=str(uuid.uuid4())
         with self.store.transaction():
-            key=self.db.execute('SELECT id FROM api_keys WHERE id=? AND wallet=? AND revoked=0',(key_id,wallet)).fetchone()
-            if not key:raise ValueError('invalid_key')
+            if key_id is not None or commit:
+                key=self.db.execute('SELECT id FROM api_keys WHERE id=? AND wallet=? AND revoked=0',(key_id,wallet)).fetchone()
+                if not key:raise ValueError('invalid_key')
             policy=self.store.user_policy(wallet)
             if policy['disabled']:raise ValueError('user_disabled')
             if policy.get('daily_tokens_override') is not None:wallet_daily=policy['daily_tokens_override']
-            if self.db.execute('SELECT 1 FROM member_usage WHERE key_id=? AND idem=?',(key_id,idem)).fetchone():
+            if commit and self.db.execute('SELECT 1 FROM member_usage WHERE key_id=? AND idem=?',(key_id,idem)).fetchone():
                 raise ValueError('duplicate_request')
             pool=self.pool()
             if pool['reconciliation_required']:raise ValueError('reconciliation_required')
@@ -109,6 +123,7 @@ class Membership:
             if global_active>=global_concurrency:raise ValueError('global_concurrency_limit')
             if count>=rpm:raise ValueError('wallet_rpm_limit')
             if global_count>=global_rpm:raise ValueError('global_rpm_limit')
+            if not commit:return None
             self.db.execute('INSERT INTO member_usage(id,key_id,wallet,idem,model,reserved_tokens,reserved_ngonka,state,created) VALUES(?,?,?,?,?,?,?,?,?)',
                 (rid,key_id,wallet,idem,model,tokens,amount,'reserved',now))
         return rid

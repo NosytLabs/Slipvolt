@@ -3,18 +3,22 @@
 The registry is used by OpenBroker's public stats UI, but is not a stable
 versioned API contract. An upstream change produces unavailable, never zero.
 """
+from .http_boundary import isolated_stream
+from copy import deepcopy
 import asyncio
 import json
 import re
 import time
 from urllib.parse import quote
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from .membership import integer
 
 BASE='https://api.openbroker.gonka.gg'
 MODEL_METADATA_URL='https://proxy.gonka.gg/v1/models'
 READ_TIMEOUT_SECONDS=8
 PUBLIC_BALANCE_TTL_SECONDS=15
+NETWORK_TTL_SECONDS=60
+NETWORK_STALE_LIMIT_SECONDS=300
 
 
 def quantity(value):
@@ -25,16 +29,21 @@ def quantity(value):
 class Broker:
     def __init__(self,client,key=''):
         self.client,self.key=client,key
-        self._network=None;self._network_at=0;self._attempt_at=0
+        self._network = None
+        self._network_at = None
+        self._attempt_at = None
+        self._network_failed = False
         self._lock=asyncio.Lock()
         self._public_balance_lock=asyncio.Lock()
         self._public_balance=None;self._public_balance_attempt=None
 
     async def read(self,path,private=False,max_bytes=2_000_000):
+        if not isinstance(path,str) or not path.startswith('/') or path.startswith('//') or any(x in path for x in ('\\','\r','\n','#')):
+            raise ValueError('Unsupported provider route')
         headers={'Authorization':'Bearer '+self.key} if private else {}
         if private and not self.key:raise ValueError('OpenBroker key not configured')
         async with asyncio.timeout(READ_TIMEOUT_SECONDS):
-            async with self.client.stream('GET',BASE+path,headers=headers,timeout=READ_TIMEOUT_SECONDS) as r:
+            async with isolated_stream(self.client,'GET',BASE+path,headers=headers,timeout=READ_TIMEOUT_SECONDS) as r:
                 r.raise_for_status();chunks=[];length=0
                 async for chunk in r.aiter_bytes():
                     length+=len(chunk)
@@ -45,8 +54,9 @@ class Broker:
                 return value
 
     async def read_url(self,url,max_bytes=2_000_000):
+        if url!=MODEL_METADATA_URL:raise ValueError('Unsupported metadata URL')
         async with asyncio.timeout(READ_TIMEOUT_SECONDS):
-            async with self.client.stream('GET',url,timeout=READ_TIMEOUT_SECONDS) as r:
+            async with isolated_stream(self.client,'GET',url,timeout=READ_TIMEOUT_SECONDS) as r:
                 r.raise_for_status();chunks=[];length=0
                 async for chunk in r.aiter_bytes():
                     length+=len(chunk)
@@ -131,10 +141,12 @@ class Broker:
 
     async def network(self):
         async with self._lock:
-            now=time.time()
-            if now-self._attempt_at<60:
-                return dict(self._network,stale=now-self._network_at>120) if self._network else self.unavailable()
-            self._attempt_at=now
+            now = time.monotonic()
+            if self._attempt_at is not None and now - self._attempt_at < NETWORK_TTL_SECONDS:
+                return self._network_snapshot(now)
+            self._attempt_at = now
+            # A cancelled or failed refresh must not make old data look current.
+            self._network_failed = True
             try:
                 d=await self.read('/api/registry/brokers',max_bytes=4_000_000)
                 brokers=d['brokers'];rows=d['daily_usage']
@@ -144,19 +156,30 @@ class Broker:
                 for row in rows:
                     day=row['date']
                     if not isinstance(day,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',day):raise ValueError()
+                    date.fromisoformat(day)  # Regex shape alone accepts February 30.
                     dates.append(day)
                     totals['requests']+=quantity(row['requests'])
                     totals['tokens']+=quantity(row['total_tokens'])
                     totals['cost_ngonka']+=quantity(row['cost_ngonka'])
                 self._network={'scope':'OpenBroker network; not Slipvolt usage',
                     'source':BASE+'/api/registry/brokers','source_page':'https://openbroker.gonka.gg/stats',
-                    'status':'available','observed_at':int(now),'window_from':min(dates),'window_to':max(dates),
+                    'status':'available','observed_at':int(time.time()),'window_from':min(dates),'window_to':max(dates),
                     'active_brokers':sum(b.get('status')=='active' for b in brokers if isinstance(b,dict)),
                     'totals':totals,'aggregation':'All returned registry usage rows; may differ from website filters.'}
-                self._network_at=now
-                return dict(self._network,stale=False)
+                self._network_at = time.monotonic()
+                self._network_failed = False
             except Exception:
-                return dict(self._network,stale=True) if self._network else self.unavailable()
+                pass  # Keep a bounded stale display, never an authorization cache.
+            return self._network_snapshot(time.monotonic())
+
+    def _network_snapshot(self, now):
+        if self._network is None or self._network_at is None:
+            return self.unavailable()
+        age = now - self._network_at
+        if age < 0 or age > NETWORK_STALE_LIMIT_SECONDS:
+            return self.unavailable()
+        return dict(deepcopy(self._network),
+                    stale=self._network_failed or age >= NETWORK_TTL_SECONDS)
 
     @staticmethod
     def unavailable():

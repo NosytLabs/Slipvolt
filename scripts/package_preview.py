@@ -6,11 +6,15 @@ def build(target):
     public=ROOT/'public'
     html=(public/'index.html').read_text()
     html=html.replace('<html lang="en">','<html lang="en" data-preview="offline">')
-    for stylesheet in ('styles.css','content.css'):
-        html=html.replace(f'<link rel="stylesheet" href="{stylesheet}">','<style>'+(public/stylesheet).read_text()+'</style>')
+    for name in ('styles.css','content.css','tools.css'):
+        # Fail before writing if the source package is incomplete.
+        css = (public/name).read_text(encoding='utf-8')
+        html=html.replace(f'<link rel="stylesheet" href="{name}">','<style>'+css+'</style>')
     html=html.replace('<script src="core.js" defer></script>','').replace('<script src="app.js" defer></script>','').replace('<script src="request-examples.js" defer></script>','').replace('<script src="account-tools.js" defer></script>','')
+    for name in ('request-tools.js','launch-tools.js'):
+        html=html.replace(f'<script src="{name}" defer></script>','')
     html=html.replace('href="favicon.svg"','href="data:image/svg+xml;base64,'+base64.b64encode((public/'favicon.svg').read_bytes()).decode()+'"')
-    html=html.replace('</body>','<script>'+'\n'.join((public/n).read_text() for n in ['core.js','request-examples.js','app.js','account-tools.js']).replace('</script','<\\/script')+'</script></body>')
+    html=html.replace('</body>','<script>'+'\n'.join((public/n).read_text() for n in ['core.js','request-examples.js','app.js','account-tools.js','request-tools.js','launch-tools.js']).replace('</script','<\\/script')+'</script></body>')
     Path(target).write_text(html)
 if __name__=='__main__':
     import sys

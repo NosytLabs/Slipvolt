@@ -1,11 +1,13 @@
 # Customer content and launch publication checklist
 
-Reviewed September 20, 2026. Canonical repository: NosytLabs/Slipvolt.
+Reviewed September 21, 2026. Canonical repository: NosytLabs/Slipvolt.
 
 ## Published with this content pass
 
 | Page | Purpose |
 |---|---|
+| `/developers/` | Customer-key quickstart, exact model IDs, OpenAI-style request examples, streaming/tool scope, errors and retry guidance. |
+| `/funding/` | Project-token, native-GNK and WGNK roles; official bridge constraints; OpenBroker deposit flow and creator-fee boundaries. |
 | `/help/` | Wallet-to-key setup, safe API configuration, supported API scope, quota reset, illustrative pricing, troubleshooting, key recovery and recent usage export. |
 | `/privacy/` | Technical disclosure of account/usage data, third-party processing, cookies, and unfinalized retention/deletion policies. |
 | `/terms/` | Draft service rules; separates existing holder access from unbuilt staking, payments, treasury redemption and automatic payouts. |
@@ -35,7 +37,7 @@ Proposed prices are $0.075/M input and $0.30/M output by default. For 800M input
 
 ## Source checks
 
-- OpenBroker docs: https://openbroker.gonka.gg/docs — rechecked September 20, 2026. Its upstream account/key is separate from a Slipvolt customer key; use the API host for upstream requests. The documented model IDs match the current repository snapshot. Public documentation is not a funded account benchmark.
+- OpenBroker docs: https://openbroker.gonka.gg/docs — rechecked September 21, 2026. Its upstream account/key is separate from a Slipvolt customer key; use the API host for upstream requests. The documented model IDs match the current repository snapshot. Public documentation is not a funded account benchmark.
 - Local implementation: `gridraft/app.py`, `request_policy.py`, `member_gateway.py`, `membership.py`, `store.py`, and the customer frontend.
 - Existing operator detail: `API-POLICY.md`, `SECURITY.md`, `FOUNDER-POLICY.md`, `LAUNCH-AND-UTILITY.md` and `QUICKNODE.md`.
 

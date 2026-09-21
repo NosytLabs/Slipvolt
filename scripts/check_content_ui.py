@@ -71,7 +71,7 @@ def run():
 
         try:
             for width in (320, 390, 768, 1280):
-                for name in ('help', 'privacy', 'terms'):
+                for name in ('help', 'developers', 'funding', 'privacy', 'terms'):
                     page = browser.new_page(viewport={'width': width, 'height': 900})
                     errors = []
                     page.on('pageerror', lambda e: errors.append(str(e)))

@@ -12,10 +12,14 @@ from datetime import datetime, timedelta, timezone
 from contextlib import contextmanager
 from .security import digest
 
+HOUSEKEEPING_INTERVAL_SECONDS = 60
+HOUSEKEEPING_BATCH_SIZE = 1000
+
 class Store:
     def __init__(self, path: str, pepper: str):
         self.pepper = pepper
         self.lock = threading.RLock()
+        self._last_housekeeping = None
         self.db = sqlite3.connect(path, check_same_thread=False, isolation_level=None, timeout=10)
         self.db.row_factory = sqlite3.Row
         self.db.execute('PRAGMA journal_mode=WAL')
@@ -31,9 +35,12 @@ class Store:
         CREATE TABLE IF NOT EXISTS rate_hits(bucket TEXT NOT NULL,created REAL NOT NULL);
         CREATE INDEX IF NOT EXISTS usage_time ON usage(created);
         CREATE INDEX IF NOT EXISTS usage_wallet ON usage(wallet,created);
+        CREATE INDEX IF NOT EXISTS usage_state ON usage(state);
+        CREATE INDEX IF NOT EXISTS usage_wallet_state ON usage(wallet,state);
         CREATE INDEX IF NOT EXISTS rate_time ON rate_hits(bucket,created);
         CREATE INDEX IF NOT EXISTS rate_expiry ON rate_hits(created);
         CREATE INDEX IF NOT EXISTS session_expiry ON sessions(expires);
+        CREATE INDEX IF NOT EXISTS sessions_wallet ON sessions(wallet);
         CREATE INDEX IF NOT EXISTS challenge_expiry ON challenges(expires);
         CREATE TABLE IF NOT EXISTS operator_settings(key TEXT PRIMARY KEY,value_json TEXT NOT NULL,updated REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS user_admin(wallet TEXT PRIMARY KEY,disabled INTEGER NOT NULL DEFAULT 0,daily_tokens_override INTEGER,note TEXT NOT NULL DEFAULT '',updated REAL NOT NULL);
@@ -52,8 +59,10 @@ class Store:
             try:
                 yield
                 self.db.execute('COMMIT')
-            except Exception:
-                self.db.execute('ROLLBACK')
+            except BaseException:
+                # Interrupted maintenance must not leave the shared connection locked.
+                if self.db.in_transaction:
+                    self.db.execute('ROLLBACK')
                 raise
 
     def close(self):
@@ -61,13 +70,37 @@ class Store:
 
     def throttle(self, bucket, limit, seconds=60):
         now = time.time()
-        with self.transaction():
-            self.db.execute('DELETE FROM rate_hits WHERE created<?',(now-7200,))
-            self.db.execute('DELETE FROM challenges WHERE expires<?',(now,))
-            self.db.execute('DELETE FROM sessions WHERE expires<?',(now,))
-            count=self.db.execute('SELECT COUNT(*) FROM rate_hits WHERE bucket=? AND created>?',(bucket,now-seconds)).fetchone()[0]
-            if count >= limit: raise ValueError('rate_limit')
-            self.db.execute('INSERT INTO rate_hits VALUES(?,?)',(bucket,now))
+        # The lock also protects the in-process housekeeping schedule. Expiry and
+        # rate admission are still checked on EVERY request, independently of GC.
+        with self.lock:
+            monotonic_now = time.monotonic()
+            due = (self._last_housekeeping is None or
+                   monotonic_now - self._last_housekeeping >= HOUSEKEEPING_INTERVAL_SECONDS)
+            with self.transaction():
+                if due:
+                    for table, column, cutoff in (
+                        ('rate_hits', 'created', now - 7200),
+                        ('challenges', 'expires', now),
+                        ('sessions', 'expires', now),
+                    ):
+                        # Fixed identifiers only; bound each pass to avoid long
+                        # writer locks when starting with a large expired backlog.
+                        self.db.execute(
+                            f'DELETE FROM {table} WHERE rowid IN '
+                            f'(SELECT rowid FROM {table} WHERE {column}<? LIMIT ?)',
+                            (cutoff, HOUSEKEEPING_BATCH_SIZE))
+                count = self.db.execute(
+                    'SELECT COUNT(*) FROM rate_hits WHERE bucket=? AND created>?',
+                    (bucket, now - seconds)).fetchone()[0]
+                rejected = count >= limit
+                if not rejected:
+                    self.db.execute('INSERT INTO rate_hits VALUES(?,?)', (bucket, now))
+            if due:
+                self._last_housekeeping = monotonic_now
+        # Commit housekeeping even when denying admission; never insert a hit for
+        # a rejected request and never change the configured rate limit.
+        if rejected:
+            raise ValueError('rate_limit')
 
     def ensure_account(self, wallet):
         with self.lock: self.db.execute('INSERT OR IGNORE INTO accounts(wallet) VALUES(?)',(wallet,))

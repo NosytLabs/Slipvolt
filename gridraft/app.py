@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
+from .http_boundary import isolated_request
 import httpx
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.exceptions import RequestValidationError
@@ -337,8 +338,8 @@ class BodyLimitMiddleware:
         await self.app(scope,replay,send)
 
 
-def create_app(settings=None, db_path=':memory:', transport=None):
-    settings=settings or Settings.from_env()
+def validate_settings(settings):
+    """Pure configuration validation, shared with the no-I/O setup doctor."""
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}',settings.site_name):
         raise ValueError('Invalid site name; use 1–40 plain brand characters')
     parsed=urlparse(settings.origin)
@@ -375,6 +376,11 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     validate_endpoint(settings.solana_ws,'wss')
     if type(settings.rpc_rps) is not int or not 1<=settings.rpc_rps<=100:raise ValueError('RPC RPS must be 1–100')
     if type(settings.rpc_concurrency) is not int or not 1<=settings.rpc_concurrency<=20:raise ValueError('RPC concurrency must be 1–20')
+    return settings
+
+
+def create_app(settings=None, db_path=':memory:', transport=None):
+    settings=validate_settings(settings or Settings.from_env())
     store=Store(db_path,settings.pepper)
 
     def runtime():
@@ -391,7 +397,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         base.update(store.operator_settings())
         return base
 
-    client=httpx.AsyncClient(timeout=settings.timeout,transport=transport,follow_redirects=False)
+    client=httpx.AsyncClient(timeout=settings.timeout,transport=transport,follow_redirects=False,trust_env=False)
     rpc=SolanaRPC(client,settings.solana_rpc,settings.rpc_rps,settings.rpc_concurrency)
     quotes=MetisQuotes(client,settings.metis_url,settings.holder_mint,settings.holder_token_decimals)
     membership=Membership(store)
@@ -400,6 +406,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     member_gateway=MemberGateway(settings,client,broker,membership,runtime)
     cache={'models':None,'metadata':None,'at':0,'live':False,'health':None,'health_at':0}
     catalog_lock=asyncio.Lock()
+    health_lock=asyncio.Lock()
 
     @asynccontextmanager
     async def lifespan(app):
@@ -407,7 +414,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         await client.aclose()
         store.close()
 
-    app=FastAPI(title='Slipvolt API',version='0.9.0',docs_url=None,redoc_url=None,lifespan=lifespan)
+    app=FastAPI(title='Slipvolt API',version='0.9.1',docs_url=None,redoc_url=None,lifespan=lifespan)
     app.state.store=store
     app.state.membership=membership
     app.add_middleware(BodyLimitMiddleware,limit=settings.max_request_bytes)
@@ -536,12 +543,18 @@ def create_app(settings=None, db_path=':memory:', transport=None):
             return [merge_upstream_metadata(m['id'],m,cfg['max_output_tokens']) for m in cache['models'] if m['id'] not in disabled],cache['live']
 
     async def provider_health(ttl=15):
-        now=time.time()
-        if cache.get('health') is not None and now-cache.get('health_at',0)<ttl:return cache['health']
-        try:
-            value=await broker.provider_status();cache['health']=value;cache['health_at']=now;return value
-        except Exception:
-            return cache.get('health')
+        async with health_lock:
+            now=time.time()
+            if cache.get('health_attempt') is not None and 0<=now-cache['health_attempt']<ttl:
+                return cache.get('health')
+            cache.update(health=None,health_at=0,health_attempt=now)
+            try:
+                value=await broker.provider_status()
+                cache.update(health=value,health_at=now)
+                return value
+            except Exception:
+                # A failed refresh invalidates health claims, not a fresh catalog.
+                return None
 
     def normalize_completion_request(body, models):
         cfg=runtime();by_id={m['id']:m for m in models}
@@ -569,9 +582,9 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     @app.get('/api/status')
     async def status():
         cfg=runtime()
-        return {'brand':settings.site_name,'version':'0.9.0','stage':'pilot implementation','provider_configured':bool(settings.upstream_key),
+        return {'brand':settings.site_name,'version':'0.9.2','stage':'pilot implementation','provider_configured':bool(settings.upstream_key),
             'billing_review_required':store.needs_review() or membership.pool()['reconciliation_required'],
-            'capabilities':{'streaming':settings.access_mode=='holder_allowance','tools':True,'usage_export':True,'wallet_auth':True,'holder_checks':settings.access_mode in ('holder','holder_allowance')},
+            'capabilities':{'request_preflight':settings.access_mode=='holder_allowance','status_page':True,'streaming':settings.access_mode=='holder_allowance','tools':True,'usage_export':True,'wallet_auth':True,'holder_checks':settings.access_mode in ('holder','holder_allowance')},
             'daily_budget_nusd':settings.daily_budget_nusd,'wallet_daily_budget_nusd':settings.wallet_daily_budget_nusd,
             'token_launched':False,'holder_gate_configured':bool(settings.holder_mint),
             'access_mode':settings.access_mode,'treasury_execution_enabled':False,'payments_enabled':False,
@@ -585,7 +598,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
             'holder_mint':settings.holder_mint or None,'min_holding_raw':str(settings.min_holding_raw) if settings.holder_mint else None,
             'holder_token_symbol':settings.holder_token_symbol,'holder_token_decimals':settings.holder_token_decimals,
             'treasury_asset':'GNK','key_creation_requires_payment':False,'maintenance_mode':bool(cfg['maintenance_mode']),
-            'research_date':'2026-09-19','wgnk_contract':WGNK}
+            'research_date':'2026-09-21','wgnk_contract':WGNK}
 
     @app.get('/api/models')
     async def models(request:Request):
@@ -971,6 +984,50 @@ def create_app(settings=None, db_path=':memory:', transport=None):
             'config':{**cfg,'retail_input_per_million_usd':cfg['retail_input_nusd_per_token']/1000,
                 'retail_output_per_million_usd':cfg['retail_output_nusd_per_token']/1000}}
 
+    @app.post('/api/preflight')
+    async def preflight(body:ChatInput, request:Request):
+        throttle(request,'request-preflight',30)
+        raw=request.headers.get('authorization')
+        key=None
+        if raw is not None:
+            key=store.lookup_key(raw[7:] if raw.startswith('Bearer ') else '')
+            if not key:error('Invalid or revoked API key',401)
+            wallet=key['wallet']
+        else:
+            wallet=session(request)
+        require_enabled_user(wallet)
+        if settings.access_mode!='holder_allowance':error('Preflight supports holder-allowance mode',400)
+        cfg=runtime()
+        if cfg['maintenance_mode']:error('Inference is paused for maintenance',503)
+        if not settings.upstream_key:error('OpenBroker is not configured; no inference was run',503)
+        rows,live=await catalog()
+        if not live:error('Cannot verify live model catalog; no inference was run',503)
+        normalize_completion_request(body,rows)
+        health=await provider_health()
+        h=next((m for m in (health or {}).get('models',[]) if isinstance(m,dict) and m.get('model')==body.model),None)
+        if h and (h.get('status')=='unavailable' or h.get('routable') is False):
+            error('Model currently unavailable upstream',503)
+        if not (await eligibility(wallet))['eligible']:error('Holding requirement not met',403)
+        require_enabled_user(wallet)
+        cfg=runtime()
+        if cfg['maintenance_mode']:error('Inference is paused for maintenance',503)
+        _,tokens=member_gateway.prepare(body)
+        try:available=(await broker.balance())['available_ngonka']
+        except Exception:error('Cannot verify provider funding; no inference was run',503)
+        result=membership.preview(key['id'] if key else None,wallet,body.model,'',tokens,
+            wallet_daily=cfg['holder_daily_tokens'],global_daily=cfg['global_daily_tokens'],
+            ngonka_per_token=cfg['ngonka_per_token_budget'],upstream_available=available,
+            rpm=cfg['wallet_rpm'],wallet_concurrency=cfg['wallet_concurrency'],
+            global_rpm=cfg['global_rpm'],global_concurrency=cfg['global_concurrency'])
+        if result['reason_code']=='invalid_key':error('Invalid or revoked API key',401)
+        if result['reason_code']=='user_disabled':error('This wallet is disabled',403)
+        return {**result,'model':body.model,'estimated_ai_tokens':tokens,
+            'requested_output_tokens':body.max_tokens,'choices':body.n,
+            'estimated_budget_ngonka':tokens*cfg['ngonka_per_token_budget'],
+            'estimate_method':'conservative_utf8_admission','inference_requests':0,
+            'reservation_created':False,'checked_at':int(time.time()),
+            'notice':'Snapshot only. No capacity booked. Sending rechecks all limits; actual tokenization and provider billing may differ.'}
+
     @app.post('/v1/chat/completions')
     async def chat(body:ChatInput,request:Request):
         throttle(request,'inference-ingress',max(120,runtime()['global_rpm']))
@@ -1016,7 +1073,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         except ValueError as exc:
             message=str(exc);error(message,{'invalid_key':401,'duplicate_request':409,'rate_limit':429,'daily_budget':429,'wallet_daily_budget':429,'billing_review_required':503}.get(message,402))
         try:
-            upstream=await client.post(UPSTREAM+'/chat/completions',headers={'Authorization':'Bearer '+settings.upstream_key},json=payload)
+            upstream=await client.send(isolated_request('POST',UPSTREAM+'/chat/completions',headers={'Authorization':'Bearer '+settings.upstream_key},json=payload,timeout=settings.timeout),auth=None,follow_redirects=False)
         except Exception:
             store.review(rid);error('Upstream result uncertain; reservation retained for operator reconciliation. Do not blindly retry',502)
         if not upstream.is_success:

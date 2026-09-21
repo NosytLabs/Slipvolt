@@ -7,8 +7,22 @@ The public experience stays simple. Operational complexity lives at **`/admin/`*
 > Status: prelaunch software. No project mint, treasury signing key, payment processor, token launch, automatic swap, or automatic developer payout is included. The code can make real OpenBroker calls once a dedicated server-side `OPENBROKER_API_KEY` is configured.
 
 
+## Functional setup and request tools (0.9.1)
+
+Use `python -m gridraft.cli doctor` for a secret-safe, local-only setup check.
+The playground now has an authenticated **Check request** action that uses shared
+admission logic without submitting inference or reserving allowance. `/status/`
+separates service configuration, model availability and GNK funding. The API tab
+includes a credential-free connection kit; a reviewed support report excludes
+prompts, keys, wallet addresses and private endpoints.
+
+See [functional setup and limits](docs/FUNCTIONAL-SETUP.md). These are implemented
+software features, not a claim of deployed service, paid inference or token launch.
+
 ## Customer documentation
 
+- [Developer quickstart](public/developers/index.html), served at `/developers/`: exact customer API setup, current documented model IDs, streaming/tools and retry guidance.
+- [GNK funding explainer](public/funding/index.html), served at `/funding/`: project-token, native-GNK, WGNK and OpenBroker funding boundaries.
 - [Help and API guide](public/help/index.html), served at `/help/`: wallet setup, supported endpoints, allowance resets, pricing examples, errors and key recovery.
 - [Data-handling disclosure](public/privacy/index.html), served at `/privacy/`: local records, upstream processing, cookies and retention limitations.
 - [Draft service rules](public/terms/index.html), served at `/terms/`: current access versus planned staking/payments, funding and developer compensation.
@@ -27,7 +41,7 @@ The account area links to a wallet-authenticated export of the latest 100 usage 
 
 Staking, payment settlement, token launching, and automatic treasury transactions remain out of scope of this release.
 
-## Current upstream policy snapshot — September 20, 2026
+## Current upstream policy snapshot — September 21, 2026
 
 OpenBroker currently lists three active models. Slipvolt intersects the live OpenBroker catalog with current Gonka model metadata:
 
@@ -36,6 +50,8 @@ OpenBroker currently lists three active models. Slipvolt intersects the live Ope
 | MiniMax M2.7 | 180,000 | 16,384 | 4,096 |
 | DeepSeek V4 Flash 0731 | 400,000 | 16,384 | 4,096 |
 | GLM 5.3 Flash | 400,000 | 16,384 | 4,096 |
+
+OpenBroker currently marks **Kimi-K2.6 as deprecated** because the chain has no validation weights for it; it is intentionally not offered in the customer picker.
 
 The 16,384 output ceiling comes from Gonka's current model metadata; OpenBroker's own documentation supports `max_tokens` but does not publish a separate numeric ceiling. Live metadata is checked at runtime and admin settings may only tighten the cap.
 
@@ -192,8 +208,11 @@ No public deployment follows automatically from copying source into GitHub.
 
 ## Verification
 
+Latest local maintenance: [reliability fixes, measured optimizations and verification](docs/CLEANUP-2026-09-21.md).
+
+
 ```bash
-./scripts/verify.sh
+sh scripts/verify.sh
 ```
 
 The suite covers wallet auth, holder checks, key lifecycle, quota/rate concurrency, billing reservations/reconciliation, streaming, tool calls, current model metadata policy, admin authorization/config/user controls/GNK allocation/business ledger, frontend helpers and browser UI checks.

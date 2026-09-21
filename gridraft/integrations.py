@@ -3,6 +3,7 @@
 Only operator-configured endpoints are used. Diagnostics redact URLs and upstream
 errors because RPC/Metis credentials often live in URL paths.
 """
+from .http_boundary import isolated_stream
 import asyncio
 import json
 import re
@@ -50,7 +51,7 @@ class SolanaRPC:
                     wait=1/self.rps-(time.monotonic()-self.last)
                     if wait>0:await asyncio.sleep(wait)
                     self.last=time.monotonic()
-                async with self.client.stream('POST',self.url,json={
+                async with isolated_stream(self.client,'POST',self.url,json={
                     'jsonrpc':'2.0','id':1,'method':method,'params':params or []},timeout=8) as response:
                     data=await bounded_json(response)
                 if not isinstance(data,dict) or data.get('error') or 'result' not in data:
@@ -108,7 +109,7 @@ class MetisQuotes:
         params={'inputMint':mint,'outputMint':USDC_MINT,'amount':str(int(raw)),
                 'slippageBps':str(slippage),'swapMode':'ExactIn','restrictIntermediateTokens':'true'}
         async with asyncio.timeout(10):
-            async with self.client.stream('GET',self.url.rstrip('/')+'/quote',params=params,timeout=8) as r:
+            async with isolated_stream(self.client,'GET',self.url.rstrip('/')+'/quote',params=params,timeout=8) as r:
                 d=await bounded_json(r,maximum=512000)
         try:
             if not isinstance(d,dict) or d.get('inputMint')!=mint or d.get('outputMint')!=USDC_MINT:

@@ -1,5 +1,6 @@
 from .request_policy import input_budget
 """Treasury-funded text completions. Credentials remain on the server."""
+from .http_boundary import isolated_request
 import asyncio
 import json
 import uuid
@@ -23,19 +24,24 @@ class MemberGateway:
         self.settings,self.client,self.broker,self.ledger=settings,client,broker,ledger
         self.runtime=runtime or (lambda:{'wallet_rpm':settings.request_limit,'wallet_concurrency':2,'global_rpm':300,'global_concurrency':50,'holder_daily_tokens':settings.holder_daily_tokens,'global_daily_tokens':settings.global_daily_tokens})
 
-    async def call(self,body,request,key):
-        s=self.settings;cfg=self.runtime();payload=body.model_dump(exclude_none=True)
+    def prepare(self,body):
+        """One estimator shared by preflight and the real reservation path."""
+        payload=body.model_dump(exclude_none=True)
         if body.stream:
             options=payload.get('stream_options') if isinstance(payload.get('stream_options'),dict) else {}
             payload['stream_options']={**options,'include_usage':True}
-        encoded=json.dumps(payload,separators=(',',':')).encode()
-        if len(encoded)>s.max_request_bytes:raise HTTPException(413,'Request too large')
+        if len(json.dumps(payload,separators=(',',':')).encode())>self.settings.max_request_bytes:
+            raise HTTPException(413,'Request too large')
+        return payload,input_budget(payload)+body.max_tokens*body.n
+
+    async def call(self,body,request,key):
+        s=self.settings;cfg=self.runtime()
+        payload,reserve_tokens=self.prepare(body)
         idem=request.headers.get('idempotency-key') or str(uuid.uuid4())
         if len(idem)>100 or not idem.isprintable():raise HTTPException(400,'Invalid Idempotency-Key')
         # Over-reserve the text request; settle real input/output tokens afterwards.
         # UTF-8/JSON bytes provide a conservative estimate, not an exact tokenizer count;
         # add chat-template headroom instead of the old 4x byte multiplier that over-reserved capacity.
-        reserve_tokens=input_budget(payload)+body.max_tokens*body.n
         try:available=(await self.broker.balance())['available_ngonka']
         except Exception:raise HTTPException(503,'Cannot verify GNK funding. No model request was sent.')
         try:
@@ -63,9 +69,9 @@ class MemberGateway:
         request.state.request_id=rid
         upstream_id=None
         try:
-            req=self.client.build_request('POST','https://api.openbroker.gonka.gg/v1/chat/completions',
-                headers={'Authorization':'Bearer '+s.upstream_key},json=payload)
-            upstream=await self.client.send(req,stream=True)
+            req=isolated_request('POST','https://api.openbroker.gonka.gg/v1/chat/completions',
+                headers={'Authorization':'Bearer '+s.upstream_key},json=payload,timeout=s.timeout)
+            upstream=await self.client.send(req,stream=True,auth=None,follow_redirects=False)
             upstream_id=upstream.headers.get('x-request-id','')[:200] or None
         except asyncio.CancelledError:
             self.ledger.review(rid);raise
