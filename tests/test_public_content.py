@@ -11,7 +11,7 @@ from gridraft.app import ChatInput, Settings, create_app
 
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT / 'public'
-PAGES = ('help/index.html', 'privacy/index.html', 'terms/index.html')
+PAGES = ('help/index.html', 'developers/index.html', 'funding/index.html', 'privacy/index.html', 'terms/index.html')
 
 
 class Markup(HTMLParser):
@@ -140,3 +140,21 @@ def test_packaged_preview_inlines_every_stylesheet(tmp_path):
     target = tmp_path/'preview.html'
     build(target)
     assert not any(t == 'link' and a.get('rel') == 'stylesheet' for t, a in Markup(target.read_text()).tags)
+
+def test_homepage_links_new_developer_and_funding_guides():
+    text = read_page('index.html')
+    assert 'href="developers/"' in text
+    assert 'href="funding/"' in text
+
+
+def test_developer_guide_explains_real_openbroker_surface_without_master_key():
+    text = read_page('developers/index.html')
+    for term in ('/v1/chat/completions', '/v1/models', 'SLIPVOLT_API_KEY', 'MiniMaxAI/MiniMax-M2.7', 'DeepSeek-V4-Flash-0731', 'GLM-5.3-Flash'):
+        assert term in text
+    assert 'obk-YOUR_API_KEY' not in text
+
+
+def test_funding_guide_separates_project_token_native_gnk_and_wgnk():
+    text = read_page('funding/index.html')
+    for term in ('native GNK', 'WGNK', '0x972a7a92d92796a98801a8818bcf91f1648f2f68', 'same key', 'OpenBroker deposit address'):
+        assert term.lower() in text.lower()

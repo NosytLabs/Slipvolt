@@ -173,3 +173,11 @@ def test_preview_refuses_missing_styles_instead_of_shipping_a_broken_page(tmp_pa
     with pytest.raises(FileNotFoundError):
         package.build(target)
     assert target.read_text() == 'previous-good-preview'
+
+def test_hot_usage_queries_have_targeted_indexes(store):
+    from gridraft.membership import Membership
+    Membership(store)
+    store_indexes={row[1] for row in store.db.execute("PRAGMA index_list('usage')")}
+    member_indexes={row[1] for row in store.db.execute("PRAGMA index_list('member_usage')")}
+    assert {'usage_state','usage_wallet_state'} <= store_indexes
+    assert {'member_usage_created','member_usage_wallet_state'} <= member_indexes
