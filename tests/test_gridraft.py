@@ -375,7 +375,6 @@ def test_broker_balance_above_one_gnk_is_valid(tmp_path):
         assert response.status_code==200,response.text
 
 
-
 def test_production_rejects_unexpected_or_malformed_host(tmp_path):
     app=create_app(Settings(origin='https://slipvolt.example',production=True,pepper='x'*32),str(tmp_path/'host.db'),httpx.MockTransport(provider))
     with TestClient(app,base_url='https://slipvolt.example') as c:
