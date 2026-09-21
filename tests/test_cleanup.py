@@ -184,7 +184,6 @@ def test_hot_usage_queries_have_targeted_indexes(store):
     assert {'member_usage_created','member_usage_wallet_state'} <= member_indexes
 
 
-
 def test_verify_script_is_executable_for_documented_command():
     from pathlib import Path
     script = Path(__file__).resolve().parents[1] / 'scripts' / 'verify.sh'
