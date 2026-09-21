@@ -10,12 +10,15 @@ import httpx
 from gridraft.cli import load_env
 from gridraft.integrations import SolanaRPC, validate_endpoint
 
-async def check(priority=False):
+async def check(priority=False, gonka=False):
     url=os.getenv('SOLANA_RPC_URL','')
     validate_endpoint(url)
     async with httpx.AsyncClient(follow_redirects=False,timeout=10) as client:
         rpc=SolanaRPC(client,url)
         result={'rpc':await rpc.diagnostics(),'transactions_sent':0}
+        if gonka:
+            from gridraft.gonka import GonkaRPC
+            result['gonka']=await GonkaRPC(client).diagnostics()
         if priority:
             try:result['priority_fees']=await rpc.priority()
             except Exception:result['priority_fees']={'status':'unavailable','message':'Check installed add-on, auth and connectivity.'}
@@ -25,12 +28,13 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--env-file',default='.env')
     p.add_argument('--priority-fees',action='store_true',help='Also request the priority-fee read method')
+    p.add_argument('--gonka',action='store_true',help='Also check the keyless Gonka mainnet gateway')
     args=p.parse_args()
     try:
         load_env(args.env_file)
-        result=asyncio.run(check(args.priority_fees))
+        result=asyncio.run(check(args.priority_fees,args.gonka))
         print(json.dumps(result,indent=2))
-        return 0 if result['rpc']['status']=='ready' else 2
+        return 0 if result['rpc']['status']=='ready' and (not args.gonka or result['gonka']['ready']) else 2
     except Exception:
         print('Connection check failed. Verify private server configuration; no transaction was sent.',file=sys.stderr)
         return 2
