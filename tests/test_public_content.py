@@ -141,6 +141,7 @@ def test_packaged_preview_inlines_every_stylesheet(tmp_path):
     build(target)
     assert not any(t == 'link' and a.get('rel') == 'stylesheet' for t, a in Markup(target.read_text()).tags)
 
+
 def test_homepage_links_new_developer_and_funding_guides():
     text = read_page('index.html')
     assert 'href="developers/"' in text
