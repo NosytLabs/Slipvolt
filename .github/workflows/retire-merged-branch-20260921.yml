@@ -1,0 +1,62 @@
+name: Retire verified integrated branch once
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/retire-merged-branch-20260921.yml']
+permissions:
+  contents: write
+  actions: write
+  pull-requests: read
+jobs:
+  retire:
+    if: >-
+      github.repository == 'NosytLabs/Slipvolt' && github.event.head_commit.message == 'ops: retire verified integrated branch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Verify integration and atomically delete only the unchanged branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, subprocess, tempfile
+          from urllib.parse import quote
+          repo = os.environ['GITHUB_REPOSITORY']
+          assert repo == 'NosytLabs/Slipvolt' and os.environ['GITHUB_REF'] == 'refs/heads/main'
+          branch = 'fix/gonka-rpc-audit'
+          expected = '1e1c50057a47cb41ed0f4b2cddaa8f9d9c5f8964'
+          merge = 'ca957d84a1ce3e9cf983fca5096239b7efebf445'
+          def api(path, method='GET'):
+              raw = subprocess.check_output(['gh', 'api', '--method', method, f'repos/{repo}/{path}'], text=True, timeout=30)
+              return json.loads(raw) if raw.strip() else None
+          own = api('actions/runs/' + os.environ['GITHUB_RUN_ID'])['workflow_id']
+          api(f'actions/workflows/{own}/disable', 'PUT')
+          main_before = api('branches/main')['commit']['sha']
+          proof = api(f'compare/{merge}...{main_before}')
+          assert proof['status'] in ('identical', 'ahead') and proof['merge_base_commit']['sha'] == merge
+          pr = api('pulls/4')
+          assert pr['merged'] is True and pr['merge_commit_sha'] == merge
+          assert pr['head']['sha'] == expected and pr['head']['ref'] == branch
+          assert pr['head']['repo']['full_name'] == repo and pr['base']['ref'] == 'main'
+          current = api('branches/' + quote(branch, safe=''))
+          assert not current['protected'] and current['commit']['sha'] == expected
+          assert not api('pulls?state=open&head=' + quote('NosytLabs:' + branch, safe=''))
+          ref = 'refs/heads/' + branch
+          env = {key: value for key, value in os.environ.items() if not key.startswith('GIT_')}
+          header = base64.b64encode(('x-access-token:' + os.environ['GH_TOKEN']).encode()).decode()
+          env.update(GIT_TERMINAL_PROMPT='0', GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_COUNT='1',
+                     GIT_CONFIG_KEY_0='http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0='AUTHORIZATION: basic ' + header)
+          with tempfile.TemporaryDirectory() as directory:
+              env['HOME'] = directory
+              subprocess.run(['git', 'init', '-q', directory], check=True, capture_output=True, env=env)
+              subprocess.run(['git', '-C', directory, 'push', '--porcelain', '--force-with-lease=' + ref + ':' + expected,
+                              f'https://github.com/{repo}.git', ':' + ref], check=True, capture_output=True, env=env, timeout=60)
+          remaining = [item['name'] for item in api('branches?per_page=100')]
+          assert branch not in remaining
+          report = {'repository': repo, 'deleted_branch': branch, 'expected_sha': expected, 'integration_commit': merge,
+                    'remaining_branches': remaining, 'main_after': api('branches/main')['commit']['sha'],
+                    'self_disabled': api(f'actions/workflows/{own}')['state'] == 'disabled_manually'}
+          print('BRANCH_RETIREMENT_RESULT=' + json.dumps(report), flush=True)
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
+              summary.write('```json\n' + json.dumps(report, indent=2) + '\n```\n')
+          PY
