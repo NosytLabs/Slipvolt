@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.3 — 2026-09-21
+
+- Patched the production Host/path boundary: reject unexpected/malformed Host authorities and make API security decisions from the routed ASGI path.
+- Updated security-sensitive dependency pins to FastAPI 0.141.1, Starlette 1.6.0, cryptography 50.0.1 and Pydantic 2.13.5; kept HTTPX 0.28.1 and Uvicorn 0.48.0 to avoid unrelated transport changes.
+- Restored the executable bit on `scripts/verify.sh` and added a manual-CI guard so the documented verifier command cannot silently regress again.
+- Centralized the application release version so `/openapi.json` and `/api/status` cannot report different versions.
+- Clarified native-GNK acquisition: Gonka's WGNK bridge is the official documented path; HOT/NEAR Intents is a third-party direct-route candidate that still requires a live quote and small test.
+- Clarified Pump.fun holder-rewards mode: it redirects creator fees to holders, so a compute-funding creator-fee launch must use regular creator-fee mode instead.
+
 ## 0.9.2 — 2026-09-21
 
 - Added `/developers/` with an exact customer-key quickstart, current documented OpenBroker model IDs, streaming/tool behavior, error handling and retry guidance.
