@@ -12,7 +12,7 @@
 
 ## 0.9.0 — customer controls and honest readiness
 
-## 2026-09-21 — reliability and cleanup (local, unpublished)
+## 2026-09-21 — reliability and cleanup
 
 - Keep failed network snapshots stale; bound stale lifetime and validate dates.
 - Amortize bounded SQLite housekeeping, index wallet-session removal, and recover interrupted transactions.
