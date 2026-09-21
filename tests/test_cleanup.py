@@ -182,3 +182,23 @@ def test_hot_usage_queries_have_targeted_indexes(store):
     member_indexes={row[1] for row in store.db.execute("PRAGMA index_list('member_usage')")}
     assert {'usage_state','usage_wallet_state'} <= store_indexes
     assert {'member_usage_created','member_usage_wallet_state'} <= member_indexes
+
+
+
+def test_verify_script_is_executable_for_documented_command():
+    from pathlib import Path
+    script = Path(__file__).resolve().parents[1] / 'scripts' / 'verify.sh'
+    assert script.stat().st_mode & 0o111, './scripts/verify.sh is documented and must be executable'
+
+
+def test_runtime_security_dependencies_are_patched():
+    from pathlib import Path
+    pins = {}
+    for line in (Path(__file__).resolve().parents[1] / 'requirements.txt').read_text().splitlines():
+        if '==' in line:
+            name, version = line.split('==', 1)
+            pins[name.strip().lower()] = version.strip()
+    assert pins.get('cryptography') == '50.0.1'
+    assert pins.get('starlette') == '1.6.0'
+    assert pins.get('fastapi') == '0.141.1'
+    assert pins.get('pydantic') == '2.13.5'
