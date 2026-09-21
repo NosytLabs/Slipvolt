@@ -161,7 +161,6 @@ def test_funding_guide_separates_project_token_native_gnk_and_wgnk():
         assert term.lower() in text.lower()
 
 
-
 def test_funding_guide_explains_direct_gnk_route_and_pump_reward_tradeoff():
     text = read_page('funding/index.html').lower()
     assert 'hot' in text and 'near intents' in text
