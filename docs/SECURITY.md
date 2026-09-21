@@ -1,4 +1,11 @@
-# Security and operational limits — Slipvolt 0.8.0
+# Security and operational limits — Slipvolt 0.9.3
+
+
+## HTTP boundary and dependency baseline
+
+Production rejects unexpected or malformed `Host` authorities against the configured `APP_ORIGIN`, normalizing only default HTTP/HTTPS ports. Security-sensitive API path checks use the ASGI routed path instead of a URL reconstructed from the Host header. This is defense in depth for malformed-host/path confusion even with patched framework versions.
+
+The September 21, 2026 dependency review pins FastAPI 0.141.1, Starlette 1.6.0, cryptography 50.0.1 and Pydantic 2.13.5. The cryptography update moves past 2026 advisories affecting older releases; the Starlette update moves past the malformed-Host routing advisory. HTTPX remains on the current stable 0.28.1. Re-run the manual GitHub workflow after dependency changes so a clean environment installs and exercises the exact pins.
 
 The holder flow proves control of a Solana address with an exact-origin, expiring one-time Ed25519 challenge. Sessions remain HttpOnly/SameSite and keys are stored hashed. Provider credentials are server-only. No wallet seed, private key, approval transaction or treasury signing key is requested.
 
