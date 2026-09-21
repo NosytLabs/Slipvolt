@@ -582,7 +582,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     @app.get('/api/status')
     async def status():
         cfg=runtime()
-        return {'brand':settings.site_name,'version':'0.9.1','stage':'pilot implementation','provider_configured':bool(settings.upstream_key),
+        return {'brand':settings.site_name,'version':'0.9.2','stage':'pilot implementation','provider_configured':bool(settings.upstream_key),
             'billing_review_required':store.needs_review() or membership.pool()['reconciliation_required'],
             'capabilities':{'request_preflight':settings.access_mode=='holder_allowance','status_page':True,'streaming':settings.access_mode=='holder_allowance','tools':True,'usage_export':True,'wallet_auth':True,'holder_checks':settings.access_mode in ('holder','holder_allowance')},
             'daily_budget_nusd':settings.daily_budget_nusd,'wallet_daily_budget_nusd':settings.wallet_daily_budget_nusd,
@@ -598,7 +598,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
             'holder_mint':settings.holder_mint or None,'min_holding_raw':str(settings.min_holding_raw) if settings.holder_mint else None,
             'holder_token_symbol':settings.holder_token_symbol,'holder_token_decimals':settings.holder_token_decimals,
             'treasury_asset':'GNK','key_creation_requires_payment':False,'maintenance_mode':bool(cfg['maintenance_mode']),
-            'research_date':'2026-09-19','wgnk_contract':WGNK}
+            'research_date':'2026-09-21','wgnk_contract':WGNK}
 
     @app.get('/api/models')
     async def models(request:Request):

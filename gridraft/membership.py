@@ -32,6 +32,8 @@ class Membership:
               UNIQUE(key_id,idem));
             CREATE INDEX IF NOT EXISTS member_usage_wallet ON member_usage(wallet,created);
             CREATE INDEX IF NOT EXISTS member_usage_state ON member_usage(state);
+            CREATE INDEX IF NOT EXISTS member_usage_created ON member_usage(created);
+            CREATE INDEX IF NOT EXISTS member_usage_wallet_state ON member_usage(wallet,state);
             ''')
         initialize_pool_totals(store)
 

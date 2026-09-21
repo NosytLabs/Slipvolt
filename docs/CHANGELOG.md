@@ -1,3 +1,15 @@
+# Changelog
+
+## 0.9.2 — 2026-09-21
+
+- Added `/developers/` with an exact customer-key quickstart, current documented OpenBroker model IDs, streaming/tool behavior, error handling and retry guidance.
+- Added `/funding/` to separate the Solana access token, native GNK compute funding and official Ethereum WGNK bridge path.
+- Rechecked OpenBroker, Gonka bridge and Pump.fun fee documentation; Kimi K2.6 is explicitly treated as deprecated and Pump creator-fee copy uses the current published fee schedule rather than an assumed flat rate after graduation.
+- Hardened frontend API parsing for empty and non-JSON responses without echoing raw proxy bodies; expired wallet sessions now clear ephemeral customer state.
+- Removed unused legacy calculator/bridge-planner helpers from the customer JavaScript bundle.
+- Added targeted SQLite indexes for reservation/review, wallet-state and global member-usage time queries.
+- Fixed documentation navigation overflow at 320px and expanded browser coverage to the new pages.
+
 ## 0.9.0 — customer controls and honest readiness
 
 ## 2026-09-21 — reliability and cleanup (local, unpublished)

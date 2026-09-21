@@ -35,6 +35,8 @@ class Store:
         CREATE TABLE IF NOT EXISTS rate_hits(bucket TEXT NOT NULL,created REAL NOT NULL);
         CREATE INDEX IF NOT EXISTS usage_time ON usage(created);
         CREATE INDEX IF NOT EXISTS usage_wallet ON usage(wallet,created);
+        CREATE INDEX IF NOT EXISTS usage_state ON usage(state);
+        CREATE INDEX IF NOT EXISTS usage_wallet_state ON usage(wallet,state);
         CREATE INDEX IF NOT EXISTS rate_time ON rate_hits(bucket,created);
         CREATE INDEX IF NOT EXISTS rate_expiry ON rate_hits(created);
         CREATE INDEX IF NOT EXISTS session_expiry ON sessions(expires);
