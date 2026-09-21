@@ -39,7 +39,7 @@ class SolanaRPC:
         self.client,self.url=client,url
         self.rps=rps;self.slots=asyncio.Semaphore(concurrency)
         self.gate=asyncio.Lock();self.last=0.0
-        self.genesis_lock=asyncio.Lock();self.genesis_at=0.0
+        self.genesis_lock=asyncio.Lock();self.genesis_at=None
 
     async def call(self,method,params=None):
         if method not in READ_METHODS:raise ValueError('Only allowlisted read-only RPC methods are supported')
@@ -59,7 +59,7 @@ class SolanaRPC:
 
     async def ensure_mainnet(self):
         async with self.genesis_lock:
-            if time.monotonic()-self.genesis_at<300:return
+            if self.genesis_at is not None and 0<=time.monotonic()-self.genesis_at<300:return
             if await self.call('getGenesisHash')!=MAINNET_GENESIS:raise ValueError('Wrong RPC network')
             self.genesis_at=time.monotonic()
 

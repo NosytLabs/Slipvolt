@@ -113,6 +113,12 @@ def test_mismatched_usage_lookup_never_claims_confirmed_cost(tmp_path):
 def test_native_wallet_balance_has_separate_scope(tmp_path):
     def upstream(r):
         if r.url.host=='rpc.gonka.gg':
+            if r.url.path=='/chain-rpc/status':
+                from datetime import datetime, timezone
+                return httpx.Response(200,json={'jsonrpc':'2.0','id':-1,'result':{
+                    'node_info':{'network':'gonka-mainnet'},'sync_info':{
+                        'latest_block_height':'100','latest_block_hash':'A'*64,
+                        'latest_block_time':datetime.now(timezone.utc).isoformat(),'catching_up':False}}})
             assert r.url.params['denom']=='ngonka'
             assert 'Authorization' not in r.headers
             return httpx.Response(200,json={'balance':{'denom':'ngonka','amount':'1230000000'}})
