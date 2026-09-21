@@ -22,6 +22,7 @@ jobs:
         with:
           node-version: '22'
       - run: pip install -r requirements-dev.txt
+      - run: test -x scripts/verify.sh
       - run: python -m pytest -q
       - run: node --test tests/*.test.cjs
       - run: node --check public/app.js && node --check public/admin/app.js && node --check public/admin/connections.js && node --check public/core.js && node --check public/account-tools.js && node --check public/request-examples.js && node --check public/admin/readiness.js && node --check operator/profit-core.js && node --check operator/calculate.cjs
