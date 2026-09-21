@@ -41,6 +41,7 @@ def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--env-file',default='.env')
     commands=parser.add_subparsers(dest='command',required=True)
+    commands.add_parser('doctor',help='Inspect local setup without network, database writes or secret output')
     commands.add_parser('init-env',help='Create a local .env with a new pepper; refuse overwrite')
     server=commands.add_parser('serve',help='Start the pilot; no real inference unless configured')
     server.add_argument('--host',default='127.0.0.1');server.add_argument('--port',type=int,default=8000)
@@ -62,6 +63,15 @@ def main(argv=None):
     reconcile.add_argument('--acknowledge-final',action='store_true',required=True)
     args=parser.parse_args(argv)
     try:
+        if args.command=='doctor':
+            from .doctor import report, invalid_report
+            try:
+                load_env(args.env_file)
+                result=report(args.env_file)
+            except (ValueError,OSError):
+                result=invalid_report('environment_syntax','Cannot read environment file. Check KEY=value syntax and permissions locally.')
+            print(json.dumps(result,indent=2))
+            return 2 if result['status']=='blocked' else 0
         if args.command=='init-env':
             contents=("APP_ENV=development\nAPP_ORIGIN=http://127.0.0.1:8000\nKEY_PEPPER="+secrets.token_hex(32)+
                 "\nDATABASE_PATH=data/gridraft.db\nOPENBROKER_API_KEY=\nADMIN_API_KEY="+secrets.token_urlsafe(32)+

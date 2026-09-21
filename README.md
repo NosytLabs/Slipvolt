@@ -7,6 +7,18 @@ The public experience stays simple. Operational complexity lives at **`/admin/`*
 > Status: prelaunch software. No project mint, treasury signing key, payment processor, token launch, automatic swap, or automatic developer payout is included. The code can make real OpenBroker calls once a dedicated server-side `OPENBROKER_API_KEY` is configured.
 
 
+## Functional setup and request tools (0.9.1)
+
+Use `python -m gridraft.cli doctor` for a secret-safe, local-only setup check.
+The playground now has an authenticated **Check request** action that uses shared
+admission logic without submitting inference or reserving allowance. `/status/`
+separates service configuration, model availability and GNK funding. The API tab
+includes a credential-free connection kit; a reviewed support report excludes
+prompts, keys, wallet addresses and private endpoints.
+
+See [functional setup and limits](docs/FUNCTIONAL-SETUP.md). These are implemented
+software features, not a claim of deployed service, paid inference or token launch.
+
 ## Customer documentation
 
 - [Help and API guide](public/help/index.html), served at `/help/`: wallet setup, supported endpoints, allowance resets, pricing examples, errors and key recovery.
@@ -192,8 +204,11 @@ No public deployment follows automatically from copying source into GitHub.
 
 ## Verification
 
+Latest local maintenance: [reliability fixes, measured optimizations and verification](docs/CLEANUP-2026-09-21.md).
+
+
 ```bash
-./scripts/verify.sh
+sh scripts/verify.sh
 ```
 
 The suite covers wallet auth, holder checks, key lifecycle, quota/rate concurrency, billing reservations/reconciliation, streaming, tool calls, current model metadata policy, admin authorization/config/user controls/GNK allocation/business ledger, frontend helpers and browser UI checks.

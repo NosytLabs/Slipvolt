@@ -1,5 +1,15 @@
 ## 0.9.0 — customer controls and honest readiness
 
+## 2026-09-21 — reliability and cleanup (local, unpublished)
+
+- Keep failed network snapshots stale; bound stale lifetime and validate dates.
+- Amortize bounded SQLite housekeeping, index wallet-session removal, and recover interrupted transactions.
+- Fix byte-fragmented SSE boundaries, stop at `[DONE]`, and batch text rendering.
+- Cancel obsolete request checks, clear stale success states and prevent button races.
+- Fail incomplete offline preview builds before replacing output; preserve prior setup/security work and all customer pages.
+- Verification: 290 Python tests, 93 Node tests and 336 browser assertions passed; see `CLEANUP-2026-09-21.md` for fixture and publication limits.
+
+
 Added wallet-wide key revocation, wallet-wide browser logout, configurable public brand, output budgeting, stop/copy/request-ID controls, environment-key SDK examples, and read-only admin launch readiness. Quotas and costs are preserved during credential revocation. Configured integrations do not count as proof of live acceptance. No payment, staking, treasury, or launch executor added.
 
 # 2026-09-20 — QuickNode readiness and budget safety

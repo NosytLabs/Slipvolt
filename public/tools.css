@@ -1,0 +1,15 @@
+/* Compact additions; the primary wallet -> key -> model path is unchanged. */
+.request-assist{padding:14px 0;border-top:1px solid var(--edge);display:grid;gap:10px}
+.request-assist .assist-buttons{display:flex;gap:10px;flex-wrap:wrap}
+#preflight-result{font-size:13px;line-height:1.7;color:var(--muted);margin:0;overflow-wrap:anywhere}
+#preflight-result[data-verdict="blocked"]{color:#ffb08a}
+#connection-details{padding-top:18px;border-top:1px solid var(--edge);margin-top:20px}
+#connection-details summary{cursor:pointer;font-size:14px;font-weight:650}
+#connection-kit,#support-report{font:12px/1.8 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:var(--panel);border-radius:10px;max-width:100%}
+#support-dialog{width:min(620px,calc(100% - 32px));max-height:85vh;overflow:auto}
+.status-main{padding:42px 0 70px}.status-head{max-width:780px;padding-bottom:32px}.status-head h1{font-size:clamp(34px,6vw,64px);line-height:1.08;letter-spacing:-2px;margin:18px 0}.status-head p{font-size:16px;line-height:1.8;color:var(--muted)}
+.status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.status-box{padding:26px;border:1px solid var(--edge);border-radius:18px;background:var(--panel);min-width:0}.status-box h2{font-size:20px;margin:10px 0 18px}.status-box p{font-size:14px;line-height:1.8;color:var(--muted)}
+.status-value{font-size:26px;font-weight:750;letter-spacing:-.7px;display:block;margin:12px 0}.status-detail{overflow-wrap:anywhere;font:12px/1.7 ui-monospace,monospace}.status-model{padding:16px 0;border-top:1px solid var(--edge)}.status-model strong{display:block;overflow-wrap:anywhere}.status-model span{display:block;color:var(--muted);font-size:13px;line-height:1.8}.status-foot{padding-top:30px;max-width:760px;line-height:1.8;color:var(--muted);font-size:14px}.status-foot a{text-decoration:underline}.status-actions{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:20px 0}.status-empty{color:var(--muted)}
+@media(max-width:700px){.status-grid{grid-template-columns:1fr}.status-box{padding:20px}.status-page .top{height:auto;min-height:90px;gap:12px;flex-wrap:wrap;padding-top:20px;padding-bottom:20px}.status-page .top nav{display:flex;gap:16px}.status-head h1{letter-spacing:-1px}}
+
+.request-assist .assist-buttons>.icon-button{flex:0 1 auto;border:1px solid var(--edge);border-radius:8px;padding:10px 14px;background:var(--panel)}

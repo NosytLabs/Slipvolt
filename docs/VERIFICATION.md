@@ -1,3 +1,5 @@
+> **Latest local maintenance:** see [2026-09-21 cleanup verification](CLEANUP-2026-09-21.md). The results and publication notes below are historical; they do not describe a new GitHub push.
+
 # Verification — September 20, 2026
 
 ## Current release
