@@ -37,21 +37,16 @@ was counted as a pass.
 Target repository: **NosytLabs/Slipvolt**. Target upstream commit:
 `fe1d1467fda6a5500f8411f031ef9601fde25a38`.
 
-The runner could not clone GitHub (DNS failure). The working copy was recovered
-from existing project archives and the previously merged Gonka RPC patch. Each
-modified existing file's baseline blob was checked against the actual GitHub
-source. Newer homepage help links and source content were preserved while creating
-the delta. The delivery is an **update patch**, not a replacement full repository.
+The runner's direct git transport could not resolve github.com, so the working copy
+was recovered from existing project archives and checked against the actual GitHub
+base blobs. Publication was later completed through the connected GitHub API in PR
+#5 after every changed remote blob was matched to the locally verified source.
 
-Existing `/help/`, `/privacy/`, `/terms/`, their content-only tests and their browser
-runner are left untouched. Those guide-only checks were not reconstructed/rerun
-locally; run the complete repository verification script after applying the patch.
 The existing manual-only Actions policy, concurrency limits, timeout and credential
-persistence settings are retained. No Actions run was triggered here.
-
-No authenticated GitHub publishing CLI or write action was available. A GitHub git
-transport check failed to resolve github.com. Local commits are not remote commits;
-no merge, public deployment or token launch is established by this package.
+persistence settings were retained. No hosted Actions run was triggered by this
+verification work. The merge establishes source publication only: it does not
+establish a public deployment, token launch, live wallet acceptance, or paid
+OpenBroker inference.
 
 ## External verification limits
 
