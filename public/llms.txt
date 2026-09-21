@@ -39,3 +39,6 @@ Planned metered pricing is not enabled checkout or automatic overage billing.
 At the proposed $0.075 input / $0.30 output per-million rates, an 80/20 mix costs
 $0.12 per million total tokens; 1 billion represents $120 hypothetical revenue.
 Holder usage is funded allowance, not booked metered revenue.
+
+Developer quickstart: /developers/ (customer key, live model IDs, request/error guidance).
+Funding explainer: /funding/ (project token vs native GNK vs WGNK and OpenBroker deposit flow).
