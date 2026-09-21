@@ -46,7 +46,7 @@ SNAPSHOT = [{'id':mid, **meta} for mid,meta in MODEL_POLICIES.items()]
 
 def canonical_host(authority, scheme):
     """Normalize an HTTP Host authority and reject userinfo/path tricks."""
-    if not authority or any(ch in authority for ch in '/?#\\\\\r\n\t '):
+    if not authority or any(ch in authority for ch in ('/','?','#','\\','\r','\n','\t',' ')):
         return None
     try:
         parsed=urlparse(f'{scheme}://{authority}')
