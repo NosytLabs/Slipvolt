@@ -7,6 +7,10 @@ The public experience stays simple. Operational complexity lives at **`/admin/`*
 > Status: prelaunch software. No project mint, treasury signing key, payment processor, token launch, automatic swap, or automatic developer payout is included. The code can make real OpenBroker calls once a dedicated server-side `OPENBROKER_API_KEY` is configured.
 
 
+## Security baseline (0.9.3)
+
+Production validates the Host authority against `APP_ORIGIN`, uses the routed ASGI path for API security decisions, and pins the current reviewed FastAPI/Starlette/cryptography/Pydantic security baseline. Run the manual GitHub test workflow after dependency changes; local fixture success is not a substitute for a clean dependency install.
+
 ## Functional setup and request tools (0.9.1)
 
 Use `python -m gridraft.cli doctor` for a secret-safe, local-only setup check.
@@ -165,7 +169,7 @@ Operationally:
 3. Verify `/v1/balance` with the dedicated `obk-` key.
 4. Use the admin console or `allocate-gnk` CLI only to mirror already-credited GNK into Slipvolt's local allowance ledger.
 
-HOT/NEAR Intents currently advertises native GNK routes from SOL/USDC and is the first route to quote-test. The official Ethereum WGNK bridge is a fallback with a critical same-signing-key Gonka destination rule. Always verify route, fees, min received and destination with a small test before moving operating funds.
+HOT/NEAR Intents currently advertises third-party native GNK routes from SOL/USDC and is the first route to quote-test. Gonka’s own FAQ still points users to the official Ethereum WGNK bridge, whose return path has a critical same-signing-key Gonka destination rule. Always verify route, fees, min received and destination with a small test before moving operating funds.
 
 See [operating model](docs/OPERATING-MODEL.md) and [research](docs/RESEARCH.md).
 
