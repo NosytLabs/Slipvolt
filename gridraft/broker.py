@@ -174,7 +174,7 @@ class Broker:
                 brokers=d['brokers'];rows=d['daily_usage']
                 if not isinstance(brokers,list) or not isinstance(rows,list) or len(rows)>30000 or len(brokers)>5000:raise ValueError()
                 if not rows:raise ValueError('No observations')
-                totals={'requests':0,'tokens':0,'cost_ngonka':0};dates=[];daily_map={}
+                totals={'requests':0,'tokens':0,'cost_ngonka':0};dates=[];daily={}
                 for row in rows:
                     day=row['date']
                     if not isinstance(day,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',day):raise ValueError()
@@ -182,13 +182,13 @@ class Broker:
                     dates.append(day)
                     requests=quantity(row['requests']);tokens=quantity(row['total_tokens']);cost=quantity(row['cost_ngonka'])
                     totals['requests']+=requests;totals['tokens']+=tokens;totals['cost_ngonka']+=cost
-                    aggregate=daily_map.setdefault(day,{'date':day,'requests':0,'tokens':0,'cost_ngonka':0})
-                    aggregate['requests']+=requests;aggregate['tokens']+=tokens;aggregate['cost_ngonka']+=cost
+                    point=daily.setdefault(day,{'day':day,'requests':0,'tokens':0,'cost_ngonka':0})
+                    point['requests']+=requests;point['tokens']+=tokens;point['cost_ngonka']+=cost
                 self._network={'scope':'OpenBroker network; not Slipvolt usage',
                     'source':BASE+'/api/registry/brokers','source_page':'https://openbroker.gonka.gg/stats',
                     'status':'available','observed_at':int(time.time()),'window_from':min(dates),'window_to':max(dates),
                     'active_brokers':sum(b.get('status')=='active' for b in brokers if isinstance(b,dict)),
-                    'totals':totals,'daily':[daily_map[key] for key in sorted(daily_map)],
+                    'totals':totals,'daily':[daily[day] for day in sorted(daily)],
                     'aggregation':'All returned registry usage rows; may differ from website filters.'}
                 self._network_at = time.monotonic()
                 self._network_failed = False
