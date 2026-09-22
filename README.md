@@ -10,7 +10,7 @@ The public experience stays simple. Operational complexity lives at **`/admin/`*
 
 ## Operations dashboard (0.9.4)
 
-`/admin/` now uses measured charts and a compact operational scorecard rather than decorative dashboard metrics. Charts are backed by settled local holder usage and the recorded cash ledger; the public `/status/` network trend is explicitly OpenBroker-wide data. Runtime settings have unsaved/discard state and local relationship checks before save. Empty/missing upstream data remains labelled unavailable rather than being converted to zero.
+The operator console now prioritizes measured service state instead of configuration chrome: local usage and realized cash-flow charts use only ledgered data, settings are grouped by task with saved/unsaved state, and failed secondary refreshes invalidate only the affected panel instead of leaving stale tables looking current. The public status page adds one source-labelled OpenBroker network trend from sanitized provider-wide daily aggregates; it is explicitly not Slipvolt traffic or uptime.
 
 ## Security baseline (0.9.3)
 
