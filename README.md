@@ -7,6 +7,11 @@ The public experience stays simple. Operational complexity lives at **`/admin/`*
 > Status: prelaunch software. No project mint, treasury signing key, payment processor, token launch, automatic swap, or automatic developer payout is included. The code can make real OpenBroker calls once a dedicated server-side `OPENBROKER_API_KEY` is configured.
 
 
+
+## Operations dashboard (0.9.4)
+
+`/admin/` now uses measured charts and a compact operational scorecard rather than decorative dashboard metrics. Charts are backed by settled local holder usage and the recorded cash ledger; the public `/status/` network trend is explicitly OpenBroker-wide data. Runtime settings have unsaved/discard state and local relationship checks before save. Empty/missing upstream data remains labelled unavailable rather than being converted to zero.
+
 ## Security baseline (0.9.3)
 
 Production validates the Host authority against `APP_ORIGIN`, uses the routed ASGI path for API security decisions, and pins the current reviewed FastAPI/Starlette/cryptography/Pydantic security baseline. Run the manual GitHub test workflow after dependency changes; local fixture success is not a substitute for a clean dependency install.
