@@ -39,8 +39,27 @@ from .member_gateway import MemberGateway
 from .gonka import NativeTreasury, validate_address
 from .model_policy import MODEL_POLICIES, DEFAULT_OUTPUT_TOKENS, HARD_OUTPUT_TOKENS, MAX_BODY_BYTES, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
 
+APP_VERSION = '0.9.3'
 UPSTREAM = 'https://api.openbroker.gonka.gg/v1'
 SNAPSHOT = [{'id':mid, **meta} for mid,meta in MODEL_POLICIES.items()]
+
+
+def canonical_host(authority, scheme):
+    """Normalize an HTTP Host authority and reject userinfo/path tricks."""
+    if not authority or any(ch in authority for ch in ('/','?','#','\\','\r','\n','\t',' ')):
+        return None
+    try:
+        parsed=urlparse(f'{scheme}://{authority}')
+        if parsed.username is not None or parsed.password is not None or not parsed.hostname:
+            return None
+        port=parsed.port
+    except ValueError:
+        return None
+    host=parsed.hostname.lower()
+    if ':' in host:
+        host=f'[{host}]'
+    default_port=443 if scheme=='https' else 80 if scheme=='http' else None
+    return host if port in (None,default_port) else f'{host}:{port}'
 
 
 @dataclass
@@ -382,6 +401,8 @@ def validate_settings(settings):
 def create_app(settings=None, db_path=':memory:', transport=None):
     settings=validate_settings(settings or Settings.from_env())
     store=Store(db_path,settings.pepper)
+    origin_parts=urlparse(settings.origin)
+    expected_host=canonical_host(origin_parts.netloc,origin_parts.scheme)
 
     def runtime():
         base={
@@ -414,7 +435,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         await client.aclose()
         store.close()
 
-    app=FastAPI(title='Slipvolt API',version='0.9.1',docs_url=None,redoc_url=None,lifespan=lifespan)
+    app=FastAPI(title='Slipvolt API',version=APP_VERSION,docs_url=None,redoc_url=None,lifespan=lifespan)
     app.state.store=store
     app.state.membership=membership
     app.add_middleware(BodyLimitMiddleware,limit=settings.max_request_bytes)
@@ -436,15 +457,21 @@ def create_app(settings=None, db_path=':memory:', transport=None):
 
     @app.middleware('http')
     async def safeguards(request,call_next):
-        # The inner ASGI middleware bounds actual bytes, including chunked input.
+        # Security decisions use ASGI's routed path, not a URL reconstructed from Host.
+        # This also avoids malformed Host values influencing API path checks.
+        path=str(request.scope.get('path') or '')
         response=None
-        if request.method in ('POST','PUT','PATCH'):
+        if settings.production:
+            supplied_host=canonical_host(request.headers.get('host') or '',origin_parts.scheme)
+            if not expected_host or supplied_host != expected_host:
+                response=JSONResponse({'error':{'message':'Invalid Host header'}},status_code=400)
+        if response is None and request.method in ('POST','PUT','PATCH'):
             try:
                 if int(request.headers.get('content-length','0'))>settings.max_request_bytes:
                     response=JSONResponse({'error':{'message':'Request too large'}},status_code=413)
             except ValueError:
                 response=JSONResponse({'error':{'message':'Invalid Content-Length'}},status_code=400)
-        if response is None and request.url.path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
+        if response is None and path.startswith('/api/') and request.method not in ('GET','HEAD','OPTIONS'):
             if request.headers.get('origin')!=settings.origin:
                 response=JSONResponse({'error':{'message':'Origin check failed'}},status_code=403)
         if response is None:
@@ -455,7 +482,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         response.headers['Content-Security-Policy']="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
         response.headers['Permissions-Policy']='camera=(), microphone=(), geolocation=()'
         if settings.production: response.headers['Strict-Transport-Security']='max-age=31536000'
-        if request.url.path.startswith(('/api/','/v1/')): response.headers['Cache-Control']='no-store'
+        if path.startswith(('/api/','/v1/')): response.headers['Cache-Control']='no-store'
         rate_wallet=getattr(request.state,'rate_wallet',None)
         if rate_wallet and settings.access_mode=='holder_allowance':
             for name,value in membership.rate_headers(rate_wallet,runtime()['wallet_rpm']).items():
@@ -582,7 +609,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     @app.get('/api/status')
     async def status():
         cfg=runtime()
-        return {'brand':settings.site_name,'version':'0.9.2','stage':'pilot implementation','provider_configured':bool(settings.upstream_key),
+        return {'brand':settings.site_name,'version':APP_VERSION,'stage':'pilot implementation','provider_configured':bool(settings.upstream_key),
             'billing_review_required':store.needs_review() or membership.pool()['reconciliation_required'],
             'capabilities':{'request_preflight':settings.access_mode=='holder_allowance','status_page':True,'streaming':settings.access_mode=='holder_allowance','tools':True,'usage_export':True,'wallet_auth':True,'holder_checks':settings.access_mode in ('holder','holder_allowance')},
             'daily_budget_nusd':settings.daily_budget_nusd,'wallet_daily_budget_nusd':settings.wallet_daily_budget_nusd,

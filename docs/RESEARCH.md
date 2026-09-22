@@ -108,3 +108,13 @@ The business ledger only records explicit realized entries. It does not count to
 - https://platform.minimax.io/subscribe/token-plan?tab=api-enterprise
 - https://docs.z.ai/guides/overview/pricing
 - https://api-docs.deepseek.com/quick_start/pricing/
+
+## September 21, 2026 follow-up
+
+- OpenBroker's current docs continue to expose an OpenAI-compatible `/v1` surface and GNK-native billing. The documented DevShard protocol rate is 10 ngonka per token per attempt, with retries/racing commonly increasing effective usage; the project therefore keeps a conservative local allowance factor rather than treating the protocol rate as an all-in guarantee.
+- Gonka's FAQ still identifies the official Ethereum WGNK contract/bridge as `0x972a7a92d92796a98801a8818bcf91f1648f2f68` and warns that coins claiming to be GNK on Solana are not official GNK.
+- HOT now advertises HOT Exchange / NEAR Intents swaps from SOL, USDC and other assets into native GNK. This is treated only as a third-party route candidate because it is not the canonical Gonka bridge and availability/fees can change.
+- Pump.fun's current holder-rewards mode redirects the creator fee to holders, leaving no creator fee to claim. Slipvolt's proposed holder AI utility therefore remains an application-level benefit and does not use Pump holder-rewards mode when creator fees are intended to replenish compute.
+- Dependency review found the previous `cryptography==46.0.4` and Starlette 0.50.x baseline behind patched 2026 security releases. The runtime pins now target cryptography 50.0.1 and Starlette 1.6.0 with FastAPI 0.141.1.
+
+References: https://openbroker.gonka.gg/docs · https://gonka.ai/docs/FAQ/ · https://gonka.ai/docs/cross-chain-transfers/ethereum-bridge/overview/ · https://hot-labs.org/chains/gonka · https://pump.fun/docs/fees · https://github.com/pump-fun/pump-public-docs/blob/main/docs/HOLDER_REWARDS_README.md

@@ -159,3 +159,11 @@ def test_funding_guide_separates_project_token_native_gnk_and_wgnk():
     text = read_page('funding/index.html')
     for term in ('native GNK', 'WGNK', '0x972a7a92d92796a98801a8818bcf91f1648f2f68', 'same key', 'OpenBroker deposit address'):
         assert term.lower() in text.lower()
+
+
+def test_funding_guide_explains_direct_gnk_route_and_pump_reward_tradeoff():
+    text = read_page('funding/index.html').lower()
+    assert 'hot' in text and 'near intents' in text
+    assert 'third-party' in text
+    assert 'holder rewards' in text
+    assert 'creator fee' in text and 'holders' in text

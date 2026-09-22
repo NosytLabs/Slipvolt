@@ -373,3 +373,35 @@ def test_broker_balance_above_one_gnk_is_valid(tmp_path):
         _,h=funded((app,c))
         response=c.post('/v1/chat/completions',json=BODY,headers=h)
         assert response.status_code==200,response.text
+
+
+def test_production_rejects_unexpected_or_malformed_host(tmp_path):
+    app=create_app(Settings(origin='https://slipvolt.example',production=True,pepper='x'*32),str(tmp_path/'host.db'),httpx.MockTransport(provider))
+    with TestClient(app,base_url='https://slipvolt.example') as c:
+        good=c.get('/api/status',headers={'host':'slipvolt.example'})
+        assert good.status_code == 200
+        for host in ('evil.example','slipvolt.example/forged-path','slipvolt.example@evil.example'):
+            bad=c.get('/api/status',headers={'host':host})
+            assert bad.status_code == 400
+            assert bad.json()['error']['message'] == 'Invalid Host header'
+
+
+def test_production_host_check_normalizes_default_https_port(tmp_path):
+    app=create_app(Settings(origin='https://slipvolt.example:443',production=True,pepper='x'*32),str(tmp_path/'host-port.db'),httpx.MockTransport(provider))
+    with TestClient(app,base_url='https://slipvolt.example') as c:
+        assert c.get('/api/status',headers={'host':'slipvolt.example'}).status_code == 200
+
+
+def test_production_host_check_keeps_nondefault_port_strict(tmp_path):
+    app=create_app(Settings(origin='https://slipvolt.example:8443',production=True,pepper='x'*32),str(tmp_path/'host-port-strict.db'),httpx.MockTransport(provider))
+    with TestClient(app,base_url='https://slipvolt.example:8443') as c:
+        assert c.get('/api/status',headers={'host':'slipvolt.example:8443'}).status_code == 200
+        assert c.get('/api/status',headers={'host':'slipvolt.example'}).status_code == 400
+
+
+def test_openapi_and_status_report_the_same_release_version(tmp_path):
+    app=create_app(Settings(pepper='x'*32),str(tmp_path/'version.db'),httpx.MockTransport(provider))
+    with TestClient(app) as c:
+        schema_version=c.get('/openapi.json').json()['info']['version']
+        status_version=c.get('/api/status').json()['version']
+        assert schema_version == status_version
