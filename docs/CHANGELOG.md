@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.9.4 — 2026-09-21
+
+- Added measured admin charts for settled holder usage, per-model local token mix, and recorded daily net cash; empty windows stay explicit rather than rendering fake zeros.
+- Added a source-labelled public OpenBroker network token trend from `/api/network`; provider-wide activity is never presented as Slipvolt customer usage.
+- Reworked the operator HUD into a compact measured scorecard and analytics grid, with full model IDs preserved in the health table.
+- Grouped runtime settings by traffic, allowance/funding, generation and reference economics; added unsaved-state tracking, local validation and one-click discard.
+- Partial admin refreshes now fail independently so a users/audit/connections error does not blank the operations overview.
+- Admin 401s lock the console and clear the in-memory credential instead of leaving an apparently authenticated surface.
+- Provider/network summaries now expose bounded, sanitized daily aggregates used by the charts; local and cash ledgers fill missing UTC days with zero records.
+- Added `chart.js` to verification/CI syntax checks and expanded browser coverage for charts, settings state and status-source boundaries.
+
 ## 0.9.3 — 2026-09-21
 
 - Patched the production Host/path boundary: reject unexpected/malformed Host authorities and make API security decisions from the routed ASGI path.
