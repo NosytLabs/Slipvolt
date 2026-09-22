@@ -201,11 +201,21 @@ class Store:
 
     def business_summary(self,days=30):
         if type(days) is not int or not 1<=days<=3650:raise ValueError('Invalid period')
-        start=time.time()-days*86400
+        today=datetime.now(timezone.utc).date();start=datetime.combine(today-timedelta(days=days-1),datetime.min.time(),tzinfo=timezone.utc).timestamp()
         with self.lock:
             row=self.db.execute('SELECT COALESCE(SUM(CASE WHEN amount_nusd>0 THEN amount_nusd ELSE 0 END),0) revenue,COALESCE(SUM(CASE WHEN amount_nusd<0 THEN -amount_nusd ELSE 0 END),0) expense,COALESCE(SUM(amount_nusd),0) net,COUNT(*) entries FROM business_entries WHERE created>=?',(start,)).fetchone()
             recent=[dict(r) for r in self.db.execute('SELECT reference,category,amount_nusd,note,created FROM business_entries WHERE created>=? ORDER BY created DESC LIMIT 100',(start,))]
-        return {**dict(row),'days':days,'recent':recent}
+            rows=[dict(r) for r in self.db.execute("""SELECT strftime('%Y-%m-%d',created,'unixepoch') day,
+                COALESCE(SUM(CASE WHEN amount_nusd>0 THEN amount_nusd ELSE 0 END),0) revenue,
+                COALESCE(SUM(CASE WHEN amount_nusd<0 THEN -amount_nusd ELSE 0 END),0) expense,
+                COALESCE(SUM(amount_nusd),0) net
+                FROM business_entries WHERE created>=? GROUP BY day ORDER BY day""",(start,))]
+        mapping={item['day']:item for item in rows}
+        daily=[]
+        for i in range(days-1,-1,-1):
+            day=(today-timedelta(days=i)).strftime('%Y-%m-%d');item=mapping.get(day,{'day':day,'revenue':0,'expense':0,'net':0})
+            daily.append(item)
+        return {**dict(row),'days':days,'recent':recent,'daily':daily}
 
     def challenge(self, wallet, message, challenge_id):
         with self.lock:
