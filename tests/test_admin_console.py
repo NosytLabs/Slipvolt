@@ -77,6 +77,7 @@ def test_duplicate_allocation_at_balance_limit_is_idempotent(tmp_path):
         assert b.json()['allocated'] is False
         assert b.json()['pool']['allocated_ngonka']==1_000_000_000
 
+
 def test_business_overview_includes_daily_realized_cashflow(tmp_path):
     app=create_app(settings(),str(tmp_path/'biz-daily.db'),httpx.MockTransport(handler))
     with TestClient(app) as c:
