@@ -1,7 +1,7 @@
 """Browser checks for the operator console using intercepted HTTP fixtures.
 No real provider, wallet, money, or admin secret is used.
 """
-import json, os
+import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1]
@@ -23,7 +23,6 @@ def run():
         for width in (320,390,768,1280,1600):
             page=b.new_page(viewport={'width':width,'height':900});errors=[];fail_secondary={'requests':False};fail_overview={'value':False};page.on('pageerror',lambda e:errors.append(str(e)))
             def route(r):
-                nonlocal passed
                 u=r.request.url;path=u.split('admin.test',1)[-1]
                 if path=='/admin/' or path=='/admin':return r.fulfill(status=200,body=HTML,content_type='text/html')
                 if path=='/admin/styles.css':return r.fulfill(status=200,body=CSS,content_type='text/css')

@@ -3,14 +3,14 @@
 Tries native localhost navigation first. If the browser runner blocks navigation,
 uses a local HTTP adapter, recording that native browser transport was NOT tested.
 """
-import base64, json, os, socket, sys, tempfile, threading, time
+import json, os, socket, sys, tempfile, threading, time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT),str(ROOT/'tests'),str(ROOT/'scripts')]
 import httpx, uvicorn
 from playwright.sync_api import sync_playwright, expect
 from gridraft.app import create_app
-from test_gridraft import KEY, WALLET, MODEL
+from test_gridraft import KEY, WALLET
 from test_membership import member_settings, handler
 from test_member_edges import sse
 from package_preview import build
