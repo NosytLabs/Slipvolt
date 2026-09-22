@@ -28,8 +28,8 @@ def run():
             html=(ROOT/'public/status/index.html').read_text()
             for name in ('styles.css','tools.css'):
                 html=html.replace(f'<link rel="stylesheet" href="../{name}">','<style>'+(ROOT/'public'/name).read_text()+'</style>')
-            html=html.replace('<link rel="icon" href="../favicon.svg">','').replace('<script src="app.js" defer></script>','')
-            html=html.replace('</body>','<script>'+(ROOT/'public/status/app.js').read_text()+'</script></body>')
+            html=html.replace('<link rel="icon" href="../favicon.svg">','').replace('<script src="../chart.js" defer></script>','').replace('<script src="app.js" defer></script>','')
+            html=html.replace('</body>','<script>'+(ROOT/'public/chart.js').read_text()+'</script><script>'+(ROOT/'public/status/app.js').read_text()+'</script></body>')
             browser=p.chromium.launch(executable_path=os.getenv('CHROMIUM_PATH') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path),headless=True,args=['--no-sandbox'])
             for width in (320,390,768,1280,1920):
                 failing=[False];paths=[];errors=[]
@@ -37,6 +37,9 @@ def run():
                     if path not in ('/api/status','/api/models','/api/network','/api/treasury'):raise ValueError('Unexpected route')
                     paths.append(path)
                     if failing[0]:return {'status':503,'body':'{}'}
+                    if path=='/api/network':
+                        data={'status':'available','scope':'OpenBroker network; not Slipvolt usage','stale':False,'totals':{'requests':24,'tokens':48000,'cost_ngonka':720000},'daily':[{'day':'2026-09-18','requests':6,'tokens':12000,'cost_ngonka':180000},{'day':'2026-09-19','requests':8,'tokens':16000,'cost_ngonka':240000},{'day':'2026-09-20','requests':10,'tokens':20000,'cost_ngonka':300000}]}
+                        return {'status':200,'body':json.dumps(data)}
                     r=client.get(path);return {'status':r.status_code,'body':r.text}
                 page=browser.new_page(viewport={'width':width,'height':1000})
                 page.on('pageerror',lambda e:errors.append(str(e)))
@@ -49,11 +52,14 @@ def run():
                 check(f'{width}: catalog fallback is labelled','Snapshot only' in page.locator('#catalog-source').inner_text())
                 check(f'{width}: no provider balance invented',page.locator('#provider-value').inner_text()=='Not published')
                 check(f'{width}: all four actual app endpoints read',len(set(paths))==4)
+                check(f'{width}: measured provider chart rendered',page.locator('#network-chart svg').count()==1)
+                check(f'{width}: provider chart is explicitly not Slipvolt activity','not Slipvolt traffic or uptime' in page.locator('#network-chart').locator('xpath=..').inner_text())
                 if width in (390,1280):page.screenshot(path=str(OUT/f'status-{width}.png'),full_page=True)
                 failing[0]=True;page.locator('#status-refresh').click()
                 expect(page.locator('#service-state')).to_have_text('Unavailable')
                 check(f'{width}: failure clears old catalog',page.locator('#status-models').count()==1 and page.locator('#status-models').inner_text()=='')
                 check(f'{width}: failure clears old funding',page.locator('#reserve-value').inner_text()=='Unavailable' and page.locator('#provider-value').inner_text()=='Unavailable')
+                check(f'{width}: failure clears old provider chart',page.locator('#network-chart svg').count()==0 and page.locator('#network-chart-empty').is_visible())
                 check(f'{width}: refresh enabled after failure',page.locator('#status-refresh').is_enabled())
                 check(f'{width}: no script exceptions',not errors)
                 page.close()
