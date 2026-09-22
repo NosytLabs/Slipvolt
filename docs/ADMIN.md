@@ -18,6 +18,19 @@ Run the server and open `/admin/`. The console uses a dedicated `ADMIN_API_KEY`;
 - Cash ledger net, configured-rate compute contribution reference, and approximate OpenBroker runway at recent provider spend.
 - Operator audit log for config, user, key, funding and business-ledger changes.
 
+
+## Measured dashboard and settings
+
+The overview charts use only recorded data from the selected 7/30/90-day window:
+
+- **Local usage** is settled Slipvolt holder traffic from the local usage ledger.
+- **Model mix** is local AI-token usage by model; OpenBroker network traffic is not mixed in.
+- **Daily net cash** is the manual business ledger only. It is not token market cap, projected creator fees or modeled revenue.
+
+The top scorecard shows OpenBroker spendable GNK, local funded AI-token capacity, settled local tokens/requests, active wallets, unresolved reviews, provider cost and approximate runway. Missing upstream data renders as unavailable rather than zero.
+
+Settings are grouped by traffic, allowance/funding, generation and reference economics. Editing a field marks the form **Unsaved changes**; refreshes do not silently overwrite those edits. **Discard** restores the last server-confirmed configuration. Local validation mirrors the server's critical relationships (default output <= hard output, shared daily allowance >= wallet allowance, global concurrency >= wallet concurrency) before a save is sent.
+
 ## GNK fund accounting
 
 `POST /api/admin/allowance/fund` does **not transfer cryptocurrency**. It only allocates GNK that the operator confirms is already credited to the dedicated OpenBroker account, and refuses a local allocation above the current spendable provider balance.
