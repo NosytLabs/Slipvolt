@@ -7,10 +7,10 @@ from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[1]
 HTML=(ROOT/'public/admin/index.html').read_text();CSS=(ROOT/'public/admin/styles.css').read_text();JS=(ROOT/'public/admin/app.js').read_text()
 CONJS=(ROOT/'public/admin/connections.js').read_text()
-READJS=(ROOT/'public/admin/readiness.js').read_text()
+READJS=(ROOT/'public/admin/readiness.js').read_text();CHARTJS=(ROOT/'public/chart.js').read_text()
 ADMIN='fixture-admin-key'
 config={'wallet_rpm':30,'wallet_concurrency':4,'global_rpm':300,'global_concurrency':50,'holder_daily_tokens':250000,'global_daily_tokens':1000000,'default_output_tokens':4096,'max_output_tokens':16384,'retail_input_nusd_per_token':75,'retail_output_nusd_per_token':300,'retail_input_per_million_usd':0.075,'retail_output_per_million_usd':0.3,'ngonka_per_token_budget':25,'maintenance_mode':False,'disabled_models':[],'gnk_usd':'0.164'}
-overview={'window_days':30,'fund_capacity':{'budget_ngonka_per_token':25,'local_available_ai_tokens':3580000000,'wallet_days_at_full_allowance':14320,'broker_available_ai_tokens':3600000000},'provider_balance':{'available_ngonka':90000000000},'provider_usage':{'totals':{'cost_ngonka':3000000000}},'local':{'tokens':2500000,'users':18},'pool':{'allocated_ngonka':100000000000,'budget_spent_ngonka':10000000000,'reserved_ngonka':500000000,'available_budget_ngonka':89500000000},'provider_status':{'status':'ok','models':[{'model':'MiniMaxAI/MiniMax-M2.7','status':'healthy','routable':True,'capacity_available_pct':90,'load_pct':10,'in_flight_requests':4},{'model':'deepseek-ai/DeepSeek-V4-Flash-0731','status':'healthy','routable':True,'capacity_available_pct':60,'load_pct':40,'in_flight_requests':20}]},'provider_errors':[],'business':{'revenue_usd':3000,'expense_usd':900,'cash_net_usd':2100,'recent':[{'category':'creator_fee','amount_usd':3000,'reference':'claim-1','created':1789780000}]},'economics':{'metered_revenue_reference_usd':450},'runway_days_at_recent_provider_spend':900,'config':config}
+overview={'window_days':30,'fund_capacity':{'budget_ngonka_per_token':25,'local_available_ai_tokens':3580000000,'wallet_days_at_full_allowance':14320,'broker_available_ai_tokens':3600000000},'provider_balance':{'available_ngonka':90000000000},'provider_usage':{'totals':{'cost_ngonka':3000000000}},'local':{'tokens':2500000,'users':18,'daily':[{'day':'2026-09-18','requests':4,'tokens':400000,'cost_ngonka':6000000},{'day':'2026-09-19','requests':6,'tokens':700000,'cost_ngonka':10500000},{'day':'2026-09-20','requests':9,'tokens':1400000,'cost_ngonka':21000000}]},'pool':{'allocated_ngonka':100000000000,'budget_spent_ngonka':10000000000,'reserved_ngonka':500000000,'available_budget_ngonka':89500000000},'provider_status':{'status':'ok','models':[{'model':'MiniMaxAI/MiniMax-M2.7','status':'healthy','routable':True,'capacity_available_pct':90,'load_pct':10,'in_flight_requests':4},{'model':'deepseek-ai/DeepSeek-V4-Flash-0731','status':'healthy','routable':True,'capacity_available_pct':60,'load_pct':40,'in_flight_requests':20}]},'provider_errors':[],'business':{'revenue_usd':3000,'expense_usd':900,'cash_net_usd':2100,'daily':[{'day':'2026-09-18','revenue_usd':500,'expense_usd':100,'net_usd':400},{'day':'2026-09-19','revenue_usd':1000,'expense_usd':300,'net_usd':700},{'day':'2026-09-20','revenue_usd':1500,'expense_usd':500,'net_usd':1000}],'recent':[{'category':'creator_fee','amount_usd':3000,'reference':'claim-1','created':1789780000}]},'economics':{'metered_revenue_reference_usd':450},'runway_days_at_recent_provider_spend':900,'config':config}
 users={'data':[{'wallet':'11111111111111111111111111111111','active_keys':1,'requests':10,'tokens':10000,'cost_ngonka':150000,'disabled':False}]}
 audit={'data':[{'id':1,'action':'config_updated','target':'runtime','note':'fixture','created':1789780000}]}
 keys={'data':[{'id':'k1','prefix':'sv_fixture','name':'default','created':1789780000,'revoked':False}]}
@@ -21,7 +21,7 @@ def run():
     with sync_playwright() as p:
         b=p.chromium.launch(executable_path=os.getenv('CHROMIUM_PATH') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path),headless=True,args=['--no-sandbox'])
         for width in (320,390,768,1280,1600):
-            page=b.new_page(viewport={'width':width,'height':900});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+            page=b.new_page(viewport={'width':width,'height':900});errors=[];fail_secondary={'requests':False};fail_overview={'value':False};page.on('pageerror',lambda e:errors.append(str(e)))
             def route(r):
                 nonlocal passed
                 u=r.request.url;path=u.split('admin.test',1)[-1]
@@ -39,17 +39,21 @@ def run():
                     if path=='/api/admin/swap/quote':return r.fulfill(status=200,json={'asset':'SOL','input_amount':'0.1','expected_usdc':'12.50','minimum_usdc':'12.4375','local_expires_at':__import__('time').time()+15,'notice':'Read-only quote. No transaction was sent.'})
                     if path.startswith('/api/admin/config'):
                         return r.fulfill(status=200,json=config)
-                    if path.startswith('/api/admin/overview'):return r.fulfill(status=200,json=overview)
+                    if path.startswith('/api/admin/overview'):
+                        if fail_overview['value']:return r.fulfill(status=503,json={'error':{'message':'fixture overview outage'}})
+                        return r.fulfill(status=200,json=overview)
                     if path.startswith('/api/admin/audit'):return r.fulfill(status=200,json=audit)
                     if '/keys/' in path and r.request.method=='DELETE':return r.fulfill(status=200,json={'revoked':True})
                     if path.endswith('/keys'):return r.fulfill(status=200,json=keys)
                     if path.startswith('/api/admin/users'):return r.fulfill(status=200,json=users if r.request.method=='GET' else users['data'][0])
-                    if path.startswith('/api/admin/requests'):return r.fulfill(status=200,json=requests)
+                    if path.startswith('/api/admin/requests'):
+                        if fail_secondary['requests']:return r.fulfill(status=503,json={'error':{'message':'fixture request outage'}})
+                        return r.fulfill(status=200,json=requests)
                     if path.startswith('/api/admin/allowance/fund'):return r.fulfill(status=200,json={'allocated':True,'crypto_transferred':False})
                     if path.startswith('/api/admin/business'):return r.fulfill(status=201,json={'recorded':True})
                 return r.fulfill(status=404,body='not found')
             page.route('http://admin.test/**',route)
-            markup=HTML.replace('<head>','<head><base href="http://admin.test/admin/">',1).replace('<link rel="stylesheet" href="/admin/styles.css">','<style>'+CSS+'</style>').replace('<script src="/admin/app.js" defer></script>','').replace('<script src="/admin/connections.js" defer></script>','').replace('<script src="/admin/readiness.js" defer></script>','').replace('</body>','<script>'+READJS+'</script><script>'+JS+'</script><script>'+CONJS+'</script></body>')
+            markup=HTML.replace('<head>','<head><base href="http://admin.test/admin/">',1).replace('<link rel="stylesheet" href="/admin/styles.css">','<style>'+CSS+'</style>').replace('<script src="/chart.js" defer></script>','').replace('<script src="/admin/app.js" defer></script>','').replace('<script src="/admin/connections.js" defer></script>','').replace('<script src="/admin/readiness.js" defer></script>','').replace('</body>','<script>'+CHARTJS+'</script><script>'+READJS+'</script><script>'+JS+'</script><script>'+CONJS+'</script></body>')
             page.set_content(markup,wait_until='load')
             assert page.locator('#login').is_visible();passed+=1
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth');passed+=1
@@ -58,6 +62,12 @@ def run():
             assert page.get_by_text('MiniMaxAI/MiniMax-M2.7',exact=True).count()==1;passed+=1
             assert page.locator('#price-input').input_value()=='0.075';passed+=1
             assert page.locator('[data-k=ngonka_per_token_budget]').input_value()=='25';passed+=1
+            assert page.locator('#usage-chart svg').count()==1 and page.locator('#business-chart svg').count()==1;passed+=1
+            assert page.locator('#config-state').inner_text()=='Saved' and page.locator('#save-config').is_disabled();passed+=1
+            page.locator('[data-k=wallet_rpm]').fill('31')
+            assert page.locator('#config-state').inner_text()=='Unsaved changes' and page.locator('#save-config').is_enabled();passed+=1
+            page.locator('[data-k=wallet_rpm]').fill('30')
+            page.evaluate('markConfigClean()')
             assert page.get_by_text('3.58B',exact=False).count()>=1;passed+=1
             assert page.get_by_text('config_updated',exact=True).count()==1;passed+=1
             page.locator('#connection-list .connection-row').first.wait_for()
@@ -85,6 +95,16 @@ def run():
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth');passed+=1
             page.evaluate('(d)=>render(d)', {**overview,'provider_usage':None})
             assert 'Unavailable' in page.locator('#metrics .metric').filter(has_text='provider cost').inner_text();passed+=1
+            fail_secondary['requests']=True
+            page.evaluate('load()')
+            page.wait_for_function("document.querySelector('#requests').textContent.includes('Requests unavailable')")
+            assert 'fixture request outage' in page.locator('#requests').inner_text();passed+=1
+            assert page.locator('#users table').count()==1 and page.locator('#audit-log table').count()==1;passed+=1
+            fail_overview['value']=True
+            page.evaluate("load().catch(()=>{})")
+            page.wait_for_function("document.querySelector('#metrics').textContent.includes('Overview unavailable')")
+            assert page.locator('#config-state').inner_text()=='Refresh failed' and page.locator('#save-config').is_disabled();passed+=1
+            assert page.locator('[data-k=wallet_rpm]').is_disabled();passed+=1
             assert not errors, errors;passed+=1
             page.close()
         b.close()
