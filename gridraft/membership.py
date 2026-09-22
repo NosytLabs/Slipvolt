@@ -167,7 +167,8 @@ class Membership:
 
 
     def admin_summary(self,days=30):
-        integer(days,1,3650);start=time.time()-days*86400
+        integer(days,1,3650)
+        today=datetime.now(timezone.utc).date();start=datetime.combine(today-timedelta(days=days-1),datetime.min.time(),tzinfo=timezone.utc).timestamp()
         with self.store.lock:
             total=dict(self.db.execute("""SELECT COUNT(*) requests,COUNT(DISTINCT wallet) users,COALESCE(SUM(tokens),0) tokens,COALESCE(SUM(cost_ngonka),0) cost_ngonka,
                 COALESCE(SUM(CASE WHEN state='needs_review' THEN 1 ELSE 0 END),0) needs_review,
@@ -178,6 +179,9 @@ class Membership:
             daily=[dict(r) for r in self.db.execute("""SELECT strftime('%Y-%m-%d',created,'unixepoch') day,COUNT(*) requests,COALESCE(SUM(tokens),0) tokens,COALESCE(SUM(cost_ngonka),0) cost_ngonka
                 FROM member_usage WHERE created>=? GROUP BY day ORDER BY day""",(start,))]
             keys=self.db.execute('SELECT COUNT(*) FROM api_keys WHERE revoked=0').fetchone()[0]
+        mapping={row['day']:row for row in daily}
+        daily=[mapping.get((today-timedelta(days=i)).strftime('%Y-%m-%d'),
+            {'day':(today-timedelta(days=i)).strftime('%Y-%m-%d'),'requests':0,'tokens':0,'cost_ngonka':0}) for i in range(days-1,-1,-1)]
         return {**total,'active_keys':keys,'models':models,'daily':daily,'days':days}
 
     def admin_requests(self,limit=100):

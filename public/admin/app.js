@@ -44,8 +44,57 @@ function table(headers, rows) {
   return `<table><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('') || `<tr><td colspan="${headers.length}" class="muted">No records</td></tr>`}</tbody></table>`;
 }
 
+function renderPanelError(id, message) {
+  const node=$(id); if (!node) return;
+  node.innerHTML=`<div class="panel-error">${esc(message)}</div>`;
+}
+function markConfigDirty() {
+  if (!$('config-state')) return;
+  $('config-state').textContent='Unsaved changes';
+  $('config-state').className='pill warn';
+  $('save-config').disabled=false;
+}
+function markConfigClean() {
+  if (!$('config-state')) return;
+  $('config-state').textContent='Saved';
+  $('config-state').className='pill good';
+  $('save-config').disabled=true;
+}
+function setSettingsEnabled(enabled) {
+  document.querySelectorAll('#settings-form input, #settings-form select, #price-input, #price-output').forEach(input=>{input.disabled=!enabled;});
+}
+function renderOverviewUnavailable(message) {
+  snapshot=null;
+  renderPanelError('metrics','Overview unavailable. '+(message||'Refresh failed.'));
+  for(const id of ['usage-chart','business-chart'])$(id)?.replaceChildren();
+  if($('usage-chart-empty')){$('usage-chart-empty').hidden=false;$('usage-chart-empty').textContent='Usage trend unavailable.';}
+  if($('business-chart-empty')){$('business-chart-empty').hidden=false;$('business-chart-empty').textContent='Cash-flow trend unavailable.';}
+  $('provider-state').textContent='unavailable';$('provider-state').className='pill bad';
+  renderPanelError('model-health','Provider health unavailable.');renderPanelError('fund-summary','GNK fund summary unavailable.');
+  $('business-net').textContent='Unavailable';renderPanelError('business-summary','Business summary unavailable.');renderPanelError('business-table','Business ledger unavailable.');
+  $('config-state').textContent='Refresh failed';$('config-state').className='pill bad';$('save-config').disabled=true;setSettingsEnabled(false);
+}
+function renderCharts(overview) {
+  const charts=globalThis.SlipvoltCharts;
+  const usageRows=Array.isArray(overview.local?.daily)?overview.local.daily:[];
+  const businessRows=Array.isArray(overview.business?.daily)?overview.business.daily:[];
+  const usageOk=!!charts?.renderLine?.($('usage-chart'),usageRows,{x:'day',series:[{key:'tokens',label:'AI tokens'}],ariaLabel:'Daily local AI tokens',format:'compact'});
+  $('usage-chart-empty').hidden=usageOk;
+  const businessOk=!!charts?.renderBars?.($('business-chart'),businessRows,{x:'day',series:[{key:'revenue_usd',label:'Revenue'},{key:'expense_usd',label:'Expenses'}],ariaLabel:'Daily realized revenue and expenses',format:'usd'});
+  $('business-chart-empty').hidden=businessOk;
+}
+async function loadSecondary(fn, id, label, countId) {
+  try { await fn(); return true; }
+  catch (error) {
+    renderPanelError(id, label+' unavailable. '+(error.message||'Refresh failed.'));
+    if (countId) $(countId).textContent='Unavailable';
+    return false;
+  }
+}
+
 function render(overview) {
   snapshot = overview;
+  setSettingsEnabled(true);
   const providerBalance = overview.provider_balance;
   const providerTotals = overview.provider_usage?.totals || {};
   const local = overview.local || {};
@@ -90,6 +139,7 @@ function render(overview) {
   });
   $('price-input').value = config.retail_input_per_million_usd;
   $('price-output').value = config.retail_output_per_million_usd;
+  markConfigClean();
 
   const business = overview.business;
   $('business-net').textContent = usd(business.cash_net_usd);
@@ -104,6 +154,8 @@ function render(overview) {
   $('business-table').innerHTML = table(['Date', 'Category', 'Amount', 'Reference'], (business.recent || []).slice(0, 20).map(entry =>
     `<tr><td>${new Date(entry.created * 1000).toLocaleDateString()}</td><td>${esc(entry.category)}</td><td class="${entry.amount_usd >= 0 ? 'good' : 'bad'}">${usd(entry.amount_usd)}</td><td>${esc(entry.reference)}</td></tr>`
   ));
+
+  renderCharts(overview);
 
   document.querySelectorAll('.model-toggle').forEach(button => {
     button.onclick = async () => {
@@ -170,13 +222,28 @@ async function loadAudit() {
 
 async function load() {
   const days = Number($('window-days').value) || 30;
-  const [overview] = await Promise.all([
-    api('/api/admin/overview?days=' + days),
-    loadUsers(), loadRequests(), loadAudit(),
-  ]);
+  let overview;
+  try { overview = await api('/api/admin/overview?days=' + days); }
+  catch (error) { renderOverviewUnavailable(error.message); throw error; }
   render(overview);
-  if (typeof loadConnections === 'function') await loadConnections();
-  if (typeof loadReadiness === 'function') await loadReadiness();
+  await Promise.all([
+    loadSecondary(loadUsers,'users','Users','user-count'),
+    loadSecondary(loadRequests,'requests','Requests'),
+    loadSecondary(loadAudit,'audit-log','Audit log'),
+  ]);
+  const optional=[];
+  if (typeof loadConnections === 'function') optional.push(loadConnections().catch(error=>notice('Connections: '+error.message)));
+  if (typeof loadReadiness === 'function') optional.push(loadReadiness().catch(error=>notice('Readiness: '+error.message)));
+  await Promise.all(optional);
+}
+
+function validateConfigPayload(payload) {
+  const required=['wallet_rpm','wallet_concurrency','global_rpm','global_concurrency','holder_daily_tokens','global_daily_tokens','default_output_tokens','max_output_tokens','retail_input_nusd_per_token','retail_output_nusd_per_token','ngonka_per_token_budget'];
+  for(const key of required)if(!Number.isFinite(payload[key])||payload[key]<=0)throw new Error('All numeric policy fields must be positive numbers.');
+  if(payload.default_output_tokens>payload.max_output_tokens)throw new Error('Default output cannot exceed max output.');
+  if(payload.global_daily_tokens<payload.holder_daily_tokens)throw new Error('Global allowance cannot be smaller than per-wallet allowance.');
+  if(payload.global_concurrency<payload.wallet_concurrency)throw new Error('Global concurrency cannot be smaller than wallet concurrency.');
+  return payload;
 }
 
 function configPayload(disabled) {
@@ -187,7 +254,7 @@ function configPayload(disabled) {
   payload.retail_input_nusd_per_token = Math.round(Number($('price-input').value) * 1000);
   payload.retail_output_nusd_per_token = Math.round(Number($('price-output').value) * 1000);
   payload.disabled_models = disabled ?? snapshot?.config?.disabled_models ?? [];
-  return payload;
+  return validateConfigPayload(payload);
 }
 async function saveConfig(disabled) {
   return api('/api/admin/config', { method: 'PUT', body: JSON.stringify(configPayload(disabled)) });
@@ -211,7 +278,8 @@ $('admin-key').addEventListener('keydown', event => { if (event.key === 'Enter')
 $('logout').onclick = () => { writeSession(''); location.reload(); };
 $('refresh').onclick = () => load().catch(error => notice(error.message));
 $('window-days').onchange = () => load().catch(error => notice(error.message));
-$('save-config').onclick = async () => { try { await saveConfig(); await load(); notice('Runtime policy saved.'); } catch (error) { notice(error.message); } };
+$('save-config').onclick = async () => { try { await saveConfig(); await load(); notice('Runtime policy saved.'); } catch (error) { markConfigDirty(); notice(error.message); } };
+document.querySelectorAll('#settings-form input, #settings-form select, #price-input, #price-output').forEach(input=>input.addEventListener('input',markConfigDirty));
 $('fund-form').onsubmit = async event => {
   event.preventDefault();
   try {
@@ -226,8 +294,8 @@ $('business-form').onsubmit = async event => {
     event.target.reset(); await load(); notice('Business ledger entry recorded.');
   } catch (error) { notice(error.message); }
 };
-$('user-search-btn').onclick = () => loadUsers().catch(error => notice(error.message));
-$('user-search').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); loadUsers().catch(error => notice(error.message)); } });
+$('user-search-btn').onclick = () => loadSecondary(loadUsers,'users','Users','user-count');
+$('user-search').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); loadSecondary(loadUsers,'users','Users','user-count'); } });
 $('user-detail-close').onclick = () => { $('user-detail').hidden = true; selectedWallet = ''; };
 $('user-policy-form').onsubmit = async event => {
   event.preventDefault();

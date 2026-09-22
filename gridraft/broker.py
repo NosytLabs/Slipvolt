@@ -100,7 +100,29 @@ class Broker:
         clean={}
         for key in ('requests','errors','prompt_tokens','completion_tokens','total_tokens','cost_ngonka'):
             if key in totals:clean[key]=quantity(totals[key])
-        return {'totals':clean,'models':d.get('models',[]) if isinstance(d.get('models'),list) else [],'days':d.get('days',[]) if isinstance(d.get('days'),list) else []}
+        def clean_row(row, date_key=False):
+            if not isinstance(row,dict):raise ValueError('Invalid usage row')
+            model=row.get('model')
+            if not isinstance(model,str) or not 1<=len(model)<=200 or not model.isprintable():raise ValueError('Invalid usage model')
+            out={'model':model}
+            if date_key:
+                day=row.get('date')
+                if not isinstance(day,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',day):raise ValueError('Invalid usage date')
+                date.fromisoformat(day);out={'date':day,**out}
+            for key in ('requests','errors','total_tokens','cost_ngonka'):
+                out[key]=quantity(row.get(key,0))
+            return out
+        raw_models=d.get('models',[])
+        raw_days=d.get('days',[])
+        if not isinstance(raw_models,list) or not isinstance(raw_days,list) or len(raw_models)>500 or len(raw_days)>10000:
+            raise ValueError('Invalid usage rows')
+        models=[clean_row(row) for row in raw_models]
+        rows=[clean_row(row,True) for row in raw_days]
+        daily_map={}
+        for row in rows:
+            aggregate=daily_map.setdefault(row['date'],{'date':row['date'],'requests':0,'errors':0,'total_tokens':0,'cost_ngonka':0})
+            for key in ('requests','errors','total_tokens','cost_ngonka'):aggregate[key]+=row[key]
+        return {'totals':clean,'models':models,'days':rows,'daily':[daily_map[key] for key in sorted(daily_map)]}
 
     async def balance(self):
         d=await self.read('/v1/balance',True)
@@ -152,20 +174,22 @@ class Broker:
                 brokers=d['brokers'];rows=d['daily_usage']
                 if not isinstance(brokers,list) or not isinstance(rows,list) or len(rows)>30000 or len(brokers)>5000:raise ValueError()
                 if not rows:raise ValueError('No observations')
-                totals={'requests':0,'tokens':0,'cost_ngonka':0};dates=[]
+                totals={'requests':0,'tokens':0,'cost_ngonka':0};dates=[];daily={}
                 for row in rows:
                     day=row['date']
                     if not isinstance(day,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',day):raise ValueError()
                     date.fromisoformat(day)  # Regex shape alone accepts February 30.
                     dates.append(day)
-                    totals['requests']+=quantity(row['requests'])
-                    totals['tokens']+=quantity(row['total_tokens'])
-                    totals['cost_ngonka']+=quantity(row['cost_ngonka'])
+                    requests=quantity(row['requests']);tokens=quantity(row['total_tokens']);cost=quantity(row['cost_ngonka'])
+                    totals['requests']+=requests;totals['tokens']+=tokens;totals['cost_ngonka']+=cost
+                    point=daily.setdefault(day,{'day':day,'requests':0,'tokens':0,'cost_ngonka':0})
+                    point['requests']+=requests;point['tokens']+=tokens;point['cost_ngonka']+=cost
                 self._network={'scope':'OpenBroker network; not Slipvolt usage',
                     'source':BASE+'/api/registry/brokers','source_page':'https://openbroker.gonka.gg/stats',
                     'status':'available','observed_at':int(time.time()),'window_from':min(dates),'window_to':max(dates),
                     'active_brokers':sum(b.get('status')=='active' for b in brokers if isinstance(b,dict)),
-                    'totals':totals,'aggregation':'All returned registry usage rows; may differ from website filters.'}
+                    'totals':totals,'daily':[daily[day] for day in sorted(daily)],
+                    'aggregation':'All returned registry usage rows; may differ from website filters.'}
                 self._network_at = time.monotonic()
                 self._network_failed = False
             except Exception:

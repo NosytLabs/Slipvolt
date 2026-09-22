@@ -201,3 +201,21 @@ def test_runtime_security_dependencies_are_patched():
     assert pins.get('starlette') == '1.6.0'
     assert pins.get('fastapi') == '0.141.1'
     assert pins.get('pydantic') == '2.13.5'
+
+def test_network_exposes_sanitized_daily_series_and_aggregates_same_day():
+    async def run():
+        broker = Broker(None)
+        broker.read = AsyncMock(return_value={
+            'brokers': [{'status': 'active', 'wallet_address': 'never expose'}],
+            'daily_usage': [
+                {'date': '2026-09-20', 'requests': 3, 'total_tokens': 400, 'cost_ngonka': 6000, 'wallet_address': 'x'},
+                {'date': '2026-09-20', 'requests': 2, 'total_tokens': 100, 'cost_ngonka': 1500},
+                {'date': '2026-09-21', 'requests': 4, 'total_tokens': 800, 'cost_ngonka': 12000},
+            ]})
+        result = await broker.network()
+        assert result['daily'] == [
+            {'day': '2026-09-20', 'requests': 5, 'tokens': 500, 'cost_ngonka': 7500},
+            {'day': '2026-09-21', 'requests': 4, 'tokens': 800, 'cost_ngonka': 12000},
+        ]
+        assert 'wallet_address' not in str(result['daily'])
+    asyncio.run(run())

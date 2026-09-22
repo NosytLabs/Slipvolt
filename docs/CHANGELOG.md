@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.4 — 2026-09-22
+
+- Added dependency-free SVG charts for measured local AI usage, realized business cash flow, and source-labelled OpenBroker network requests. No synthetic uptime, revenue projections or decorative gauges were added.
+- Normalized local and business trend windows to exact UTC calendar days with explicit zero-activity rows.
+- Reworked admin settings into traffic, allowance/output, and pricing/control groups with saved/unsaved state and client-side cross-field validation backed by the existing server validation.
+- Made admin refresh failures honest: a failed overview invalidates the old overview and disables settings; failed users/requests/audit refreshes clear only the affected panel.
+- Moved connection diagnostics below the operating overview so readiness, budgets, measured usage and cash state are visible first.
+- Added chart/browser regression coverage and kept the public wallet → key → model flow unchanged.
+
 ## 0.9.3 — 2026-09-21
 
 - Patched the production Host/path boundary: reject unexpected/malformed Host authorities and make API security decisions from the routed ASGI path.

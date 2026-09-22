@@ -7,6 +7,11 @@ The public experience stays simple. Operational complexity lives at **`/admin/`*
 > Status: prelaunch software. No project mint, treasury signing key, payment processor, token launch, automatic swap, or automatic developer payout is included. The code can make real OpenBroker calls once a dedicated server-side `OPENBROKER_API_KEY` is configured.
 
 
+
+## Operations dashboard (0.9.4)
+
+The operator console now prioritizes measured service state instead of configuration chrome: local usage and realized cash-flow charts use only ledgered data, settings are grouped by task with saved/unsaved state, and failed secondary refreshes invalidate only the affected panel instead of leaving stale tables looking current. The public status page adds one source-labelled OpenBroker network trend from sanitized provider-wide daily aggregates; it is explicitly not Slipvolt traffic or uptime.
+
 ## Security baseline (0.9.3)
 
 Production validates the Host authority against `APP_ORIGIN`, uses the routed ASGI path for API security decisions, and pins the current reviewed FastAPI/Starlette/cryptography/Pydantic security baseline. Run the manual GitHub test workflow after dependency changes; local fixture success is not a substitute for a clean dependency install.

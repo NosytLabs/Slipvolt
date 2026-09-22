@@ -31,5 +31,5 @@ jobs:
       - run: python scripts/check_holder_ui.py
       - run: python scripts/check_admin_ui.py
       - run: python scripts/check_content_ui.py
-      - run: node --check public/request-tools.js && node --check public/launch-tools.js && node --check public/status/app.js
+      - run: node --check public/chart.js && node --check public/request-tools.js && node --check public/launch-tools.js && node --check public/status/app.js
       - run: python scripts/check_status_ui.py

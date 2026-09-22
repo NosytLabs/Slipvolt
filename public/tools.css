@@ -13,3 +13,7 @@
 @media(max-width:700px){.status-grid{grid-template-columns:1fr}.status-box{padding:20px}.status-page .top{height:auto;min-height:90px;gap:12px;flex-wrap:wrap;padding-top:20px;padding-bottom:20px}.status-page .top nav{display:flex;gap:16px}.status-head h1{letter-spacing:-1px}}
 
 .request-assist .assist-buttons>.icon-button{flex:0 1 auto;border:1px solid var(--edge);border-radius:8px;padding:10px 14px;background:var(--panel)}
+
+/* Source-labelled measured chart used only for OpenBroker network activity. */
+.status-chart{min-height:185px;margin:16px 0 4px;overflow:hidden}.status-chart .sv-chart-svg{display:block;width:100%;height:auto;min-height:175px}.status-chart .sv-grid{stroke:var(--edge);stroke-width:1}.status-chart .sv-axis{fill:var(--muted);font:10px ui-monospace,monospace}.status-chart .sv-series{fill:none;stroke:var(--green,#32d583);stroke-width:2.4;vector-effect:non-scaling-stroke}.status-chart .sv-series-1{stroke:var(--green,#32d583)}
+@media(max-width:700px){.status-chart{min-height:155px}.status-chart .sv-chart-svg{min-height:145px}}

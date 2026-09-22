@@ -1,4 +1,4 @@
-# Security and operational limits — Slipvolt 0.9.3
+# Security and operational limits — Slipvolt 0.9.4
 
 
 ## HTTP boundary and dependency baseline

@@ -39,7 +39,7 @@ from .member_gateway import MemberGateway
 from .gonka import NativeTreasury, validate_address
 from .model_policy import MODEL_POLICIES, DEFAULT_OUTPUT_TOKENS, HARD_OUTPUT_TOKENS, MAX_BODY_BYTES, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
 
-APP_VERSION = '0.9.3'
+APP_VERSION = '0.9.4'
 UPSTREAM = 'https://api.openbroker.gonka.gg/v1'
 SNAPSHOT = [{'id':mid, **meta} for mid,meta in MODEL_POLICIES.items()]
 
@@ -968,6 +968,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         return {'days':summary['days'],'entries':summary['entries'],
             'revenue_usd':usd(summary['revenue']),'expense_usd':usd(summary['expense']),
             'cash_net_usd':usd(summary['net']),
+            'daily':[{'day':row['day'],'revenue_usd':usd(row['revenue']),'expense_usd':usd(row['expense']),'net_usd':usd(row['net'])} for row in summary['daily']],
             'recent':[{**row,'amount_usd':usd(row['amount_nusd'])} for row in summary['recent']]}
 
     @app.get('/api/admin/overview')
