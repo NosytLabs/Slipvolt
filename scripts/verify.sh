@@ -4,6 +4,7 @@ set -eu
 cd "$(dirname "$0")/.."
 python -m pytest -q
 node --test tests/*.test.cjs
+node --check public/chart.js
 node --check public/request-tools.js
 node --check public/launch-tools.js
 node --check public/status/app.js
