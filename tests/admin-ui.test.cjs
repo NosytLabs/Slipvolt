@@ -12,7 +12,6 @@ test('admin renders fund capacity, not just raw GNK',()=>assert.ok(js.includes('
 test('public model picker surfaces live availability',()=>{const publicJs=fs.readFileSync(path.join(__dirname,'../public/app.js'),'utf8');assert.ok(publicJs.includes('availability'));assert.ok(publicJs.includes('temporarily unavailable'));});
 test('admin has credential-free connection diagnostics and quote-only operations',()=>{assert.ok(html.includes('connections-check'));assert.ok(html.includes('quote-form'));assert.ok(html.includes('connections.js'));});
 test('admin master credential is not persisted in web storage',()=>{assert.equal(js.includes('sessionStorage.setItem'),false);assert.equal(js.includes('localStorage.setItem'),false);});
-
 test('admin dashboard includes measured charts and grouped settings without decorative widgets',()=>{
   const css=fs.readFileSync(path.join(__dirname,'../public/admin/styles.css'),'utf8');
   assert.ok(html.includes('/chart.js'));
