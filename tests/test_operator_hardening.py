@@ -194,3 +194,12 @@ def test_request_nesting_over_32_is_rejected_before_dispatch(tmp_path):
         assert r.status_code==400,r.text
         assert 'nesting' in r.text.lower()
         assert calls['chat']==0
+
+def test_admin_overview_daily_series_is_exact_utc_window_with_zero_days(tmp_path):
+    app=create_app(settings(),str(tmp_path/'daily-window.db'),httpx.MockTransport(member_handler))
+    with TestClient(app) as c:
+        d=c.get('/api/admin/overview?days=7',headers=auth()).json()
+        assert len(d['local']['daily'])==7
+        assert len(d['business']['daily'])==7
+        assert all(set(row)=={'day','requests','tokens','cost_ngonka'} for row in d['local']['daily'])
+        assert all(row['requests']==0 and row['tokens']==0 for row in d['local']['daily'])
