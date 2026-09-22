@@ -59,3 +59,13 @@ Connections reports configured/not-configured states without returning credentia
 RPC/WSS keys and installed Metis API bases belong in server configuration, never in this console. WSS and 0x are not active adapters. See [QuickNode setup](QUICKNODE.md).
 
 A missing provider cost appears as **Unavailable**, not zero. Configured-price usage value is labeled as modeled value, not collected revenue. Provider usage summaries can omit epoch adjustment lines: reconcile full account movements before formal financial decisions. GNK allocation retries with the same reference/amount are idempotent; a different amount on an existing reference is rejected. Per-wallet allowance overrides now affect actual admission, not just displayed entitlement.
+
+## Measured charts and refresh semantics
+
+The console charts only recorded data:
+
+- **AI usage** uses the local native-GNK member ledger and fills the selected UTC calendar window with explicit zero-usage days.
+- **Business cash flow** uses only realized entries from the business ledger; market cap, unclaimed creator fees and projected token volume are excluded.
+- The public `/status/` trend uses sanitized OpenBroker public-registry daily request totals and is labelled provider-wide, not Slipvolt activity or uptime.
+
+A failed overview refresh clears the old overview and disables settings until a current snapshot loads. Failures in users, requests or the audit log clear only that panel so one secondary outage does not take down the whole console or leave stale rows looking current. Policy fields show **Saved** or **Unsaved changes**, and obvious cross-field conflicts are rejected in the browser before the server performs its authoritative validation.
