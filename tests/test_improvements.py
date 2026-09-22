@@ -2,6 +2,7 @@
 import csv
 import io
 import json
+import os
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -204,4 +205,6 @@ def test_env_initializer_includes_documented_budget_defaults(tmp_path):
     assert 'DAILY_BUDGET_NUSD=10000000000' in lines
     assert 'WALLET_DAILY_BUDGET_NUSD=2000000000' in lines
     assert 'DATABASE_PATH=data/gridraft.db' in lines
-    assert path.stat().st_mode & 0o777==0o600
+    # POSIX only: Windows os.stat cannot observe the 0o600 mode from os.open.
+    if os.name != 'nt':
+        assert path.stat().st_mode & 0o777==0o600

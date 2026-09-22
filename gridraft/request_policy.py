@@ -5,7 +5,6 @@ for every model. It may reject a request that the model could otherwise fit.
 No prompt is silently truncated and no customer is billed from this estimate.
 """
 import json
-import math
 import re
 
 TEMPLATE_DENY = {'chat_template','tokenize','tools','documents','conversation',

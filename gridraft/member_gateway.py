@@ -1,5 +1,5 @@
-from .request_policy import input_budget
 """Treasury-funded text completions. Credentials remain on the server."""
+from .request_policy import input_budget
 from .http_boundary import isolated_request
 import asyncio
 import json

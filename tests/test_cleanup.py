@@ -1,5 +1,6 @@
 """Cache correctness and bounded hot-path maintenance; no external services."""
 import asyncio
+import os
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -187,6 +188,11 @@ def test_hot_usage_queries_have_targeted_indexes(store):
 def test_verify_script_is_executable_for_documented_command():
     from pathlib import Path
     script = Path(__file__).resolve().parents[1] / 'scripts' / 'verify.sh'
+    # POSIX only: Windows os.stat never reports the git-indexed 100755 exec bit
+    # (Windows ACLs don't map onto POSIX mode bits). CI (Ubuntu) enforces it.
+    if os.name == 'nt':
+        assert script.exists(), './scripts/verify.sh is documented and must exist'
+        return
     assert script.stat().st_mode & 0o111, './scripts/verify.sh is documented and must be executable'
 
 
