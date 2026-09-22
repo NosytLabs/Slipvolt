@@ -76,3 +76,14 @@ def test_duplicate_allocation_at_balance_limit_is_idempotent(tmp_path):
         assert b.status_code==200,b.text
         assert b.json()['allocated'] is False
         assert b.json()['pool']['allocated_ngonka']==1_000_000_000
+
+def test_business_overview_includes_daily_realized_cashflow(tmp_path):
+    app=create_app(settings(),str(tmp_path/'biz-daily.db'),httpx.MockTransport(handler))
+    with TestClient(app) as c:
+        assert c.post('/api/admin/business',headers={**auth(),**ORIGIN},json={'category':'creator_fee','amount_usd':'100','reference':'fee-daily','note':''}).status_code==201
+        assert c.post('/api/admin/business',headers={**auth(),**ORIGIN},json={'category':'hosting','amount_usd':'-20','reference':'host-daily','note':''}).status_code==201
+        daily=c.get('/api/admin/overview?days=7',headers=auth()).json()['business']['daily']
+        assert len(daily)==7
+        assert daily[-1]['revenue_usd']==100
+        assert daily[-1]['expense_usd']==20
+        assert daily[-1]['net_usd']==80
