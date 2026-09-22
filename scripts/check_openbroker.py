@@ -14,7 +14,11 @@ import httpx
 from gridraft.cli import load_env
 from gridraft.broker import BASE, Broker
 
-MODELS=('MiniMaxAI/MiniMax-M2.7','deepseek-ai/DeepSeek-V4-Flash-0731','zai-org/GLM-5.3-Flash')
+# DeepSeek-V4-Flash is the proven-available model (live 200). GLM-5.3-Flash is
+# popular and 429s under contention; MiniMax on the default account has returned
+# 'participant request budget exhausted'. Order puts the reliable model first;
+# every listed model is still checked.
+MODELS=('deepseek-ai/DeepSeek-V4-Flash-0731','zai-org/GLM-5.3-Flash','MiniMaxAI/MiniMax-M2.7')
 
 
 async def check(args):
