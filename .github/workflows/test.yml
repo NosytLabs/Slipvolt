@@ -15,6 +15,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - run: test -x scripts/verify.sh
       - uses: actions/setup-python@v6
         with:
           python-version: '3.13'
@@ -22,14 +23,5 @@ jobs:
         with:
           node-version: '22'
       - run: pip install -r requirements-dev.txt
-      - run: test -x scripts/verify.sh
-      - run: python -m pytest -q
-      - run: node --test tests/*.test.cjs
-      - run: node --check public/app.js && node --check public/admin/app.js && node --check public/admin/connections.js && node --check public/core.js && node --check public/account-tools.js && node --check public/request-examples.js && node --check public/admin/readiness.js && node --check operator/profit-core.js && node --check operator/calculate.cjs
-      - run: python -m compileall -q gridraft scripts
       - run: python -m playwright install --with-deps chromium
-      - run: python scripts/check_holder_ui.py
-      - run: python scripts/check_admin_ui.py
-      - run: python scripts/check_content_ui.py
-      - run: node --check public/chart.js && node --check public/request-tools.js && node --check public/launch-tools.js && node --check public/status/app.js
-      - run: python scripts/check_status_ui.py
+      - run: sh scripts/verify.sh
