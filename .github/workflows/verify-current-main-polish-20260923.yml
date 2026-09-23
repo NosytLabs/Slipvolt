@@ -1,5 +1,5 @@
 name: Verify current-main polish once
-# phase: admin-green
+# phase: full-green
 on:
   push:
     branches: [fix/current-main-polish-20260923]
@@ -12,7 +12,7 @@ concurrency:
 jobs:
   regression:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
         with:
@@ -25,6 +25,5 @@ jobs:
           node-version: '22'
       - run: pip install -r requirements-dev.txt
       - run: python -m playwright install --with-deps chromium
-      - run: python -m pytest tests/test_cleanup.py -q
-      - run: node --test tests/admin-ui.test.cjs
-      - run: python scripts/check_admin_ui.py
+      - run: test -x scripts/verify.sh
+      - run: sh scripts/verify.sh
