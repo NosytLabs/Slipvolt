@@ -1,5 +1,5 @@
 #!/bin/sh
-# Install requirements-dev.txt and Chromium. No paid services used.
+# Requires requirements-dev.txt and Chromium to be installed. No paid services used.
 set -eu
 cd "$(dirname "$0")/.."
 python -m pytest -q
@@ -17,7 +17,7 @@ node --check public/account-tools.js
 node --check public/admin/readiness.js
 node --check operator/profit-core.js
 node --check operator/calculate.cjs
-python -m compileall -q gridraft
+python -m compileall -q gridraft scripts
 python scripts/check_holder_ui.py
 python scripts/check_admin_ui.py
 python scripts/check_status_ui.py
