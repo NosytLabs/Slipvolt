@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.5 — 2026-09-23
+
+- Fixed admin refresh isolation: an overview outage no longer prevents Users, Requests, Audit, Connections, or Readiness from refreshing independently.
+- Preserved unsaved policy edits across background/manual refreshes and added an explicit **Discard** action backed by the latest server-confirmed configuration.
+- Fixed stale user-detail state after policy edits followed by API-key actions.
+- Added measured request, active-wallet, and reconciliation-review counts to the operator scorecard; moved configured-rate usage value into the business summary where it belongs.
+- Repaired the README verification link and added a regression that validates local README links.
+- Removed the unreachable projection-only burn planner and its self-contained tests; no CLI, API, or public product surface depended on it.
+- Refreshed OpenBroker setup guidance: current broker accounts require at least 100 GNK to activate; per-model smoke checks no longer encode one account's historical reliability as a global assumption.
+
 ## 0.9.4 — 2026-09-22
 
 - Added dependency-free SVG charts for measured local AI usage, realized business cash flow, and source-labelled OpenBroker network requests. No synthetic uptime, revenue projections or decorative gauges were added.
