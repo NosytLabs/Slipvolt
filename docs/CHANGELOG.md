@@ -8,6 +8,7 @@
 - Made admin refresh failures honest: a failed overview invalidates the old overview and disables settings; failed users/requests/audit refreshes clear only the affected panel.
 - Moved connection diagnostics below the operating overview so readiness, budgets, measured usage and cash state are visible first.
 - Added chart/browser regression coverage and kept the public wallet → key → model flow unchanged.
+- September 23 maintenance removed two undocumented planning-only HTTP routes, dropped completed unreferenced plan files, and consolidated duplicate admin guidance; holder/API behavior is unchanged.
 
 ## 0.9.3 — 2026-09-21
 
