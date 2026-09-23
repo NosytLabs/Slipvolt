@@ -27,7 +27,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .economics import WGNK, estimate, number, route_plan
+from .economics import WGNK, number
 from .security import decode_address, digest, verify_signature
 from .store import Store
 from .membership import Membership
@@ -655,15 +655,6 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         return {'object':'list','data':[{'id':m['id'],'object':'model','created':0,'owned_by':'openbroker',
             'context_length':m.get('context_length'),'max_completion_tokens':m.get('max_completion_tokens')} for m in rows]}
 
-    @app.get('/api/economics')
-    async def economics(gnk_usd:str='1',ngonka_per_token:str='10',attempts:str='1.5',retail:str='0.12',millions:str='10'):
-        try: return estimate(gnk_usd,ngonka_per_token,attempts,retail,millions)
-        except ValueError as exc: error(str(exc))
-
-    @app.get('/api/route')
-    async def route(source:str='SOL',target:str='GNK',amount:str='1',source_mint:str|None=None):
-        try: return route_plan(source,target,amount,source_mint)
-        except ValueError as exc: error(str(exc))
 
     @app.post('/api/auth/challenge')
     async def challenge(body:ChallengeInput,request:Request):
