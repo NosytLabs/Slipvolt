@@ -1,5 +1,5 @@
 name: Verify current-main polish once
-# phase: full-green
+# phase: final-green
 on:
   push:
     branches: [fix/current-main-polish-20260923]
