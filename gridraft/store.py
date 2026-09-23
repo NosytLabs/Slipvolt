@@ -217,24 +217,6 @@ class Store:
             daily.append(item)
         return {**dict(row),'days':days,'recent':recent,'daily':daily}
 
-    def burn_projection(self, days=30, *, enabled=False, gnk_usd='1.0',
-                        burn_share_pct=50, reserve_nusd=0, treasury_address=''):
-        """Project a burn from the ledgered business summary (safe, read-only).
-
-        Delegates to ``gridraft.burn.burn_plan`` and records an audit event.
-        This never signs, broadcasts, or changes supply; it only models what a
-        burn would be, so the operator can review the intent before anything
-        (external, human-held) could act.
-        """
-        from .burn import burn_plan
-        summary = self.business_summary(days)
-        plan = burn_plan(summary, enabled=enabled, burn_share_pct=burn_share_pct,
-                         reserve_nusd=reserve_nusd, gnk_usd=gnk_usd,
-                         treasury_address=treasury_address)
-        self.audit('burn_projection', str(plan['burn_gnk'] or 0),
-                   f"enabled={enabled};executable={plan['executable']}")
-        return plan
-
     def challenge(self, wallet, message, challenge_id):
         with self.lock:
             self.db.execute('INSERT INTO challenges VALUES(?,?,?,?)',(challenge_id,wallet,message,time.time()+300))
