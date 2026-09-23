@@ -6,6 +6,8 @@ let key = '';
 function writeSession(value){ key=value; }
 let snapshot = null;
 let selectedWallet = '';
+let configDirty = false;
+let serverConfig = null;
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
@@ -49,19 +51,39 @@ function renderPanelError(id, message) {
   node.innerHTML=`<div class="panel-error">${esc(message)}</div>`;
 }
 function markConfigDirty() {
+  configDirty=true;
   if (!$('config-state')) return;
   $('config-state').textContent='Unsaved changes';
   $('config-state').className='pill warn';
   $('save-config').disabled=false;
+  $('discard-config').disabled=false;
 }
 function markConfigClean() {
+  configDirty=false;
   if (!$('config-state')) return;
   $('config-state').textContent='Saved';
   $('config-state').className='pill good';
   $('save-config').disabled=true;
+  $('discard-config').disabled=true;
 }
 function setSettingsEnabled(enabled) {
   document.querySelectorAll('#settings-form input, #settings-form select, #price-input, #price-output').forEach(input=>{input.disabled=!enabled;});
+}
+function applyConfig(config) {
+  if (!config) return;
+  document.querySelectorAll('#settings-form [data-k]').forEach(input => {
+    const value=config[input.dataset.k];
+    if (input.type==='checkbox') input.checked=!!value;
+    else input.value=value ?? '';
+  });
+  $('price-input').value=config.retail_input_per_million_usd;
+  $('price-output').value=config.retail_output_per_million_usd;
+}
+function discardConfig() {
+  if (!serverConfig) return;
+  applyConfig(serverConfig);
+  markConfigClean();
+  notice('Unsaved policy changes discarded.');
 }
 function renderOverviewUnavailable(message) {
   snapshot=null;
@@ -72,7 +94,7 @@ function renderOverviewUnavailable(message) {
   $('provider-state').textContent='unavailable';$('provider-state').className='pill bad';
   renderPanelError('model-health','Provider health unavailable.');renderPanelError('fund-summary','GNK fund summary unavailable.');
   $('business-net').textContent='Unavailable';renderPanelError('business-summary','Business summary unavailable.');renderPanelError('business-table','Business ledger unavailable.');
-  $('config-state').textContent='Refresh failed';$('config-state').className='pill bad';$('save-config').disabled=true;setSettingsEnabled(false);
+  $('config-state').textContent='Refresh failed';$('config-state').className='pill bad';$('save-config').disabled=true;$('discard-config').disabled=true;setSettingsEnabled(false);
 }
 function renderCharts(overview) {
   const charts=globalThis.SlipvoltCharts;
@@ -94,6 +116,7 @@ async function loadSecondary(fn, id, label, countId) {
 
 function render(overview) {
   snapshot = overview;
+  serverConfig=JSON.parse(JSON.stringify(overview.config || {}));
   setSettingsEnabled(true);
   const providerBalance = overview.provider_balance;
   const providerTotals = overview.provider_usage?.totals || {};
@@ -107,9 +130,11 @@ function render(overview) {
     metric('OpenBroker available', providerBalance ? gnk(providerBalance.available_ngonka) : 'Unavailable', providerBalance ? '' : 'bad'),
     metric('Funded AI tokens', capacity.local_available_ai_tokens == null ? '—' : num(capacity.local_available_ai_tokens)),
     metric('Member-days funded', capacity.wallet_days_at_full_allowance == null ? '—' : num(capacity.wallet_days_at_full_allowance)),
+    metric(`${days}d requests`, num(local.requests)),
+    metric(`${days}d wallets`, num(local.users)),
+    metric('Needs review', num(local.needs_review), Number(local.needs_review || 0) ? 'warn' : ''),
     metric(`${days}d local tokens`, num(local.tokens)),
     metric(`${days}d provider cost`, Number.isFinite(providerTotals.cost_ngonka) ? gnk(providerTotals.cost_ngonka) : 'Unavailable'),
-    metric('Usage value · not collected revenue', usd(economics.metered_revenue_reference_usd)),
     metric('Runway', overview.runway_days_at_recent_provider_spend == null ? '—' : overview.runway_days_at_recent_provider_spend + ' days'),
   ].join('');
 
@@ -132,14 +157,15 @@ function render(overview) {
   ].join('')}</div>`;
 
   const config = overview.config;
-  document.querySelectorAll('#settings-form [data-k]').forEach(input => {
-    const value = config[input.dataset.k];
-    if (input.type === 'checkbox') input.checked = !!value;
-    else input.value = value ?? '';
-  });
-  $('price-input').value = config.retail_input_per_million_usd;
-  $('price-output').value = config.retail_output_per_million_usd;
-  markConfigClean();
+  if (!configDirty) {
+    applyConfig(config);
+    markConfigClean();
+  } else {
+    $('config-state').textContent='Unsaved changes';
+    $('config-state').className='pill warn';
+    $('save-config').disabled=false;
+    $('discard-config').disabled=false;
+  }
 
   const business = overview.business;
   $('business-net').textContent = usd(business.cash_net_usd);
@@ -147,6 +173,7 @@ function render(overview) {
     metric('Recorded revenue', usd(business.revenue_usd)),
     metric('Recorded expenses', usd(business.expense_usd)),
     metric('Net cash ledger', usd(business.cash_net_usd)),
+    metric('Configured-rate usage value', usd(economics.metered_revenue_reference_usd)),
     metric('Provider compute', economics.provider_cost_usd == null ? (Number.isFinite(providerTotals.cost_ngonka) ? gnk(providerTotals.cost_ngonka) : 'Unavailable') : usd(economics.provider_cost_usd)),
     metric('Modeled contribution', economics.compute_contribution_reference_usd == null ? 'Set GNK/USD' : usd(economics.compute_contribution_reference_usd)),
     metric('Modeled compute margin', economics.compute_margin_reference_pct == null ? '—' : economics.compute_margin_reference_pct.toFixed(1) + '%'),
@@ -160,6 +187,10 @@ function render(overview) {
   document.querySelectorAll('.model-toggle').forEach(button => {
     button.onclick = async () => {
       try {
+        if (configDirty) {
+          notice('Save or discard policy changes before changing model availability.');
+          return;
+        }
         const current = new Set(snapshot.config.disabled_models || []);
         current.has(button.dataset.model) ? current.delete(button.dataset.model) : current.add(button.dataset.model);
         await saveConfig([...current]);
@@ -222,10 +253,9 @@ async function loadAudit() {
 
 async function load() {
   const days = Number($('window-days').value) || 30;
-  let overview;
-  try { overview = await api('/api/admin/overview?days=' + days); }
-  catch (error) { renderOverviewUnavailable(error.message); throw error; }
-  render(overview);
+  let overviewError = null;
+  try { render(await api('/api/admin/overview?days=' + days)); }
+  catch (error) { overviewError=error; renderOverviewUnavailable(error.message); }
   await Promise.all([
     loadSecondary(loadUsers,'users','Users','user-count'),
     loadSecondary(loadRequests,'requests','Requests'),
@@ -235,6 +265,8 @@ async function load() {
   if (typeof loadConnections === 'function') optional.push(loadConnections().catch(error=>notice('Connections: '+error.message)));
   if (typeof loadReadiness === 'function') optional.push(loadReadiness().catch(error=>notice('Readiness: '+error.message)));
   await Promise.all(optional);
+  if (overviewError) notice('Overview: '+overviewError.message);
+  return !overviewError;
 }
 
 function validateConfigPayload(payload) {
@@ -278,7 +310,8 @@ $('admin-key').addEventListener('keydown', event => { if (event.key === 'Enter')
 $('logout').onclick = () => { writeSession(''); location.reload(); };
 $('refresh').onclick = () => load().catch(error => notice(error.message));
 $('window-days').onchange = () => load().catch(error => notice(error.message));
-$('save-config').onclick = async () => { try { await saveConfig(); await load(); notice('Runtime policy saved.'); } catch (error) { markConfigDirty(); notice(error.message); } };
+$('save-config').onclick = async () => { try { await saveConfig(); markConfigClean(); await load(); notice('Runtime policy saved.'); } catch (error) { markConfigDirty(); notice(error.message); } };
+$('discard-config').onclick = discardConfig;
 document.querySelectorAll('#settings-form input, #settings-form select, #price-input, #price-output').forEach(input=>input.addEventListener('input',markConfigDirty));
 $('fund-form').onsubmit = async event => {
   event.preventDefault();
@@ -302,8 +335,8 @@ $('user-policy-form').onsubmit = async event => {
   if (!selectedWallet) return;
   try {
     const daily = $('user-daily').value.trim();
-    await api('/api/admin/users/' + encodeURIComponent(selectedWallet), { method: 'PUT', body: JSON.stringify({ disabled: $('user-disabled').checked, daily_tokens_override: daily ? Number(daily) : null, note: $('user-note').value }) });
-    await loadUsers(); await loadAudit(); notice('User policy updated.');
+    const updated=await api('/api/admin/users/' + encodeURIComponent(selectedWallet), { method: 'PUT', body: JSON.stringify({ disabled: $('user-disabled').checked, daily_tokens_override: daily ? Number(daily) : null, note: $('user-note').value }) });
+    await loadUsers(); await loadAudit(); await manageUser(selectedWallet,updated); notice('User policy updated.');
   } catch (error) { notice(error.message); }
 };
 if (key) { $('admin-key').value = key; unlock(); }
