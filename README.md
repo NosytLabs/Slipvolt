@@ -50,7 +50,7 @@ The account area links to a wallet-authenticated export of the latest 100 usage 
 
 Staking, payment settlement, token launching, and automatic treasury transactions remain out of scope of this release.
 
-## Current upstream policy snapshot — September 21, 2026
+## Current upstream policy snapshot — September 23, 2026
 
 OpenBroker currently lists three active models. Slipvolt intersects the live OpenBroker catalog with current Gonka model metadata:
 
@@ -60,7 +60,7 @@ OpenBroker currently lists three active models. Slipvolt intersects the live Ope
 | DeepSeek V4 Flash 0731 | 400,000 | 16,384 | 4,096 |
 | GLM 5.3 Flash | 400,000 | 16,384 | 4,096 |
 
-OpenBroker currently marks **Kimi-K2.6 as deprecated** because the chain has no validation weights for it; it is intentionally not offered in the customer picker.
+OpenBroker currently marks **Kimi-K2.6 as deprecated** because the chain has no validation weights for it; it is intentionally not offered in the customer picker. OpenBroker's current broker setup also requires **at least 100 GNK** to activate an account before inference.
 
 The 16,384 output ceiling comes from Gonka's current model metadata; OpenBroker's own documentation supports `max_tokens` but does not publish a separate numeric ceiling. Live metadata is checked at runtime and admin settings may only tighten the cap.
 
