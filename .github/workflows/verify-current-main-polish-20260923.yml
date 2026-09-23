@@ -1,4 +1,5 @@
 name: Verify current-main polish once
+# phase: admin-red
 on:
   push:
     branches: [fix/current-main-polish-20260923]
