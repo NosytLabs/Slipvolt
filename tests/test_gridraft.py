@@ -406,8 +406,6 @@ def test_openapi_and_status_report_the_same_release_version(tmp_path):
         status_version=c.get('/api/status').json()['version']
         assert schema_version == status_version
 
-
-
 def test_legacy_public_planning_routes_removed(tmp_path):
     app=create_app(Settings(pepper='x'*32),str(tmp_path/'legacy-routes.db'),httpx.MockTransport(provider))
     with TestClient(app) as c:
