@@ -290,11 +290,15 @@ def test_public_display_cache_expires_and_cannot_turn_errors_into_zero():
     asyncio.run(check())
 
 
-def test_ci_and_local_verify_include_operator_tests():
+def test_ci_uses_canonical_verifier_and_verifier_includes_operator_tests():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
-    assert 'node --test tests/*.test.cjs' in (root/'.github/workflows/test.yml').read_text()
-    assert 'node --test tests/*.test.cjs' in (root/'scripts/verify.sh').read_text()
+    workflow = (root/'.github/workflows/test.yml').read_text()
+    verifier = (root/'scripts/verify.sh').read_text()
+    assert 'sh scripts/verify.sh' in workflow
+    assert 'node --test tests/*.test.cjs' in verifier
+    assert 'operator/profit-core.js' in verifier
+    assert 'operator/calculate.cjs' in verifier
 
 
 def test_expiry_cleanup_uses_time_indexes():

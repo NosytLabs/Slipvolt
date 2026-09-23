@@ -8,7 +8,7 @@
 - Made admin refresh failures honest: a failed overview invalidates the old overview and disables settings; failed users/requests/audit refreshes clear only the affected panel.
 - Moved connection diagnostics below the operating overview so readiness, budgets, measured usage and cash state are visible first.
 - Added chart/browser regression coverage and kept the public wallet → key → model flow unchanged.
-- September 23 maintenance removed two undocumented planning-only HTTP routes, dropped completed unreferenced plan files, and consolidated duplicate admin guidance; holder/API behavior is unchanged.
+- September 23 maintenance removed two undocumented planning-only HTTP routes, dropped completed unreferenced plan files, consolidated duplicate admin guidance, and consolidated stale pass-specific verification notes into the canonical verification guide; holder/API behavior is unchanged.
 
 ## 0.9.3 — 2026-09-21
 
@@ -38,7 +38,7 @@
 - Fix byte-fragmented SSE boundaries, stop at `[DONE]`, and batch text rendering.
 - Cancel obsolete request checks, clear stale success states and prevent button races.
 - Fail incomplete offline preview builds before replacing output; preserve prior setup/security work and all customer pages.
-- Verification: 290 Python tests, 93 Node tests and 336 browser assertions passed; see `CLEANUP-2026-09-21.md` for fixture and publication limits.
+- Historical verification for that pass recorded 290 Python tests, 93 Node tests and 336 browser assertions; current verification scope and limitations live in `VERIFICATION.md`.
 
 
 Added wallet-wide key revocation, wallet-wide browser logout, configurable public brand, output budgeting, stop/copy/request-ID controls, environment-key SDK examples, and read-only admin launch readiness. Quotas and costs are preserved during credential revocation. Configured integrations do not count as proof of live acceptance. No payment, staking, treasury, or launch executor added.
