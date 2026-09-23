@@ -21,15 +21,17 @@ Run the server and open `/admin/`. The console uses a dedicated `ADMIN_API_KEY`;
 
 ## Measured dashboard and settings
 
-The overview charts use only recorded data from the selected 7/30/90-day window:
+The overview uses only recorded data from the selected 7/30/90-day window:
 
-- **Local usage** is settled Slipvolt holder traffic from the local usage ledger.
-- **Model mix** is local AI-token usage by model; OpenBroker network traffic is not mixed in.
-- **Daily net cash** is the manual business ledger only. It is not token market cap, projected creator fees or modeled revenue.
+- **Local usage** is settled Slipvolt holder traffic from the local native-GNK usage ledger, with explicit zero-usage UTC days.
+- **Business cash flow** is realized entries from the manual business ledger; market cap, unclaimed creator fees and projected token volume are excluded.
+- The public `/status/` chart uses sanitized OpenBroker public-registry requests and is labelled provider-wide, not Slipvolt traffic or uptime.
 
 The top scorecard shows OpenBroker spendable GNK, local funded AI-token capacity, settled local tokens/requests, active wallets, unresolved reviews, provider cost and approximate runway. Missing upstream data renders as unavailable rather than zero.
 
-Settings are grouped by traffic, allowance/funding, generation and reference economics. Editing a field marks the form **Unsaved changes**; refreshes do not silently overwrite those edits. **Discard** restores the last server-confirmed configuration. Local validation mirrors the server's critical relationships (default output <= hard output, shared daily allowance >= wallet allowance, global concurrency >= wallet concurrency) before a save is sent.
+Settings are grouped by traffic, allowance/funding, generation and reference economics. Editing a field marks the form **Unsaved changes**; **Discard** restores the last server-confirmed configuration. Browser validation catches obvious conflicts (default output <= hard output, shared daily allowance >= wallet allowance, global concurrency >= wallet concurrency) before the server performs authoritative validation.
+
+Refresh failures are scoped: a failed overview clears the old overview and disables settings until a current snapshot loads; failures in users, requests or the audit log clear only that panel so stale rows are not left looking current.
 
 ## GNK fund accounting
 
@@ -59,13 +61,3 @@ Connections reports configured/not-configured states without returning credentia
 RPC/WSS keys and installed Metis API bases belong in server configuration, never in this console. WSS and 0x are not active adapters. See [QuickNode setup](QUICKNODE.md).
 
 A missing provider cost appears as **Unavailable**, not zero. Configured-price usage value is labeled as modeled value, not collected revenue. Provider usage summaries can omit epoch adjustment lines: reconcile full account movements before formal financial decisions. GNK allocation retries with the same reference/amount are idempotent; a different amount on an existing reference is rejected. Per-wallet allowance overrides now affect actual admission, not just displayed entitlement.
-
-## Measured charts and refresh semantics
-
-The console charts only recorded data:
-
-- **AI usage** uses the local native-GNK member ledger and fills the selected UTC calendar window with explicit zero-usage days.
-- **Business cash flow** uses only realized entries from the business ledger; market cap, unclaimed creator fees and projected token volume are excluded.
-- The public `/status/` trend uses sanitized OpenBroker public-registry daily request totals and is labelled provider-wide, not Slipvolt activity or uptime.
-
-A failed overview refresh clears the old overview and disables settings until a current snapshot loads. Failures in users, requests or the audit log clear only that panel so one secondary outage does not take down the whole console or leave stale rows looking current. Policy fields show **Saved** or **Unsaved changes**, and obvious cross-field conflicts are rejected in the browser before the server performs its authoritative validation.
