@@ -9,6 +9,7 @@
 - Repaired the README verification link and added a regression that validates local README links.
 - Removed the unreachable projection-only burn planner and its self-contained tests; no CLI, API, or public product surface depended on it.
 - Refreshed OpenBroker setup guidance: current broker accounts require at least 100 GNK to activate; per-model smoke checks no longer encode one account's historical reliability as a global assumption.
+- Refreshed development verification tooling to pytest 9.1.1 and Playwright 1.63.0, then re-ran the canonical suite on the updated browser stack.
 
 ## 0.9.4 — 2026-09-22
 
