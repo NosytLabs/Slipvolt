@@ -208,12 +208,9 @@ python scripts/check_openbroker.py --allow-paid-inference --acknowledge-cost \
 
 Do not blindly retry uncertain requests; inspect OpenBroker usage first.
 
-## Publishing this exact project
+## Publishing
 
-The local history is based on the actual `NosytLabs/Slipvolt` README commit
-`dd0c4db53486f97e21a135ad55b8fea9388c331c`; it is not a new unrelated repository.
-See [publishing](docs/PUBLISHING.md). Do not force-push or replace unrelated branches.
-No public deployment follows automatically from copying source into GitHub.
+This is the canonical `NosytLabs/Slipvolt` repository. See [publishing](docs/PUBLISHING.md) for the release checklist and hosting boundaries. Do not force-push shared history or treat a GitHub commit as proof that a public deployment is live.
 
 ## Verification
 
