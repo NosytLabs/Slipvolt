@@ -1,4 +1,5 @@
 name: Verify verification-doc cleanup once
+# Re-run after canonical verifier regression fix
 on:
   push:
     branches: [chore/verification-docs-cleanup-20260923]
