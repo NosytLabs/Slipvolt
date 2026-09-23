@@ -38,3 +38,18 @@ test('admin invalidates stale overview and validates cross-field settings before
   assert.ok(js.includes("Global allowance cannot be smaller than per-wallet allowance"));
   assert.ok(js.includes("Global concurrency cannot be smaller than wallet concurrency"));
 });
+
+test('settings preserve unsaved edits across refreshes and offer explicit discard',()=>{
+  assert.ok(html.includes('discard-config'));
+  assert.ok(js.includes('configDirty'));
+  assert.ok(js.includes('discardConfig'));
+});
+test('overview outage does not block independent admin panels',()=>{
+  assert.ok(js.includes('overviewError'));
+  assert.ok(js.includes("loadSecondary(loadUsers,'users'"));
+});
+test('operator scorecard includes measured request wallet and review counts',()=>{
+  assert.ok(js.includes("metric(`${days}d requests`"));
+  assert.ok(js.includes("metric(`${days}d wallets`"));
+  assert.ok(js.includes("metric('Needs review'"));
+});
