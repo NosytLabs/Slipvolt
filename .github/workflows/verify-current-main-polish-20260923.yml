@@ -1,0 +1,29 @@
+name: Verify current-main polish once
+on:
+  push:
+    branches: [fix/current-main-polish-20260923]
+    paths: ['.github/workflows/verify-current-main-polish-20260923.yml']
+permissions:
+  contents: read
+concurrency:
+  group: verify-current-main-polish-20260923
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - run: pip install -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: python -m pytest tests/test_cleanup.py -q
+      - run: node --test tests/admin-ui.test.cjs
+      - run: python scripts/check_admin_ui.py
