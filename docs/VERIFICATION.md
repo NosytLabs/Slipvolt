@@ -1,44 +1,66 @@
-> **Latest local maintenance:** see [2026-09-21 cleanup verification](CLEANUP-2026-09-21.md). The results and publication notes below are historical; they do not describe a new GitHub push.
+# Verification — current Slipvolt release
 
-# Verification — September 20, 2026
+Slipvolt uses one canonical verification command:
 
-## Current release
+```sh
+sh scripts/verify.sh
+```
 
-- 188 Python tests passed.
-- 72 Node tests passed.
-- 94 holder/customer browser checks passed.
-- 100 admin browser checks passed.
-- JavaScript syntax checks, Python compilation and `git diff --check` passed.
-- New account-control tests were observed failing before implementation.
-- A fresh extraction of the release ZIP passed the Python and Node suites again.
-- Publishable source was scanned for the supplied private RPC credential; no match was present. Runtime credentials, databases and generated verification artifacts are not tracked.
+The verifier is intentionally local/offline by default. It runs the backend and JavaScript regression suites, syntax/compile checks, and the holder, admin, status, and customer-documentation browser checks. The manual-only GitHub Actions workflow installs the pinned development dependencies and Chromium, then runs this same command.
 
-## Repository publication
+## What a green verifier establishes
 
-The full application was merged through https://github.com/NosytLabs/Slipvolt/pull/1 at commit `22aaf364c400d4be9e616ac3304bf1944319b5e6`. All 78 source files and executable modes matched the tested local tree `bd54dc97d3895b584dfb2e10c3244da78ad3e8cb` before merge.
+A passing run establishes that the checked source tree satisfies the repository's automated contracts for:
 
-GitHub CI run https://github.com/NosytLabs/Slipvolt/actions/runs/35490832137 passed backend tests, Node tests, syntax/compilation checks and both browser suites. Temporary recovery workflows and manifests were removed from the merged tree. Subsequent documentation-only publication notes do not change application behavior.
+- wallet-signature authentication and session/key lifecycle;
+- holder-balance admission and shared allowance accounting;
+- request validation, rate/concurrency limits, model policy, streaming and tool-call handling;
+- uncertain-cost reservations and operator reconciliation;
+- admin settings, customer controls, measured usage/cash-flow charts, and stale-panel handling;
+- public status rendering and source-labelled OpenBroker network aggregates;
+- Help, Developers, Funding, Privacy, Terms, navigation, responsive layouts, and protected account endpoints;
+- Python compilation and JavaScript syntax.
 
-## What these tests establish
+A green configuration/readiness check is not a live-service certificate.
 
-The suites cover wallet-signature authentication, holder verification using controlled RPC responses, owner-isolated key/session controls, shared allowances, rate/concurrency limits, request validation, model policy, reservations, streaming/tool-call handling, uncertain-cost reconciliation, admin authorization and overrides, launch-readiness warnings, business calculations, integration response validation, and desktop/mobile interactions.
+## Evidence policy
 
-Key revocation does not erase usage history. Signing out sessions does not revoke API keys. Multiple keys do not create additional wallet allowances. A configuration check is not labeled a live provider/funding check.
+Do not keep pass-specific verification snapshots as separate "latest" documents. They become stale quickly and previously caused contradictory counts in this repository.
 
-## Limitations
+Use these sources instead:
 
-Wallet, RPC and OpenBroker responses are controlled fixtures. Local native browser navigation was blocked, so customer integration used a browser-to-local-HTTP adapter and the admin suite used explicit HTTP fixtures. The tests do not establish native browser CSP/cookie enforcement, real Phantom/Solflare interoperability, or provider capacity/latency.
+1. **GitHub pull requests and Actions runs** for exact commit/run evidence.
+2. **This file** for the current verification scope and limitations.
+3. **CHANGELOG.md** for release-specific behavior changes.
 
-No funded OpenBroker inference, real payment receipt, staking deposit, live swap quote, mainnet transaction, token launch, automatic developer payout, public deployment or independent security audit was performed. No treasury signing keys are stored by the application. Token thresholds and pricing proposals still require owner-approved live configuration and measured operating costs.
+PR #10 (September 23, 2026) locally verified the repository cleanup with **306 Python tests** and **82 JavaScript tests**. Subsequent maintenance should run the canonical verifier again before deployment rather than treating those historical counts as permanent.
 
-The separate OMA-AI repository and production hosting configuration were not changed. Optional `SITE_NAME` changes display branding only.
+## Production acceptance still required
+
+Automated fixtures do **not** establish:
+
+- real Phantom/Solflare extension interoperability;
+- a paid OpenBroker inference request, latency, capacity, or final settled cost;
+- current private Solana RPC/account behavior;
+- a token launch, creator-fee claim, native-GNK acquisition, WGNK bridge, or treasury transfer;
+- a production reverse proxy, TLS/CSP/cookie enforcement, backup restore, monitoring, or independent security audit.
+
+No treasury signing key is stored by the application. The server remains a single-worker/single-instance SQLite service and requires persistent storage.
+
+Before production deployment:
+
+1. Run the manual GitHub verifier successfully on the exact release commit.
+2. Run the setup doctor and read-only provider/RPC diagnostics with private credentials.
+3. Perform a deliberately authorized small paid OpenBroker acceptance test, including streaming/tools if those surfaces will be advertised.
+4. Test real wallet-extension sign-in and holder admission on the production origin.
+5. Verify backups, restore procedure, reverse-proxy limits, incident contact, privacy/retention policy, and the actual token/mint/threshold configuration.
 
 ## Reproduce
 
-```bash
+```sh
 python -m pip install -r requirements-dev.txt
 python -m playwright install --with-deps chromium
 sh scripts/verify.sh
 ```
 
-`CHROMIUM_PATH` can select an installed Chromium executable. Tests do not require or spend private RPC/OpenBroker credentials. For live provider diagnostics, use the separate operator script and its explicit paid-inference opt-in only after privately configuring the account.
+`CHROMIUM_PATH` may point to an existing Chromium executable. The verifier does not intentionally spend provider funds. Live provider diagnostics are separate commands and paid inference requires explicit opt-in.
