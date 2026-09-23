@@ -214,7 +214,9 @@ This is the canonical `NosytLabs/Slipvolt` repository. See [publishing](docs/PUB
 
 ## Verification
 
-Latest local maintenance: [reliability fixes, measured optimizations and verification](docs/CLEANUP-2026-09-21.md).
+Fresh GitHub verification on **September 23, 2026** passed the Python suite, Node tests, compile checks, and holder/admin/content/status Chromium UI checks in [Actions run 35848256162](https://github.com/NosytLabs/Slipvolt/actions/runs/35848256162). The permanent workflow remains manual-only.
+
+Earlier maintenance details: [reliability fixes, measured optimizations and verification](docs/CLEANUP-2026-09-21.md).
 
 
 ```bash
