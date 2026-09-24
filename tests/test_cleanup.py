@@ -1,6 +1,7 @@
 """Cache correctness and bounded hot-path maintenance; no external services."""
 import asyncio
 import os
+import re
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -225,3 +226,17 @@ def test_network_exposes_sanitized_daily_series_and_aggregates_same_day():
         ]
         assert 'wallet_address' not in str(result['daily'])
     asyncio.run(run())
+
+
+
+def test_readme_relative_markdown_links_resolve():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    text = (root / 'README.md').read_text()
+    for target in re.findall(r'\[[^\]]+\]\(([^)]+)\)', text):
+        if target.startswith(('http://', 'https://', 'mailto:', '#')):
+            continue
+        path = target.split('#', 1)[0]
+        if not path:
+            continue
+        assert (root / path).exists(), f'Broken README link: {target}'

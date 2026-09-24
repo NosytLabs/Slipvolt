@@ -14,10 +14,9 @@ import httpx
 from gridraft.cli import load_env
 from gridraft.broker import BASE, Broker
 
-# DeepSeek-V4-Flash is the proven-available model (live 200). GLM-5.3-Flash is
-# popular and 429s under contention; MiniMax on the default account has returned
-# 'participant request budget exhausted'. Order puts the reliable model first;
-# every listed model is still checked.
+# Paid smoke mode checks each supported model once after confirming it is still
+# present in the live catalog. No model is treated as universally reliable from
+# a previous account/run, and failures are never retried automatically.
 MODELS=('deepseek-ai/DeepSeek-V4-Flash-0731','zai-org/GLM-5.3-Flash','MiniMaxAI/MiniMax-M2.7')
 
 

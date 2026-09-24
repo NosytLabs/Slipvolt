@@ -39,7 +39,7 @@ from .member_gateway import MemberGateway
 from .gonka import NativeTreasury, validate_address
 from .model_policy import MODEL_POLICIES, DEFAULT_OUTPUT_TOKENS, HARD_OUTPUT_TOKENS, MAX_BODY_BYTES, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
 
-APP_VERSION = '0.9.4'
+APP_VERSION = '0.9.5'
 UPSTREAM = 'https://api.openbroker.gonka.gg/v1'
 SNAPSHOT = [{'id':mid, **meta} for mid,meta in MODEL_POLICIES.items()]
 
@@ -625,7 +625,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
             'holder_mint':settings.holder_mint or None,'min_holding_raw':str(settings.min_holding_raw) if settings.holder_mint else None,
             'holder_token_symbol':settings.holder_token_symbol,'holder_token_decimals':settings.holder_token_decimals,
             'treasury_asset':'GNK','key_creation_requires_payment':False,'maintenance_mode':bool(cfg['maintenance_mode']),
-            'research_date':'2026-09-21','wgnk_contract':WGNK}
+            'research_date':'2026-09-23','wgnk_contract':WGNK}
 
     @app.get('/api/models')
     async def models(request:Request):

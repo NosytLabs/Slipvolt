@@ -15,6 +15,8 @@ No token burn or transfer is required to create a key. The holder coin is an acc
 
 Initial owner GNK + collected creator fees + earned service revenue → operating costs/reserves → native GNK acquired by an owner-approved route → dedicated OpenBroker deposit address → funded holder allowance.
 
+OpenBroker's current setup requires at least **100 GNK** to activate a broker account. Treat that as provider working capital, not as a holder entitlement or a self-custody reserve.
+
 The safest implementation keeps swaps/bridges owner-approved and outside the web server. Slipvolt never stores a treasury signing key.
 
 HOT/NEAR Intents currently advertises native GNK routes from SOL/USDC and should be quote-tested first. The official WGNK Ethereum bridge remains a fallback; its same-signing-key Gonka destination rule must be followed. Neither route is assumed executable without a current quote and a small test transfer.
