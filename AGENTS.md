@@ -15,4 +15,4 @@ Work in `NosytLabs/Slipvolt`; do not overwrite the separate OMA-AI deployment or
 
 Run `sh scripts/verify.sh` for the complete repository verification path. Use targeted `python -m pytest -q`, `node --test tests/*.test.cjs`, or individual browser checks while iterating. New RPC behavior is covered by `tests/test_gonka_rpc.py`. `scripts/check_gonka.py` performs only explicit read-only live diagnostics.
 
-Preserve the manual-only GitHub Actions policy and recent cost-containment workflows unless the user explicitly asks to change them. Do not claim CI or a live deployment succeeded based only on local fixtures. Never commit a filled `.env`, database, API key, private endpoint URL, or logs containing credentials.
+CI runs on every push and pull request to `main` (the manual-only policy was lifted by explicit request; `scripts/verify.sh` performs no live network calls). Keep `workflow_dispatch` available, and do not add steps that hit paid or rate-limited endpoints without asking first. Do not claim CI or a live deployment succeeded based only on local fixtures. Never commit a filled `.env`, database, API key, private endpoint URL, or logs containing credentials.

@@ -1,6 +1,11 @@
 name: Slipvolt tests
-# Cost containment: start checks explicitly from Actions.
+# Runs on every push and pull request. `scripts/verify.sh` performs no live
+# network calls, so there is nothing here worth rationing. Still available on
+# demand via workflow_dispatch.
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
