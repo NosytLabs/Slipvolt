@@ -14,7 +14,7 @@ The operator console now prioritizes measured service state instead of configura
 
 ## Security baseline (0.9.3)
 
-Production validates the Host authority against `APP_ORIGIN`, uses the routed ASGI path for API security decisions, and pins the current reviewed FastAPI/Starlette/cryptography/Pydantic security baseline. Run the manual GitHub test workflow after dependency changes; local fixture success is not a substitute for a clean dependency install.
+Production validates the Host authority against `APP_ORIGIN`, uses the routed ASGI path for API security decisions, and pins the current reviewed FastAPI/Starlette/cryptography/Pydantic security baseline. Run the GitHub test workflow after dependency changes; local fixture success is not a substitute for a clean dependency install.
 
 ## Functional setup and request tools (0.9.1)
 
@@ -214,7 +214,7 @@ This is the canonical `NosytLabs/Slipvolt` repository. See [publishing](docs/PUB
 
 ## Verification
 
-Fresh GitHub verification on **September 23, 2026** passed the Python suite, Node tests, compile checks, and holder/admin/content/status Chromium UI checks in [Actions run 35848256162](https://github.com/NosytLabs/Slipvolt/actions/runs/35848256162). The permanent workflow remains manual-only.
+GitHub verification passed the Python suite, Node tests, compile checks, and holder/admin/content/status Chromium UI checks in [Actions run 37081752211](https://github.com/NosytLabs/Slipvolt/actions/runs/37081752211). The permanent workflow runs on pushes to `main`, pull requests, and manual dispatch. Each run verifies its own revision; it does not establish a live deployment.
 
 Earlier maintenance details: [current verification scope and production gates](docs/VERIFICATION.md).
 

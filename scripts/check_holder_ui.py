@@ -79,7 +79,9 @@ def run():
         for _ in range(100):
             if server.started:break
             time.sleep(.05)
-        context=browser.new_context(viewport={'width':1280,'height':1000});http=httpx.Client(base_url=origin,headers={'Origin':origin})
+        # This client talks only to the local fixture server. Environment proxy
+        # settings must not route fixture requests through an external proxy.
+        context=browser.new_context(viewport={'width':1280,'height':1000});http=httpx.Client(base_url=origin,headers={'Origin':origin},trust_env=False)
         context.expose_function('signFixture',lambda values:list(KEY.sign(bytes(values))))
         init="""(() => {
           const listeners={};let address=WALLET;

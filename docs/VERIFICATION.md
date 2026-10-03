@@ -6,7 +6,7 @@ Slipvolt uses one canonical verification command:
 sh scripts/verify.sh
 ```
 
-The verifier is intentionally local/offline by default. It runs the backend and JavaScript regression suites, syntax/compile checks, and the holder, admin, status, and customer-documentation browser checks. The manual-only GitHub Actions workflow installs the pinned development dependencies and Chromium, then runs this same command.
+The verifier is intentionally local/offline by default. It runs the backend and JavaScript regression suites, syntax/compile checks, and the holder, admin, status, and customer-documentation browser checks. The GitHub Actions workflow runs on pushes to `main`, pull requests, and manual dispatch. It installs the pinned development dependencies and Chromium, then runs this same command.
 
 ## What a green verifier establishes
 
@@ -49,7 +49,7 @@ No treasury signing key is stored by the application. The server remains a singl
 
 Before production deployment:
 
-1. Run the manual GitHub verifier successfully on the exact release commit.
+1. Run the GitHub verifier successfully on the exact release commit.
 2. Run the setup doctor and read-only provider/RPC diagnostics with private credentials.
 3. Perform a deliberately authorized small paid OpenBroker acceptance test, including streaming/tools if those surfaces will be advertised.
 4. Test real wallet-extension sign-in and holder admission on the production origin.
