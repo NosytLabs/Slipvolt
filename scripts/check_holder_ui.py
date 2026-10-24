@@ -46,6 +46,25 @@ def run():
             check(f'offline {width}px: inactive tab leaves keyboard order',page.locator('#tab-chat').get_attribute('tabindex')=='0' and page.locator('#tab-api').get_attribute('tabindex')=='-1')
             check(f'offline {width}px: usable models stay in keyboard order',page.locator('.model-tab:not(:disabled)').evaluate_all("els=>els.every(e=>e.tabIndex===0)"))
             page.locator('#existing-key').evaluate("e=>e.closest('details').open=true")
+            if width==390:
+                request_count=len(requests)
+                page.locator('[data-starter="write"]').click()
+                check('offline prompt starter inserts editable text without inference',page.locator('#prompt').input_value().startswith('Write a clear') and len(requests)==request_count)
+                page.locator('#prompt').press('Enter')
+                check('plain Enter edits instead of submitting',page.locator('#prompt').input_value().endswith('\n') and len(requests)==request_count)
+                token_boundary=page.evaluate("""mint => {
+                  S.status={holder_mint:mint,token_launched:true,token_buy_url:'https://pump.fun:444/coin/'+mint};renderTokenLaunch();
+                  const rejected=$('token-buy-link').hidden&&!document.querySelector('.hero-connect').hidden;
+                  S.status.token_buy_url='https://pump.fun/coin/'+mint;renderTokenLaunch();
+                  return {rejected,published:!$('token-buy-link').hidden,href:$('token-buy-link').href,heroHidden:document.querySelector('.hero-connect').hidden};
+                }""",WALLET)
+                check('token link requires an exact canonical Pump.fun origin and configured mint',token_boundary['rejected'] and token_boundary['published'] and token_boundary['href']==f'https://pump.fun/coin/{WALLET}' and token_boundary['heroHidden'])
+                catalog_boundary=page.evaluate("""() => {
+                  S.conversation=[{user:'old model prompt',assistant:'old model answer'}];renderConversationContext();
+                  S.catalogLive=true;S.models=[{id:'replacement',name:'Replacement',availability:'listed',max_completion_tokens:1000}];renderModels();
+                  return {selected:S.selected,turns:S.conversation.length,context:$('conversation-context').textContent};
+                }""")
+                check('catalog-driven model replacement clears prior-model memory',catalog_boundary['selected']=='replacement' and catalog_boundary['turns']==0 and 'Model changed' in catalog_boundary['context'])
             page.locator('#existing-key').fill('obk-never-send-master-key');page.locator('#prompt').fill('Hello')
             page.locator('#send').click()
             check(f'offline {width}px: blocks upstream key','Never paste' in page.locator('#toast').inner_text())
@@ -105,7 +124,7 @@ def run():
         mode='native_localhost';navigation_error=None
         try:
             page.goto(origin,wait_until='networkidle',timeout=12000)
-            if not page.title().startswith('Slipvolt'):raise RuntimeError('Unexpected navigation response')
+            if not page.title().startswith('Holdbyte'):raise RuntimeError('Unexpected navigation response')
         except Exception as e:
             navigation_error=type(e).__name__;mode='HTTP adapter; native browser transport NOT verified'
             def forward(path,options):
@@ -199,9 +218,12 @@ def run():
         }""")
         check('account wallet change is an isolated session boundary',wallet_boundary['wallet'] is None and wallet_boundary['memberHidden'] and wallet_boundary['logoutCalls']==1)
         page.locator('#main-connect').click();page.locator('#wallet-options button').first.click();expect(page.locator('#create-key')).to_be_enabled()
+        page.locator('#existing-key').evaluate("e=>e.value='sv_'+ 'o'.repeat(40)")
         page.locator('#create-key').click();expect(page.locator('#new-key')).to_be_visible()
         secret=page.locator('#created-key').input_value()
         check('key created without dollar balance',secret.startswith('sv_') and app.state.store.account(WALLET)['balance_nusd']==0)
+        check('newly created key clears any existing-key override',page.locator('#existing-key').input_value()=='')
+        page.locator('#output-tokens').evaluate("e=>e.closest('details').open=true")
         page.locator('#output-tokens').fill('8192')
         page.locator('#prompt').fill('Hello test only')
         page.locator('#check-request').click()
@@ -218,6 +240,7 @@ def run():
         page.locator('#prompt').fill('Hello test only');page.locator('#send').click()
         expect(page.locator('#request-note')).to_contain_text('Complete.')
         check('streamed fixture reply rendered',page.locator('#result').inner_text()=='Hello stream')
+        check('completed response is the only turn added to tab memory',page.evaluate("JSON.stringify(S.conversation)==JSON.stringify([{user:'Hello test only',assistant:'Hello stream'}])"))
         check('actual fixture usage settles allowance',app.state.membership.totals(WALLET)['used_tokens']==15)
         check('native GNK cost ledger used',app.state.membership.pool()['budget_spent_ngonka']==150)
         check('selected output forwarded',dispatched[0]['max_tokens']==8192)
@@ -228,6 +251,59 @@ def run():
         breakdown=page.locator('#usage-breakdown').inner_text()
         check('provider token breakdown is labelled from real usage',all(value in breakdown for value in ('12 input','3 output','8 cached input','2 reasoning')))
         check('recent activity renders the measured request',page.locator('#usage-history .history-row').count()==1 and 'MiniMax' in page.locator('#usage-history .history-row').inner_text())
+        history_flow=page.evaluate("""async () => {
+          const realFetch=fetch,wait=()=>new Promise(resolve=>setTimeout(resolve,0));let preflightBody=null,sendBody=null;
+          fetch=async(path,options={})=>{
+            if(String(path).endsWith('/api/preflight'))preflightBody=JSON.parse(options.body);
+            if(String(path).endsWith('/v1/chat/completions')){
+              sendBody=JSON.parse(options.body);
+              return new Response(JSON.stringify({choices:[{message:{content:'Follow-up answer'}}]}),{status:200,headers:{'content-type':'application/json'}});
+            }
+            return realFetch(path,options);
+          };
+          try{
+            window.__historyXss=false;$('prompt').value='Follow-up <img src=x onerror="window.__historyXss=true">';$('prompt').dispatchEvent(new Event('input',{bubbles:true}));$('check-request').click();
+            let tries=0;while(!preflightBody&&tries++<100)await wait();
+            while($('check-request').disabled&&tries++<200)await wait();
+            $('send').click();tries=0;while(S.busy&&tries++<200)await wait();
+            return {preflightBody,sendBody,conversation:S.conversation.slice(),context:$('conversation-context').textContent,downloadChatDisabled:$('download-chat').disabled,
+              historyMessages:document.querySelectorAll('#conversation-history .conversation-message').length,historyImages:document.querySelectorAll('#conversation-history img').length,historyXss:window.__historyXss,historyHidden:$('conversation-history-details').hidden};
+          }finally{fetch=realFetch;}
+        }""")
+        check('follow-up preflight contains prior successful user and assistant messages',
+              [item['role'] for item in history_flow['preflightBody']['messages']]==['user','assistant','user'] and
+              history_flow['preflightBody']['messages'][1]['content']=='Hello stream')
+        check('preflight and inference send identical complete message history',history_flow['preflightBody']['messages']==history_flow['sendBody']['messages'])
+        check('successful follow-up extends memory and enables chat download',len(history_flow['conversation'])==2 and not history_flow['downloadChatDisabled'] and '2 completed turns' in history_flow['context'])
+        check('inspectable history renders untrusted prompts as text',history_flow['historyMessages']==4 and history_flow['historyImages']==0 and not history_flow['historyXss'] and not history_flow['historyHidden'])
+        with page.expect_download() as download_info:page.locator('#download-chat').click()
+        check('chat download is a user-triggered text file',download_info.value.suggested_filename=='holdbyte-chat.txt')
+        key_boundary=page.evaluate("""() => {
+          $('prompt').value='draft survives key change';
+          $('existing-key').value='sv_'+ 'z'.repeat(40);$('existing-key').dispatchEvent(new Event('input',{bubbles:true}));
+          return {turns:S.conversation.length,draft:$('prompt').value,context:$('conversation-context').textContent};
+        }""")
+        check('changing customer key clears chat memory but keeps the editable draft',key_boundary['turns']==0 and key_boundary['draft']=='draft survives key change' and 'key changed' in key_boundary['context'].lower())
+        partial_stream=page.evaluate("""async () => {
+          const realFetch=fetch,encoder=new TextEncoder(),wait=()=>new Promise(resolve=>setTimeout(resolve,0));
+          fetch=(path,options={})=>String(path).endsWith('/v1/chat/completions')?Promise.resolve(new Response(new ReadableStream({start(controller){controller.enqueue(encoder.encode('data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\\n\\n'));controller.close();}}),{status:200,headers:{'content-type':'text/event-stream'}})):realFetch(path,options);
+          try{
+            $('prompt').value='incomplete stream';$('send').click();let tries=0;while(S.busy&&tries++<200)await wait();
+            return {turns:S.conversation.length,success:$('result').classList.contains('has-output'),partial:$('result').classList.contains('partial-output'),result:$('result').textContent};
+          }finally{fetch=realFetch;}
+        }""")
+        check('partial stream failure never enters memory or becomes downloadable success',partial_stream['turns']==0 and not partial_stream['success'] and not partial_stream['partial'] and 'confirmation' in partial_stream['result'])
+        stopped_after_response=page.evaluate("""async () => {
+          const realFetch=fetch,encoder=new TextEncoder(),wait=()=>new Promise(resolve=>setTimeout(resolve,0));let bodyController;
+          fetch=(path,options={})=>String(path).endsWith('/v1/chat/completions')?Promise.resolve(new Response(new ReadableStream({start(controller){bodyController=controller;}}),{status:200,headers:{'content-type':'application/json'}})):realFetch(path,options);
+          try{
+            $('prompt').value='stop after headers';$('send').click();let tries=0;while(!bodyController&&tries++<100)await wait();
+            $('stop-request').click();bodyController.enqueue(encoder.encode(JSON.stringify({choices:[{message:{content:'must not commit'}}]})));bodyController.close();
+            tries=0;while(S.busy&&tries++<200)await wait();
+            return {turns:S.conversation.length,busy:S.busy,success:$('result').classList.contains('has-output'),result:$('result').textContent};
+          }finally{fetch=realFetch;}
+        }""")
+        check('stop after response headers still prevents history commit and releases controls',stopped_after_response['turns']==0 and not stopped_after_response['busy'] and not stopped_after_response['success'] and 'stopped' in stopped_after_response['result'].lower())
         page.on('dialog',lambda dialog:dialog.accept())
         page.locator('#revoke-all-keys').evaluate("e=>e.closest('details').open=true")
         page.locator('#revoke-all-keys').click()

@@ -79,6 +79,8 @@ def run():
                     navigate(page, name)
                     check(f'{name} {width}px: no page overflow', page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
                     check(f'{name} {width}px: one visible h1', page.locator('h1').count() == 1 and page.locator('h1').is_visible())
+                    if transport == 'intercepted local static files':
+                        check(f'{name} {width}px: brand images load', page.locator('img').evaluate_all('(images)=>images.length>0&&images.every(image=>image.complete&&image.naturalWidth>0)'))
                     page.keyboard.press('Tab')
                     check(f'{name} {width}px: keyboard skip link', page.evaluate("document.activeElement.getAttribute('href') === '#main'"))
                     toc = page.get_by_role('navigation', name='On this page').locator('a').first
@@ -88,7 +90,7 @@ def run():
                         toc.click()
                         check(f'{name} {width}px: section navigation', page.url.endswith(fragment))
                         privacy.click()
-                        check(f'{name} {width}px: related page navigation', page.locator('h1').inner_text() == 'Your data, explained')
+                        check(f'{name} {width}px: related page navigation', page.url.endswith('/privacy/') and page.locator('#providers').count() == 1)
                     else:
                         check(f'{name} {width}px: section target present (navigation untested)', page.locator(fragment).count() == 1)
                         check(f'{name} {width}px: related href present (navigation untested)', privacy.get_attribute('href') == '../privacy/')

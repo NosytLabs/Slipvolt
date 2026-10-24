@@ -68,7 +68,8 @@ def test_all_public_content_links_and_styles_resolve(path):
             assert u.fragment in {a.get('id') for _, a in Markup(target.read_text()).tags}, f'{path}: missing anchor {href}'
 
 
-@pytest.mark.parametrize('route', ('/help/', '/privacy/', '/terms/', '/content.css'))
+@pytest.mark.parametrize('route', ('/help/', '/privacy/', '/terms/', '/content.css',
+                                 '/assets/brand-mark.svg', '/assets/holdbyte-hero.webp', '/favicon.svg'))
 def test_guides_are_served_through_the_application(tmp_path, route):
     app = create_app(Settings(pepper='test-public-content-pepper-32-characters'), str(tmp_path/'content.db'),
                      httpx.MockTransport(lambda _: httpx.Response(503)))
@@ -141,7 +142,9 @@ def test_packaged_preview_inlines_every_stylesheet(tmp_path):
     from scripts.package_preview import build
     target = tmp_path/'preview.html'
     build(target)
-    assert not any(t == 'link' and a.get('rel') == 'stylesheet' for t, a in Markup(target.read_text()).tags)
+    tags = Markup(target.read_text()).tags
+    assert not any(t == 'link' and a.get('rel') == 'stylesheet' for t, a in tags)
+    assert all(a.get('src', '').startswith('data:image/') for t, a in tags if t == 'img')
 
 
 def test_homepage_links_new_developer_and_funding_guides():

@@ -24,5 +24,7 @@ def test_new_pages_do_not_advertise_completed_launch_or_guaranteed_returns():
     s=Path('public/status/index.html').read_text()
     assert 'each listed model still requires a successful inference test' in s
     assert 'configured token mint needs separate verification' in s
-    assert 'not Slipvolt customer activity' in s
-    assert 'No promise of returns.' in s
+    assert 'Provider-wide statistics, not this app’s usage.' in s
+    assert 'This is not this app’s traffic or uptime.' in s
+    assert 'guaranteed return' not in s.lower()
+    assert 'guaranteed profit' not in s.lower()

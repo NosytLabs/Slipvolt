@@ -79,12 +79,13 @@ def model_limit_overrides_from_env():
 
 @dataclass
 class Settings:
-    site_name: str = 'Slipvolt'
+    site_name: str = 'Holdbyte'
     origin: str = 'http://127.0.0.1:8000'
     pepper: str = field(default_factory=lambda: secrets.token_hex(32))
     upstream_key: str = ''
     access_mode: str = 'prepaid'
     holder_mint: str = ''
+    token_launched: bool = False
     min_holding_raw: int = 1
     solana_rpc: str = ''
     solana_ws: str = ''
@@ -125,9 +126,10 @@ class Settings:
         pepper = os.getenv('KEY_PEPPER','')
         if production and len(pepper)<32:
             raise ValueError('Set a stable KEY_PEPPER of at least 32 characters')
-        return cls(site_name=os.getenv('SITE_NAME','Slipvolt'),origin=os.getenv('APP_ORIGIN','http://127.0.0.1:8000'),
+        return cls(site_name=os.getenv('SITE_NAME','Holdbyte'),origin=os.getenv('APP_ORIGIN','http://127.0.0.1:8000'),
             pepper=pepper or secrets.token_hex(32),upstream_key=os.getenv('OPENBROKER_API_KEY',''),
             access_mode=os.getenv('ACCESS_MODE','holder_allowance'),holder_mint=os.getenv('HOLDER_MINT',''),
+            token_launched=os.getenv('TOKEN_LAUNCHED','false')=='true',
             min_holding_raw=int(os.getenv('MIN_HOLDING_RAW','1')),solana_rpc=os.getenv('SOLANA_RPC_URL',''),
             solana_ws=os.getenv('SOLANA_WSS_URL',''),metis_url=os.getenv('METIS_API_URL',''),
             zeroex_url=os.getenv('ZEROX_API_URL',''),rpc_rps=int(os.getenv('SOLANA_RPC_RPS','15')),
@@ -384,6 +386,10 @@ def validate_settings(settings):
     if settings.production and parsed.scheme!='https': raise ValueError('Production requires HTTPS')
     if len(settings.pepper)<32: raise ValueError('KEY_PEPPER must be at least 32 characters')
     if settings.access_mode not in ('prepaid','holder','holder_allowance'): raise ValueError('Unknown access mode')
+    if type(settings.token_launched) is not bool:
+        raise ValueError('Token launch flag must be a boolean')
+    if settings.token_launched and (settings.access_mode not in ('holder','holder_allowance') or not settings.holder_mint):
+        raise ValueError('Token launch requires a configured holder mint and holder access mode')
     if settings.retail_nusd_per_token is not None:
         if type(settings.retail_nusd_per_token) is not int or not 1<=settings.retail_nusd_per_token<=10**6: raise ValueError('Invalid legacy retail rate')
         settings.retail_input_nusd_per_token=settings.retail_nusd_per_token
@@ -461,7 +467,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         await client.aclose()
         store.close()
 
-    app=FastAPI(title='Slipvolt API',version=APP_VERSION,docs_url=None,redoc_url=None,lifespan=lifespan)
+    app=FastAPI(title=settings.site_name+' API',version=APP_VERSION,docs_url=None,redoc_url=None,lifespan=lifespan)
     app.state.store=store
     app.state.membership=membership
     app.add_middleware(BodyLimitMiddleware,limit=settings.max_request_bytes)
@@ -649,7 +655,8 @@ def create_app(settings=None, db_path=':memory:', transport=None):
             'billing_review_required':store.needs_review() or membership.pool()['reconciliation_required'],
             'capabilities':{'request_preflight':settings.access_mode=='holder_allowance','status_page':True,'streaming':settings.access_mode=='holder_allowance','tools':True,'usage_export':True,'wallet_auth':True,'holder_checks':settings.access_mode in ('holder','holder_allowance')},
             'daily_budget_nusd':settings.daily_budget_nusd,'wallet_daily_budget_nusd':settings.wallet_daily_budget_nusd,
-            'token_launched':False,'holder_gate_configured':bool(settings.holder_mint),
+            'token_launched':settings.token_launched,'holder_gate_configured':bool(settings.holder_mint),
+            'token_buy_url':f'https://pump.fun/coin/{settings.holder_mint}' if settings.token_launched else None,
             'access_mode':settings.access_mode,'treasury_execution_enabled':False,'payments_enabled':False,
             'pricing':{'input_per_million_usd':cfg['retail_input_nusd_per_token']/1000,'output_per_million_usd':cfg['retail_output_nusd_per_token']/1000},
             'retail_per_million_usd':cfg['retail_input_nusd_per_token']/1000 if cfg['retail_input_nusd_per_token']==cfg['retail_output_nusd_per_token'] else None,
@@ -712,7 +719,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         except ValueError as exc: error(str(exc))
         challenge_id=secrets.token_urlsafe(24)
         now=datetime.now(timezone.utc).isoformat()
-        message=(f'{settings.origin} requests a Slipvolt sign-in.\nWallet: {body.wallet}\n'
+        message=(f'{settings.origin} requests a {settings.site_name} sign-in.\nWallet: {body.wallet}\n'
             f'Network: Solana mainnet\nNonce: {challenge_id}\nIssued at: {now}\nExpires in: 300 seconds\n'
             'Sign-in only. This does not authorize transactions, spending, token approvals or wallet access.')
         store.challenge(body.wallet,message,challenge_id)

@@ -1,6 +1,6 @@
-# Verification — current Slipvolt release
+# Verification
 
-Slipvolt uses one canonical verification command:
+Holdbyte (the Slipvolt repository) uses one canonical verification command:
 
 ```sh
 sh scripts/verify.sh
@@ -13,13 +13,15 @@ The verifier is intentionally local/offline by default. It runs the backend and 
 A passing run establishes that the checked source tree satisfies the repository's automated contracts for:
 
 - wallet-signature authentication and session/key lifecycle;
+- explicit token-link publication, configured-brand sign-in, tab-memory conversation ownership and request/preflight agreement;
 - holder-balance admission and shared allowance accounting;
 - request validation, rate/concurrency limits, model policy, streaming and tool-call handling;
 - uncertain-cost reservations and operator reconciliation;
 - admin settings, customer controls, measured usage/cash-flow charts, and stale-panel handling;
 - public status rendering and source-labelled OpenBroker network aggregates;
 - Help, Developers, Funding, Privacy, Terms, navigation, responsive layouts, and protected account endpoints;
-- Python compilation and JavaScript syntax.
+- Python compilation and JavaScript syntax;
+- a self-contained offline preview with embedded styles, scripts and brand images.
 
 A green configuration/readiness check is not a live-service certificate.
 

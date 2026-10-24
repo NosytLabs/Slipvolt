@@ -17,6 +17,7 @@ function setup({model='MiniMaxAI/MiniMax-M2.7'}={}){
   const ctx={AbortController,AbortSignal,URL,DOMException,setTimeout,clearTimeout,SlipvoltRequestTools:tools,SlipvoltCore:core,
     S:{epoch:1,key:'sv_'+'a'.repeat(43),status:{}},location:{origin:'https://slipvolt.test'},
     requestedOutput:()=>512,gnk:n=>n===null||n===undefined?'Unavailable':String(n),copy(){},toast(){},
+    conversationMessages:prompt=>core.chatMessages([{user:'earlier prompt',assistant:'earlier answer'}],prompt),clearVisibleResponse(){},renderConversationContext(){},
     document:{documentElement:{dataset:{}},getElementById:el,
       querySelector:()=>model?{dataset:{model}}:null,addEventListener(type,fn){listeners.set(type,fn)}},
     fetch(path,options){return new Promise((resolve,reject)=>{calls.push({path,options,resolve,reject});options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true});})}};
@@ -25,7 +26,7 @@ function setup({model='MiniMaxAI/MiniMax-M2.7'}={}){
   el('output-tokens').max='16384';
   const click=()=>el('check-request').handlers.click();
   const respond=(index,ok=true)=>calls[index].resolve(new Response(ok?JSON.stringify({allowed:true,estimated_ai_tokens:1000,estimated_budget_ngonka:15000}):JSON.stringify({error:{message:'Unavailable'}}),{status:ok?200:503,headers:{'content-type':'application/json'}}));
-  return {el,calls,click,respond,clearAccount:()=>listeners.get('slipvolt:account-cleared')()};
+  return {el,calls,click,respond,clearAccount:()=>listeners.get('slipvolt:account-cleared')(),conversationChanged:()=>listeners.get('slipvolt:conversation-changed')()};
 }
 test('editing aborts obsolete request checks and restores the button',async()=>{
   const t=setup(),pending=t.click();assert(t.el('check-request').disabled);
@@ -33,6 +34,16 @@ test('editing aborts obsolete request checks and restores the button',async()=>{
   assert(t.calls[0].options.signal.aborted);assert.equal(t.el('check-request').disabled,false);
   await pending;
   assert.match(t.el('preflight-result').textContent,/without running/);
+});
+test('preflight uses the same full conversation message builder as inference',async()=>{
+  const t=setup(),pending=t.click();
+  const payload=JSON.parse(t.calls[0].options.body);
+  assert.deepEqual(payload.messages,[
+    {role:'user',content:'earlier prompt'},
+    {role:'assistant',content:'earlier answer'},
+    {role:'user',content:'test prompt'}
+  ]);
+  t.respond(0);await pending;
 });
 test('an earlier success cannot remain green during a retry or failed check',async()=>{
   const t=setup(),first=t.click();t.respond(0);await first;
@@ -51,6 +62,12 @@ test('aborted check cannot re-enable a newer pending check',async()=>{
 });
 test('account change aborts check and never restores the old result',async()=>{
   const t=setup(),pending=t.click();t.clearAccount();
+  assert(t.calls[0].options.signal.aborted);t.respond(0);await pending;
+  assert.equal(t.el('preflight-result').dataset.verdict,undefined);
+  assert.match(t.el('preflight-result').textContent,/without running/);
+});
+test('a completed chat turn invalidates an in-flight check built from older history',async()=>{
+  const t=setup(),pending=t.click();t.conversationChanged();
   assert(t.calls[0].options.signal.aborted);t.respond(0);await pending;
   assert.equal(t.el('preflight-result').dataset.verdict,undefined);
   assert.match(t.el('preflight-result').textContent,/without running/);

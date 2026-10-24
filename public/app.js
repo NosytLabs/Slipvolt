@@ -7,7 +7,8 @@ const snapshot=[
   {id:'deepseek-ai/DeepSeek-V4-Flash-0731',name:'DeepSeek V4 Flash',label:'Reasoning & generation',mark:'D / 02'},
   {id:'zai-org/GLM-5.3-Flash',name:'GLM 5.3 Flash',label:'General-purpose AI',mark:'G / 03'}
 ];
-const S={models:snapshot,selected:snapshot[0].id,catalogLive:OFFLINE,status:null,wallet:null,provider:null,key:'',epoch:0,memberSerial:0,requestSerial:0,authOps:0,busy:false,authBusy:false,controller:null,memberController:null,revoke:null,handlers:null};
+const S={models:snapshot,selected:snapshot[0].id,catalogLive:OFFLINE,status:null,wallet:null,provider:null,key:'',epoch:0,memberSerial:0,requestSerial:0,authOps:0,busy:false,authBusy:false,controller:null,memberController:null,revoke:null,handlers:null,conversation:[],conversationFull:false};
+const CHAT_LIMITS=Object.freeze({maxTurns:24,maxChars:250000});
 let toastTimer;
 
 function toast(message){$('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,7500);}
@@ -21,10 +22,41 @@ async function api(path,options={}){if(OFFLINE)throw Error('This is the offline 
 async function copy(value){if(!value)return toast('Nothing to copy yet.');try{await navigator.clipboard.writeText(value);toast('Copied.');}catch{toast('Clipboard unavailable here. Select the text and copy it manually.');}}
 function beginAuthOperation(){S.authOps++;S.authBusy=true;let active=true;return()=>{if(!active)return;active=false;S.authOps=Math.max(0,S.authOps-1);S.authBusy=S.authOps>0;};}
 
+function conversationMessages(prompt){return C.chatMessages(S.conversation,prompt);}
+function clearVisibleResponse(){
+  $('request-id').textContent='';$('result').textContent='Your answer will appear here.';$('result').classList.remove('has-output','partial-output');
+  if($('download-response'))$('download-response').disabled=true;
+}
+function renderConversationContext(note=''){
+  const stats=C.chatStats(S.conversation),summary=$('conversation-context'),history=$('conversation-history'),details=$('conversation-history-details'),count=$('conversation-history-count');
+  if(summary)summary.textContent=note||(stats.turns?`${stats.turns} completed turn${stats.turns===1?'':'s'} · ${stats.characters.toLocaleString()} characters kept in this tab. Sending includes these messages; token fit is checked when you send.`:'History is kept in this tab. Sending a follow-up includes previous messages.');
+  if(history){
+    history.replaceChildren();
+    for(const turn of S.conversation){
+      for(const [role,content] of [['You',turn.user],['Assistant',turn.assistant]]){
+        const message=document.createElement('div'),label=document.createElement('strong'),body=document.createElement('p');message.className='conversation-message';message.dataset.role=role.toLowerCase();label.textContent=role;body.textContent=content;message.append(label,body);history.append(message);
+      }
+    }
+  }
+  if(details)details.hidden=stats.turns===0;
+  if(count)count.textContent=stats.turns?`(${stats.turns} turn${stats.turns===1?'':'s'})`:'';
+  if($('download-chat'))$('download-chat').disabled=stats.turns===0;
+}
+function resetConversation({clearDraft=true,note=''}={}){
+  S.requestSerial++;const controller=S.controller;S.controller=null;controller?.abort();S.busy=false;S.conversation=[];S.conversationFull=false;
+  if(clearDraft)$('prompt').value='';clearVisibleResponse();$('stop-request').hidden=true;$('send').textContent='Send prompt ↑';
+  document.dispatchEvent(new Event('slipvolt:conversation-reset'));renderConversationContext(note);syncRequestActions();
+}
+function rememberConversationTurn(prompt,answer){
+  const update=C.appendChatTurn(S.conversation,prompt,answer,CHAT_LIMITS);S.conversation=update.turns;S.conversationFull=update.full===true;
+  document.dispatchEvent(new Event('slipvolt:conversation-changed'));
+  renderConversationContext(S.conversationFull?'This chat reached its in-tab memory limit. Download it or start a new chat before sending another follow-up.':'');
+}
+
 function selectedModel(){return S.catalogLive?C.selectableModelId(S.models,S.selected):'';}
 function selectedOutputCeiling(){const value=safeInteger(S.models.find(model=>model.id===selectedModel())?.max_completion_tokens);return value&&value>0?value:OFFLINE?16384:null;}
 function syncRequestActions(){
-  const available=Boolean(selectedModel()&&selectedOutputCeiling());
+  const available=Boolean(selectedModel()&&selectedOutputCeiling()&&!S.conversationFull);
   $('send').disabled=S.busy||!available;
   $('check-request').disabled=S.busy||!available;
   for(const button of document.querySelectorAll('.model-tab')){
@@ -33,7 +65,9 @@ function syncRequestActions(){
   }
 }
 function selectModel(id){
-  S.selected=S.catalogLive?C.selectableModelId(S.models,id):'';
+  const previous=S.selected,next=S.catalogLive?C.selectableModelId(S.models,id):'';
+  S.selected=next;
+  if(previous&&next!==previous)resetConversation({clearDraft:false,note:'Model changed · previous turns were cleared. Your draft is still editable.'});
   for(const button of document.querySelectorAll('.model-tab')){
     const active=button.dataset.model===S.selected;
     button.setAttribute('aria-pressed',active?'true':'false');
@@ -73,7 +107,6 @@ function renderModels(){
     button.addEventListener('click',()=>selectModel(model.id));
     list.append(button);
   }
-  S.selected=S.catalogLive?C.selectableModelId(S.models,S.selected):'';
   selectModel(S.selected);
 }
 
@@ -92,6 +125,36 @@ for(const value of ['chat','api']){
 tab('chat');
 $('copy-code').addEventListener('click',()=>copy($('api-code').textContent));
 for(const button of document.querySelectorAll('dialog .close'))button.addEventListener('click',()=>button.closest('dialog').close());
+
+const promptStarters=Object.freeze({
+  write:'Write a clear, engaging draft about [topic] for [audience]. Use a [tone] tone and include [key points].',
+  code:'Help me build [feature] using [language or framework]. Requirements: [requirements]. Explain the approach, then provide complete code and checks.',
+  understand:'Explain [topic or text] in plain language. Start with the main idea, then walk through an example and the details that matter.'
+});
+for(const button of document.querySelectorAll('.prompt-starter'))button.addEventListener('click',()=>{
+  const starter=promptStarters[button.dataset.starter];if(!starter||S.busy)return;
+  $('prompt').value=starter;$('prompt').dispatchEvent(new Event('input',{bubbles:true}));$('prompt').focus();$('prompt').setSelectionRange(0,starter.length);
+});
+$('prompt').addEventListener('keydown',event=>{
+  if(event.isComposing||event.keyCode===229||event.key!=='Enter'||(!event.ctrlKey&&!event.metaKey))return;
+  event.preventDefault();if(!$('send').disabled)$('send').click();
+});
+$('new-chat')?.addEventListener('click',()=>{resetConversation();$('request-note').textContent='New chat started. Previous prompts and answers were cleared from this tab.';$('prompt').focus();});
+function downloadText(filename,value){
+  const url=URL.createObjectURL(new Blob([value],{type:'text/plain;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+$('download-response')?.addEventListener('click',()=>{
+  if(!$('result').classList.contains('has-output'))return toast('There is no completed answer to download yet.');
+  downloadText('holdbyte-answer.txt',$('result').textContent);
+});
+$('download-chat')?.addEventListener('click',()=>{
+  const transcript=C.chatTranscript(S.conversation);if(!transcript)return toast('There is no completed chat to download yet.');
+  downloadText('holdbyte-chat.txt',transcript);
+});
+$('existing-key').addEventListener('input',()=>{
+  if(S.conversation.length||S.busy||$('result').classList.contains('has-output'))resetConversation({clearDraft:false,note:'Customer key changed · previous turns were cleared. Your draft is still editable.'});
+});
+renderConversationContext();
 
 function clearUsage(message='Connect to load your private usage'){
   $('usage-dashboard').hidden=true;
@@ -176,6 +239,21 @@ function publicAllowance(){
   const daily=safeInteger(S.status?.holder_daily_tokens);
   $('allowance-label').textContent=daily!==null?compact(daily)+' AI tokens / day':'Published at launch';
 }
+function validMint(value){return typeof value==='string'&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value);}
+function canonicalBuyUrl(value,mint){
+  if(!validMint(mint)||typeof value!=='string')return '';
+  try{const url=new URL(value);return url.origin==='https://pump.fun'&&!url.username&&!url.password&&!url.search&&!url.hash&&url.pathname==='/coin/'+mint?url.href:'';}catch{return '';}
+}
+function renderTokenLaunch(){
+  const mint=validMint(S.status?.holder_mint)?S.status.holder_mint:'',mintText=$('token-mint'),copyButton=$('copy-token-mint'),buyLink=$('token-buy-link'),note=$('token-launch-note'),heroConnect=document.querySelector('.hero-connect');
+  if(mintText){mintText.textContent=mint||'Not published';mintText.hidden=!mint;}
+  if(copyButton){copyButton.disabled=!mint;copyButton.hidden=!mint;}
+  const buyUrl=S.status?.token_launched===true?canonicalBuyUrl(S.status?.token_buy_url,mint):'';
+  if(buyLink){buyLink.hidden=!buyUrl;if(buyUrl)buyLink.href=buyUrl;else buyLink.removeAttribute('href');}
+  if(heroConnect)heroConnect.hidden=Boolean(buyUrl);
+  if(note)note.textContent=buyUrl?'Token launch is published. Verify this exact mint before opening the external market.':mint?'Mint configured · buying is not published here. Verify the mint, not a ticker.':'No project mint is published. Do not rely on a ticker alone.';
+}
+$('copy-token-mint')?.addEventListener('click',()=>copy(validMint(S.status?.holder_mint)?S.status.holder_mint:''));
 function clearMemberData(){
   S.revoke=null;
   if($('revoke-dialog').open)$('revoke-dialog').close();
@@ -187,8 +265,7 @@ function clearMemberData(){
 }
 function clearSecrets(){
   document.dispatchEvent(new Event('slipvolt:account-cleared'));
-  S.requestSerial++;const controller=S.controller;S.controller=null;controller?.abort();S.busy=false;
-  $('request-id').textContent='';S.key='';$('created-key').value='';$('created-key').type='password';$('show-key').textContent='Show';$('existing-key').value='';$('new-key').hidden=true;$('prompt').value='';$('result').textContent='Your model’s response appears here.';$('result').classList.remove('has-output');$('stop-request').hidden=true;$('send').textContent='Send prompt ↑';syncRequestActions();
+  resetConversation();S.key='';$('created-key').value='';$('created-key').type='password';$('show-key').textContent='Show';$('existing-key').value='';$('new-key').hidden=true;
 }
 function clearAccount(){
   S.epoch++;S.memberSerial++;const memberController=S.memberController;S.memberController=null;memberController?.abort();S.wallet=null;clearSecrets();clearMemberData();clearUsage();$('main-connect').hidden=false;$('member-actions').hidden=true;$('keys-detail').hidden=true;$('access-pill').textContent='Not connected';$('access-title').textContent='Your wallet is your login.';$('access-description').textContent='No email or checkout. Sign a login message to prove the wallet is yours.';$('access-message').textContent=publicAccessMessage();$('request-note').textContent='Create a key above to start.';for(const button of document.querySelectorAll('.connect'))button.textContent='Connect wallet ↗';
@@ -239,6 +316,7 @@ async function refreshMember(){
     const account=await api('/api/account',{signal:controller.signal});if(!current())return;
     if(typeof account?.wallet!=='string'||!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(account.wallet))throw Error('The account response did not contain a valid wallet.');
     if(S.wallet&&S.wallet!==account.wallet){await invalidate('The server wallet changed. Sign in again.');return;}
+    if(S.wallet!==account.wallet)clearSecrets();
     S.wallet=account.wallet;
     const candidates=walletCandidates(),provider=candidates.find(([,item])=>item.publicKey?.toString()===S.wallet)?.[1];
     if(!provider&&candidates.some(([,candidate])=>candidate.publicKey)){await invalidate('Connected wallet differs from this session. Sign in again.');return;}
@@ -272,7 +350,7 @@ function renderKeys(keys){
   for(const key of live){const row=document.createElement('div');row.className='key-item';const text=document.createElement('span');text.textContent=key.name+' · '+key.prefix+'…';const button=document.createElement('button');button.textContent='Revoke';button.addEventListener('click',()=>{S.revoke=key.id;$('revoke-dialog').showModal();});row.append(text,button);$('key-list').append(row);}
 }
 
-$('create-key').addEventListener('click',async()=>{const button=$('create-key'),epoch=S.epoch,wallet=S.wallet;let created=false;button.disabled=true;try{const key=await api('/api/member-key',{method:'POST'});if(S.epoch!==epoch||S.wallet!==wallet)return;created=true;S.key=key.key;$('created-key').value=key.key;$('new-key').hidden=false;$('request-note').textContent='Key ready. This request uses your daily allowance.';toast('Key created. Save it now—it is shown only once.');await refreshMember();}catch(error){if(S.epoch===epoch&&S.wallet===wallet)toast(error.message);}finally{if(S.epoch===epoch&&S.wallet===wallet&&!created)button.disabled=false;}});
+$('create-key').addEventListener('click',async()=>{const button=$('create-key'),epoch=S.epoch,wallet=S.wallet;let created=false;button.disabled=true;try{const key=await api('/api/member-key',{method:'POST'});if(S.epoch!==epoch||S.wallet!==wallet)return;created=true;resetConversation({clearDraft:false,note:'New key ready · previous turns were cleared. Your draft is still editable.'});$('existing-key').value='';S.key=key.key;$('created-key').value=key.key;$('new-key').hidden=false;$('request-note').textContent='Key ready. This request uses your daily allowance.';toast('Key created. Save it now—it is shown only once.');await refreshMember();}catch(error){if(S.epoch===epoch&&S.wallet===wallet)toast(error.message);}finally{if(S.epoch===epoch&&S.wallet===wallet&&!created)button.disabled=false;}});
 $('show-key').addEventListener('click',()=>{const reveal=$('created-key').type==='password';$('created-key').type=reveal?'text':'password';$('show-key').textContent=reveal?'Hide':'Show';});
 $('copy-key').addEventListener('click',()=>copy(S.key));
 $('confirm-revoke').addEventListener('click',async()=>{const button=$('confirm-revoke'),epoch=S.epoch,wallet=S.wallet,keyId=S.revoke;if(!keyId||button.disabled)return;button.disabled=true;try{await api('/api/keys/'+encodeURIComponent(keyId),{method:'DELETE'});if(S.epoch!==epoch||S.wallet!==wallet)return;clearSecrets();$('revoke-dialog').close();S.revoke=null;await refreshMember();if(S.epoch===epoch&&S.wallet===wallet)toast('Key revoked.');}catch(error){if(S.epoch===epoch&&S.wallet===wallet)toast(error.message);}finally{if(S.epoch===epoch&&S.wallet===wallet)button.disabled=false;}});
@@ -282,27 +360,36 @@ async function readStream(response,epoch,request){
   return SlipvoltRequestTools.readCompletionStream(response,output=>{
     if(epoch!==S.epoch||request!==S.requestSerial)return;
     $('result').textContent=output;
-    $('result').classList.add('has-output');
+    if(output)$('result').classList.add('partial-output');
   });
 }
 $('send').addEventListener('click',async()=>{
   if(S.busy)return;
+  if(S.conversationFull)return toast('This chat reached its in-tab memory limit. Download it or start a new chat.');
   const model=selectedModel();if(!model)return toast('No service model is currently available.');
   let outputBudget;try{outputBudget=requestedOutput();}catch(error){return toast(error.message);}
   const key=$('existing-key').value.trim()||S.key,prompt=$('prompt').value.trim();
-  if(key.startsWith('obk-'))return toast('Never paste your OpenBroker key here. Use your Slipvolt key.');
-  if(!C.isCustomerKey(key))return toast('Connect your wallet and get a key, or enter an existing Slipvolt key.');
+  if(key.startsWith('obk-'))return toast('Never paste your OpenBroker key here. Use your Holdbyte customer key.');
+  if(!C.isCustomerKey(key))return toast('Connect your wallet and get a key, or enter an existing Holdbyte customer key.');
   if(!prompt)return toast('Write a prompt first.');
   if(OFFLINE)return toast('Offline preview. No model request was sent.');
-  S.busy=true;$('stop-request').hidden=false;$('request-id').textContent='';const epoch=S.epoch,request=++S.requestSerial,controller=new AbortController();S.controller=controller;syncRequestActions();$('send').textContent='Generating…';$('result').textContent='Connecting to your model…';
+  const messages=conversationMessages(prompt);
+  S.busy=true;$('stop-request').hidden=false;clearVisibleResponse();const epoch=S.epoch,request=++S.requestSerial,controller=new AbortController();S.controller=controller;syncRequestActions();$('send').textContent='Generating…';$('result').textContent='Connecting to your model…';
   const current=()=>epoch===S.epoch&&request===S.requestSerial;
   try{
-    const response=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key,'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({model,messages:[{role:'user',content:prompt}],max_tokens:outputBudget,stream:!!S.status?.capabilities?.streaming}),signal:controller.signal});
+    const response=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key,'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({model,messages,max_tokens:outputBudget,stream:!!S.status?.capabilities?.streaming}),signal:controller.signal});
     if(current())$('request-id').textContent=response.headers.get('x-request-id')?'Request '+response.headers.get('x-request-id'):'';
     if(!response.ok)await C.readApiResponse(response);
-    if(response.headers.get('content-type')?.includes('text/event-stream'))await readStream(response,epoch,request);else{const data=await C.readApiResponse(response);if(current()){$('result').textContent=data?.choices?.[0]?.message?.content||'No text returned.';$('result').classList.add('has-output');}}
-    if(current()){$('request-note').textContent='Complete. Measured usage was deducted from your allowance.';if(S.wallet)await refreshMember();}
-  }catch(error){if(current()){$('result').textContent=error.name==='AbortError'?'Request stopped. Check your allowance before retrying.':error.message;$('request-note').textContent='No automatic retry. Check usage before resubmitting.';}}
+    let answer='';
+    if(response.headers.get('content-type')?.includes('text/event-stream'))answer=await readStream(response,epoch,request);else{const data=await C.readApiResponse(response);answer=typeof data?.choices?.[0]?.message?.content==='string'?data.choices[0].message.content:'';}
+    if(controller.signal.aborted)throw controller.signal.reason||new DOMException('The request was stopped.','AbortError');
+    if(current()){
+      $('result').classList.remove('partial-output');
+      if(answer.trim()){$('result').textContent=answer;$('result').classList.add('has-output');if($('download-response'))$('download-response').disabled=false;rememberConversationTurn(prompt,answer);if($('prompt').value.trim()===prompt)$('prompt').value='';}
+      else{$('result').textContent='The request completed without a text answer.';$('result').classList.remove('has-output');}
+      $('request-note').textContent='Complete. Measured usage was deducted from your allowance.';if(S.wallet)await refreshMember();
+    }
+  }catch(error){if(current()){$('result').classList.remove('has-output','partial-output');if($('download-response'))$('download-response').disabled=true;$('result').textContent=error.name==='AbortError'?'Request stopped. Check your allowance before retrying.':error.message;$('request-note').textContent='No automatic retry. Check usage before resubmitting.';}}
   finally{if(current()){$('stop-request').hidden=true;S.busy=false;S.controller=null;$('send').textContent='Send prompt ↑';syncRequestActions();}}
 });
 
@@ -312,14 +399,15 @@ async function init(){
   const [statusResult,catalogResult]=await Promise.allSettled([api('/api/status'),api('/api/models')]);
   if(statusResult.status==='fulfilled'){
     S.status=statusResult.value;
-    document.querySelectorAll('[data-site-name]').forEach(element=>element.textContent=S.status.brand);
-    document.title=S.status.brand+' — Funded AI for token holders';
+    const displayBrand=typeof S.status.brand==='string'&&/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/.test(S.status.brand)?S.status.brand:'Holdbyte';
+    document.querySelectorAll('[data-site-name]').forEach(element=>element.textContent=displayBrand);
+    document.title=displayBrand+' — Funded AI for token holders';renderTokenLaunch();
     if(typeof refreshRequestControls==='function')refreshRequestControls();
     const limits=S.status.limits||{};
     $('policy-default-output').textContent=safeInteger(limits.default_output_tokens)?whole(limits.default_output_tokens)+' tokens':'Unavailable';
     $('policy-max-output').textContent=safeInteger(limits.max_output_tokens)?whole(limits.max_output_tokens)+' tokens':'Unavailable';
     $('policy-wallet-rate').textContent=safeInteger(limits.wallet_rpm)&&safeInteger(limits.wallet_concurrency)?whole(limits.wallet_rpm)+' requests/min · '+whole(limits.wallet_concurrency)+' concurrent':'Unavailable';
-    if(S.status.holder_gate_configured){$('stage').textContent='PILOT · TOKEN GATE CONFIGURED';$('holding-requirement').textContent=rawTokens(S.status.min_holding_raw,S.status.holder_token_decimals)+' '+S.status.holder_token_symbol;$('allowance-label').textContent=compact(S.status.holder_daily_tokens)+' AI tokens / day';$('allowance-note').textContent='Shared pool: '+compact(S.status.global_daily_tokens)+' AI tokens/day. Funding and capacity limits apply.';$('access-message').textContent='Connect to verify your holdings.';}
+    if(S.status.holder_gate_configured){const publishedBuy=canonicalBuyUrl(S.status.token_buy_url,S.status.holder_mint);$('stage').textContent=S.status.token_launched===true&&publishedBuy?'TOKEN LAUNCHED · VERIFIED MINT LINK':'PILOT · TOKEN GATE CONFIGURED';$('holding-requirement').textContent=rawTokens(S.status.min_holding_raw,S.status.holder_token_decimals)+' '+S.status.holder_token_symbol;$('allowance-label').textContent=compact(S.status.holder_daily_tokens)+' AI tokens / day';$('allowance-note').textContent='Shared pool: '+compact(S.status.global_daily_tokens)+' AI tokens/day. Funding and capacity limits apply.';$('access-message').textContent='Connect to verify your holdings.';}
     else $('allowance-note').textContent='Pilot setting: '+compact(S.status.holder_daily_tokens)+' AI tokens/day; final terms are not published.';
     $('setup-note').textContent=S.status.provider_configured?'Provider configured · funding checked per call':'Setup mode · provider credential needed';
   }else $('setup-note').textContent='Backend unavailable';

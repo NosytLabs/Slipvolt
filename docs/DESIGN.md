@@ -1,8 +1,12 @@
-# Slipvolt design
+# Holdbyte product and architecture
 
 ## Customer path
 
-**Hold → connect/sign → create key → call Gonka models.** A qualifying Solana wallet receives a bounded AI allowance backed by native GNK. Multiple API keys share the same wallet allowance. Selling below the configured threshold blocks new requests after the finalized holding check reflects the change.
+**Hold → connect/sign → create key → chat or use the API.** A qualifying Solana wallet receives a bounded AI allowance backed by native GNK. Multiple API keys share the same wallet allowance. Selling below the configured threshold blocks new requests after the finalized holding check reflects the change.
+
+The home page presents the promise, wallet access, workspace and measured usage in that order. Prompt starters populate an editable draft without sending it. Chat context stays in tab memory and is included in each follow-up request; it is never silently truncated. Request settings, preflight and support diagnostics sit behind an expandable control. Help, funding and developer detail have their own pages.
+
+The service never invents a mint, purchase URL, holder count or usage figure. The official Pump.fun link requires an explicit launch setting and a validated configured mint. See [brand assets and domains](BRAND.md) and [token design](TOKEN-DESIGN.md).
 
 ## Boundaries
 

@@ -2,6 +2,10 @@
 
 ## Unreleased — 2026-10-24
 
+- Introduced the Holdbyte display brand, original illustration and SVG identity; simplified the home page, navigation, wallet pass and customer guides. Retained the existing repository, key prefixes, environment-key names and database compatibility.
+- Added editable prompt starters, tab-memory follow-up context, a fresh-chat action, text downloads and keyboard sending. Advanced request controls remain available without dominating the chat interface.
+- Added an explicit `TOKEN_LAUNCHED` display flag and a canonical Pump.fun link tied to the validated configured mint. Configuration alone does not verify a launch or perform a transaction.
+- Fixed wallet sign-in messages and API titles to use the configured brand. Embedded the actual brand images in standalone previews.
 - Rebuilt the holder workspace around wallet access, model selection, chat/API tools, daily allowance and private usage. Recent activity and all-time account statistics use their respective authoritative sources.
 - Preserved exact provider input/output and optional cached/reasoning counters through settlement, migration-safe storage and export; missing historical values remain unknown.
 - Fixed model discovery to recognize `max_tokens`, retain unknown values and separate discovered metadata from reviewed local policy. Corrected earlier wording that treated the separate Gonka proxy's 16,384 output default as a verified OpenBroker hard limit.

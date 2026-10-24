@@ -32,6 +32,42 @@
     return summary;
   }
 
+  function chatMessages(turns,prompt){
+    const messages=[];
+    for(const turn of Array.isArray(turns)?turns:[]){
+      if(!turn||typeof turn.user!=='string'||typeof turn.assistant!=='string'||!turn.user.trim()||!turn.assistant.trim())continue;
+      messages.push({role:'user',content:turn.user},{role:'assistant',content:turn.assistant});
+    }
+    if(typeof prompt==='string'&&prompt.trim())messages.push({role:'user',content:prompt.trim()});
+    return messages;
+  }
+
+  function appendChatTurn(turns,user,assistant,limits={}){
+    const maxTurns=Number.isSafeInteger(limits.maxTurns)&&limits.maxTurns>0?limits.maxTurns:24;
+    const maxChars=Number.isSafeInteger(limits.maxChars)&&limits.maxChars>0?limits.maxChars:250000;
+    const next=[];
+    for(const turn of Array.isArray(turns)?turns:[]){
+      if(turn&&typeof turn.user==='string'&&typeof turn.assistant==='string'&&turn.user.trim()&&turn.assistant.trim())next.push({user:turn.user,assistant:turn.assistant});
+    }
+    if(typeof user!=='string'||typeof assistant!=='string'||!user.trim()||!assistant.trim()){
+      const characters=next.reduce((sum,turn)=>sum+turn.user.length+turn.assistant.length,0);
+      return {turns:next,dropped:0,retained:false,full:next.length>=maxTurns||characters>=maxChars};
+    }
+    next.push({user:user.trim(),assistant:assistant.trim()});
+    const characters=next.reduce((sum,turn)=>sum+turn.user.length+turn.assistant.length,0);
+    return {turns:next,dropped:0,retained:true,full:next.length>=maxTurns||characters>=maxChars};
+  }
+
+  function chatStats(turns){
+    const valid=(Array.isArray(turns)?turns:[]).filter(turn=>turn&&typeof turn.user==='string'&&typeof turn.assistant==='string'&&turn.user.trim()&&turn.assistant.trim());
+    return {turns:valid.length,characters:valid.reduce((sum,turn)=>sum+turn.user.length+turn.assistant.length,0)};
+  }
+
+  function chatTranscript(turns){
+    const messages=chatMessages(turns,'');
+    return messages.map(message=>(message.role==='user'?'You':'Assistant')+'\n'+message.content).join('\n\n');
+  }
+
   async function readApiResponse(response){
     const contentType=(response.headers?.get?.('content-type')||'').toLowerCase();
     let data=null,raw='';
@@ -51,5 +87,5 @@
     if(data!==null)return data;
     const err=new Error('The server returned an invalid response.');err.status=response.status;throw err;
   }
-  return {escape,isCustomerKey,readApiResponse,safeCount,selectableModelId,summarizeUsage};
+  return {appendChatTurn,chatMessages,chatStats,chatTranscript,escape,isCustomerKey,readApiResponse,safeCount,selectableModelId,summarizeUsage};
 });

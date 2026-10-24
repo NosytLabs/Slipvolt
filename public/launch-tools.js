@@ -3,13 +3,15 @@
   'use strict';
   const el=id=>document.getElementById(id),T=globalThis.SlipvoltRequestTools;
   let serial=0,lastCode=null,activeCheck=null;
-  const canCheck=()=>Boolean(selected())&&!el('output-tokens').disabled&&Number(el('output-tokens').max)>=1;
+  const canCheck=()=>Boolean(selected())&&!el('output-tokens').disabled&&Number(el('output-tokens').max)>=1&&!modelState()?.conversationFull;
   const clear=()=>{serial++;lastCode=null;activeCheck?.abort();activeCheck=null;el('check-request').disabled=Boolean(modelState()?.busy)||!canCheck();el('preflight-result').textContent='Check the current request without running the model.';el('preflight-result').removeAttribute('data-verdict');};
   function selected(){return document.querySelector('.model-tab[aria-pressed="true"]')?.dataset.model||'';}
   function modelState(){return typeof S!=='undefined'?S:null;}
   for(const id of ['prompt','output-tokens','existing-key'])el(id)?.addEventListener('input',clear);
   el('model-list')?.addEventListener('click',clear);
   document.addEventListener('slipvolt:account-cleared',clear);
+  document.addEventListener('slipvolt:conversation-reset',clear);
+  document.addEventListener('slipvolt:conversation-changed',clear);
   el('check-request').addEventListener('click',async()=>{
     const button=el('check-request'),state=modelState();
     clear();
@@ -18,7 +20,7 @@
     const model=selected();
     if(!model||!canCheck()){el('preflight-result').textContent='No service model with a usable output limit is currently available.';return;}
     if(!text){el('preflight-result').textContent='Write a prompt first.';return;}
-    if(key&&!globalThis.SlipvoltCore.isCustomerKey(key)){el('preflight-result').textContent='Use a Slipvolt customer key, never the OpenBroker master key.';return;}
+    if(key&&!globalThis.SlipvoltCore.isCustomerKey(key)){el('preflight-result').textContent='Use a Holdbyte customer key, never the OpenBroker master key.';return;}
     let output;try{output=requestedOutput();}catch(e){el('preflight-result').textContent=e.message;return;}
     const mine=++serial,epoch=state?.epoch,controller=new AbortController();
     activeCheck=controller;button.disabled=true;lastCode=null;
@@ -27,7 +29,7 @@
     try{
       const response=await fetch('/api/preflight',{method:'POST',credentials:'same-origin',
         headers:{'Content-Type':'application/json',...(key?{Authorization:'Bearer '+key}:{})},signal:controller.signal,
-        body:JSON.stringify({model,messages:[{role:'user',content:text}],max_tokens:output,stream:!!state?.status?.capabilities?.streaming})});
+        body:JSON.stringify({model,messages:conversationMessages(text),max_tokens:output,stream:!!state?.status?.capabilities?.streaming})});
       const data=await globalThis.SlipvoltCore.readApiResponse(response);if(mine!==serial||epoch!==state?.epoch)return;
       lastCode=data.reason_code;
       el('preflight-result').dataset.verdict=data.allowed?'fits':'blocked';
@@ -52,7 +54,7 @@
   el('support-close').addEventListener('click',()=>el('support-dialog').close());
   el('clear-response').addEventListener('click',()=>{
     if(modelState()?.busy){toast('Stop or finish the current request before clearing.');return;}
-    el('result').textContent='Your model’s response appears here.';el('result').classList.remove('has-output');el('request-id').textContent='';clear();
+    clearVisibleResponse();clear();renderConversationContext();
   });
   renderKit();
 })();
