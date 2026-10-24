@@ -6,7 +6,7 @@ function refreshRequestControls() {
   const input = $('output-tokens');
   input.max = String(ceiling);
   if (Number(input.value) > ceiling) input.value = String(ceiling);
-  $('output-ceiling').textContent = `Maximum ${ceiling.toLocaleString()} · reasoning may consume part of the output budget`;
+  $('output-ceiling').textContent = `Service limit ${ceiling.toLocaleString()} tokens; provider acceptance may vary.`;
   if (S.status?.limits) $('account-limits').textContent = `${S.status.limits.wallet_rpm} requests/minute · ${S.status.limits.wallet_concurrency} concurrent · shared across your keys`;
 }
 function requestedOutput() {

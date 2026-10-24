@@ -1,20 +1,37 @@
-# Slipvolt API policy — 2026-09-20 research snapshot
+# Slipvolt API policy — 2026-10-24 research snapshot
 
 Slipvolt is an OpenAI-compatible **Chat Completions** gateway on top of a dedicated OpenBroker account. The upstream account key stays server-side. Customer `sv_` keys are independent, revocable credentials tied to a Solana wallet and one shared wallet allowance.
 
-## Live upstream models and limits
+## Active models and reviewed local limits
 
 OpenBroker's current public catalog lists:
 
-| Model | Gonka deployed context | Gonka advertised max completion | Slipvolt default output | Slipvolt hard output |
+| Model | Reviewed local context | Separate proxy output metadata | Slipvolt default output | Reviewed local output cap |
 |---|---:|---:|---:|---:|
 | `MiniMaxAI/MiniMax-M2.7` | 180,000 | 16,384 | 4,096 | 16,384 |
 | `deepseek-ai/DeepSeek-V4-Flash-0731` | 400,000 | 16,384 | 4,096 | 16,384 |
 | `zai-org/GLM-5.3-Flash` | 400,000 | 16,384 | 4,096 | 16,384 |
 
-Sources: OpenBroker `/v1/models`; Gonka chain `/models_all`; Gonka proxy `/v1/models`. `context_window` in the governance response is currently zero, so the deployed `--max-model-len` and proxy metadata are used instead.
+Sources checked October 24: [OpenBroker catalog](https://openbroker.gonka.gg/docs/models), [Gonka host configuration](https://gonka.ai/docs/host/quickstart/), and [separate Gonka proxy metadata](https://proxy.gonka.gg/v1/models). OpenBroker's own public catalog currently supplies IDs without numeric limits. Zero-valued chain/RPC metadata is unpopulated, not unlimited. The proxy's output field is `max_tokens`; the parser accepts it as an alias of `max_completion_tokens`.
 
-Slipvolt reads the live OpenBroker catalog and Gonka metadata. An admin can **tighten** the output ceiling but never expand it above 16,384. Large context is capability, not a latency SLA. Applications should leave room for completion tokens inside the model context.
+**16,384 is a reviewed local default, not a verified OpenBroker maximum.** The separate proxy and OpenBroker are different serving routes. [OpenBroker chat documentation](https://openbroker.gonka.gg/docs/chat-completions) accepts `max_tokens` without publishing a numeric maximum. Model-native configuration may allow larger windows than Gonka's deployment defaults; neither proves an account-level serving limit. Applications must leave completion headroom inside the context window.
+
+`/api/models` publishes effective `context_length` / `max_completion_tokens`, nullable `discovered_context_length` / `discovered_max_completion_tokens`, a discovery status, and separate source labels. Discovery may tighten reviewed policy but cannot increase it or activate an unknown model. Missing metadata never becomes a fabricated discovered value. The upstream catalog cache is merged with current operator policy on every read.
+
+### Explicit deployment overrides
+
+For a reviewed model, an operator may deliberately configure both limits in the server environment:
+
+```dotenv
+MAX_OUTPUT_TOKENS=32768
+MODEL_LIMIT_OVERRIDES_JSON={"MiniMaxAI/MiniMax-M2.7":{"context_length":204800,"max_completion_tokens":32768}}
+```
+
+This is a configuration example, **not evidence that OpenBroker accepts those limits**. It requires a known model ID, exactly both positive integer fields, `output < context <= 1048576`, and output no larger than the global configured cap. Invalid configuration fails startup. An explicit override replaces separate-proxy tightening for that model and is labelled `operator_override_unverified`; discovered values remain visible. Runtime admin output settings still apply. Without an explicit model override, increasing the global cap alone does not increase a model's reviewed output cap. No override sets `openbroker_limits_verified` to true.
+
+Confirm higher limits from the actual serving operator or a separately authorized, funded boundary test. No paid boundary tests were performed as part of this change.
+
+Previously saved admin settings take precedence over environment defaults for the global output cap. On an existing deployment, check the current admin cap after changing the environment; a saved 16,384 cap will still restrict an explicit 32,768 model override until deliberately updated.
 
 ## Admission counting and evidence
 
@@ -33,7 +50,7 @@ Mirrors current Gonka Chat Completions safeguards where practical:
 - `n`: 5 maximum.
 - Stops: 16 strings, 256 bytes each.
 - Default output: 4,096 tokens.
-- Maximum output: 16,384 tokens.
+- Default maximum output: 16,384 tokens per choice, subject to effective per-model policy. Explicit operator configuration may change it within the 1,048,576 validation ceiling; that ceiling is not an upstream capability claim.
 - `max_tokens` and `max_completion_tokens` are aliases and must agree if both are supplied.
 - Maximum JSON nesting depth: 32.
 - Live provider health is checked before dispatch; an explicitly unroutable/unavailable model returns 503 without spending holder allowance.
@@ -42,6 +59,8 @@ Mirrors current Gonka Chat Completions safeguards where practical:
 - Streaming uses SSE and requires usage in the terminal stream so allowance settlement can be reconciled.
 
 The gateway fails closed when the live model catalog or spendable OpenBroker balance cannot be verified.
+
+The local GNK reservation is an admission estimate, not a provider-enforced maximum charge. Confirmed settlement can exceed a request's estimate or the locally allocated pool; concurrent requests amplify that exposure. Spendable allowance then shrinks, but this cannot undo provider cost already incurred. Keep provider working capital and acquisition costs reconciled, leave headroom for redundancy/epoch charges, and use a provider-side spending cap if one is actually available. The application does not claim that such an upstream cap has been configured.
 
 ## Initial rate limits
 

@@ -2,6 +2,14 @@
 
 This document records the external facts that drive the current implementation. Re-check them before a public launch because model catalogs, network parameters, provider pricing and launchpad fees can change.
 
+## October 24, 2026 correction and follow-up
+
+The older limit wording below is superseded by [API policy](API-POLICY.md). The separate Gonka proxy advertises `max_tokens: 16384`; OpenBroker's own model endpoint currently supplies no numeric context/output limits. The proxy values are useful conservative local defaults, not verified OpenBroker hard caps. The parser now handles that field name, preserves unknown discovery, prevents automatic cap increases, and supports clearly labelled explicit server overrides.
+
+[Token and treasury design](TOKEN-DESIGN.md) contains the current Pump/StonkFun research, AntSeed seller observations, optional burn design and source links. It distinguishes cheap per-token inference from all-in provider/account costs and collected creator fees from trading volume. Public launchpad fees and eligibility must be rechecked at launch.
+
+The remainder is the historical September research record; quoted prices, concurrency defaults and serving-limit interpretations are not a current offer.
+
 ## OpenBroker setup
 
 OpenBroker describes itself as “a broker for brokers”: create an account, create a private `obk-` key, deposit **native GNK** to the dashboard's dedicated Deposit & top-up address, then use the OpenAI-compatible base `https://api.openbroker.gonka.gg/v1`.

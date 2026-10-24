@@ -9,7 +9,7 @@ Run the server and open `/admin/`. The console uses a dedicated `ADMIN_API_KEY`;
 - Provider/model health and capacity from OpenBroker's public status feed.
 - Wallet and global RPM/concurrency plus the conservative ngonka-per-AI-token reservation factor.
 - Holder and global daily AI-token allowance.
-- Default/hard output limits (hard upper bound remains Gonka's advertised 16,384).
+- Default and global output caps. The reviewed per-model output default is 16,384; higher limits require explicit server-side model overrides as described in [API policy](API-POLICY.md). The 1,048,576 configuration ceiling is not an OpenBroker capability claim.
 - Planned input/output metered pricing.
 - Maintenance mode.
 - Wallet search, user disable/enable, optional per-wallet daily token overrides, API-key inspection and immediate revocation.

@@ -4,6 +4,29 @@
   function escape(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
   function isCustomerKey(value){return /^(sv_|grd_)[A-Za-z0-9_-]{20,96}$/.test(value);}
 
+  function safeCount(value){return Number.isSafeInteger(value)&&value>=0?value:null;}
+  function summarizeUsage(rows){
+    const items=Array.isArray(rows)?rows:[],models=new Map();
+    const summary={requests:0,settled:0,inFlight:0,needsReview:0,recentTokens:0,recentCostNgonka:0,models:[]};
+    for(const row of items){
+      if(!row||typeof row!=='object')continue;
+      summary.requests++;
+      const state=typeof row.state==='string'?row.state:'unknown';
+      if(state==='settled')summary.settled++;
+      if(state==='reserved')summary.inFlight++;
+      if(state==='needs_review')summary.needsReview++;
+      const tokens=safeCount(row.tokens);
+      const cost=safeCount(row.cost_ngonka);
+      if(tokens!==null)summary.recentTokens+=tokens;
+      if(cost!==null)summary.recentCostNgonka+=cost;
+      if(tokens!==null&&typeof row.model==='string'&&row.model.length>0&&row.model.length<=150){
+        models.set(row.model,(models.get(row.model)||0)+tokens);
+      }
+    }
+    summary.models=[...models].map(([model,tokens])=>({model,tokens})).sort((a,b)=>b.tokens-a.tokens||a.model.localeCompare(b.model));
+    return summary;
+  }
+
   async function readApiResponse(response){
     const contentType=(response.headers?.get?.('content-type')||'').toLowerCase();
     let data=null,raw='';
@@ -23,5 +46,5 @@
     if(data!==null)return data;
     const err=new Error('The server returned an invalid response.');err.status=response.status;throw err;
   }
-  return {escape,isCustomerKey,readApiResponse};
+  return {escape,isCustomerKey,readApiResponse,summarizeUsage};
 });

@@ -50,11 +50,19 @@ The account area links to a wallet-authenticated export of the latest 100 usage 
 
 Staking, payment settlement, token launching, and automatic treasury transactions remain out of scope of this release.
 
-## Current upstream policy snapshot — September 23, 2026
+## Holder workspace and model-policy review — October 24, 2026
 
-OpenBroker currently lists three active models. Slipvolt intersects the live OpenBroker catalog with current Gonka model metadata:
+The customer workspace brings model selection, chat/API tools, wallet allowance and recent usage together. Input/output counters retain provider-reported values; missing historical counters remain unknown. Usage summaries label their time window and the latest-request table labels its limited scope.
 
-| Model | Context | Max completion | Slipvolt default output |
+The model metadata parser now recognizes the proxy's `max_tokens` field. Effective local limits, discovered values and their provenance are separate. Explicit per-model environment overrides can raise a reviewed limit after an operator evaluates the serving route; automatic discovery cannot do so.
+
+See [token, treasury and launch design](docs/TOKEN-DESIGN.md) for the proposed holder benefit, custody boundaries, burn options and current launchpad findings. The [offline holder-economics planner](operator/holder-economics.html) models creator fees, GNK costs, reserves and zero-trading stress without preparing transactions.
+
+## Current model policy — October 24, 2026
+
+OpenBroker currently lists three active models. Slipvolt intersects that catalog with reviewed local model policies. These defaults are informed by Gonka deployment instructions and the separate Gonka proxy:
+
+| Model | Reviewed local context | Reviewed local max completion | Slipvolt default output |
 |---|---:|---:|---:|
 | MiniMax M2.7 | 180,000 | 16,384 | 4,096 |
 | DeepSeek V4 Flash 0731 | 400,000 | 16,384 | 4,096 |
@@ -62,7 +70,9 @@ OpenBroker currently lists three active models. Slipvolt intersects the live Ope
 
 OpenBroker currently marks **Kimi-K2.6 as deprecated** because the chain has no validation weights for it; it is intentionally not offered in the customer picker. OpenBroker's current broker setup also requires **at least 100 GNK** to activate an account before inference.
 
-The 16,384 output ceiling comes from Gonka's current model metadata; OpenBroker's own documentation supports `max_tokens` but does not publish a separate numeric ceiling. Live metadata is checked at runtime and admin settings may only tighten the cap.
+The separate Gonka proxy advertises 16,384 output tokens. **This is not a verified OpenBroker output ceiling.** OpenBroker's own documentation supports `max_tokens` but does not publish a numeric maximum, and its public catalog supplies model IDs without numeric limits. Positive proxy discovery may tighten the reviewed defaults; missing or zero discovery remains unknown. `/api/models` exposes both effective and discovered values with `openbroker_limits_verified: false`.
+
+An operator can set `MODEL_LIMIT_OVERRIDES_JSON` with explicit context and completion limits for known models, together with a sufficient global `MAX_OUTPUT_TOKENS`. Both fields are required, output must be below context, and neither may exceed the 1,048,576 configuration safety ceiling. This records `operator_override_unverified`; it does not establish upstream support. An admin runtime cap can still tighten effective output. See the disabled example in `.env.example` and [API policy](docs/API-POLICY.md).
 
 Gonka's documented Chat Completions safeguards are mirrored where practical: 10 MiB body, <=2,048 messages, `n<=5`, <=16 stop strings, standard function tools, SSE streaming, and `max_tokens` / `max_completion_tokens` compatibility.
 
@@ -194,7 +204,7 @@ curl https://YOUR_HOST/v1/chat/completions \
 
 Supported surface includes text Chat Completions, standard roles, sampling fields, `max_tokens` / `max_completion_tokens`, SSE streaming, function tool definitions/tool calls, `response_format`, `structured_outputs`, `n<=5`, stop sequences, logit/logprob options, reasoning/thinking hints and selected vLLM-compatible sampling extensions. Slipvolt passes tools to the model but **never executes a tool itself**.
 
-`GET /v1/models` returns the live intersection with `context_length` and `max_completion_tokens` metadata.
+`GET /v1/models` returns the live intersection with effective local `context_length` and `max_completion_tokens` limits. Both model endpoints describe discovered values and policy provenance; neither endpoint certifies an OpenBroker account benchmark.
 
 ## Real OpenBroker smoke check
 

@@ -37,7 +37,7 @@ from .integrations import SolanaRPC, MetisQuotes, validate_endpoint
 from .broker import Broker
 from .member_gateway import MemberGateway
 from .gonka import NativeTreasury, validate_address
-from .model_policy import MODEL_POLICIES, DEFAULT_OUTPUT_TOKENS, HARD_OUTPUT_TOKENS, MAX_BODY_BYTES, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
+from .model_policy import MODEL_POLICIES, DEFAULT_OUTPUT_TOKENS, HARD_OUTPUT_TOKENS, MODEL_LIMIT_CEILING, MAX_BODY_BYTES, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
 
 APP_VERSION = '0.9.5'
 UPSTREAM = 'https://api.openbroker.gonka.gg/v1'
@@ -60,6 +60,21 @@ def canonical_host(authority, scheme):
         host=f'[{host}]'
     default_port=443 if scheme=='https' else 80 if scheme=='http' else None
     return host if port in (None,default_port) else f'{host}:{port}'
+
+
+def model_limit_overrides_from_env():
+    def unique_object(pairs):
+        result={}
+        for key,value in pairs:
+            if key in result:raise ValueError('Duplicate JSON key')
+            result[key]=value
+        return result
+    def reject_constant(_):raise ValueError('Non-finite JSON number')
+    try:
+        return json.loads(os.getenv('MODEL_LIMIT_OVERRIDES_JSON','{}'),
+            object_pairs_hook=unique_object,parse_constant=reject_constant)
+    except (TypeError,json.JSONDecodeError,ValueError) as exc:
+        raise ValueError('MODEL_LIMIT_OVERRIDES_JSON must be a JSON object') from exc
 
 
 @dataclass
@@ -87,6 +102,7 @@ class Settings:
     global_concurrency: int = 50
     default_output_tokens: int = DEFAULT_OUTPUT_TOKENS
     max_output_tokens: int = HARD_OUTPUT_TOKENS
+    model_limit_overrides: dict = field(default_factory=dict)
     max_request_bytes: int = MAX_BODY_BYTES
     timeout: int = 180
     admin_key: str = ''
@@ -125,6 +141,7 @@ class Settings:
             global_concurrency=int(os.getenv('GLOBAL_CONCURRENCY','50')),
             default_output_tokens=int(os.getenv('DEFAULT_OUTPUT_TOKENS','4096')),
             max_output_tokens=int(os.getenv('MAX_OUTPUT_TOKENS','16384')),
+            model_limit_overrides=model_limit_overrides_from_env(),
             max_request_bytes=int(os.getenv('MAX_REQUEST_BYTES',str(MAX_BODY_BYTES))),
             timeout=int(os.getenv('UPSTREAM_TIMEOUT_SECONDS','180')),
             admin_key=os.getenv('ADMIN_API_KEY',''),production=production,
@@ -180,8 +197,8 @@ class Message(StrictBody):
 class ChatInput(StrictBody):
     model: str=Field(min_length=1,max_length=150)
     messages: list[Message]=Field(min_length=1,max_length=MAX_MESSAGES)
-    max_tokens: int | None=Field(default=None,ge=1,le=HARD_OUTPUT_TOKENS,strict=True)
-    max_completion_tokens: int | None=Field(default=None,ge=1,le=HARD_OUTPUT_TOKENS,strict=True)
+    max_tokens: int | None=Field(default=None,ge=1,le=MODEL_LIMIT_CEILING,strict=True)
+    max_completion_tokens: int | None=Field(default=None,ge=1,le=MODEL_LIMIT_CEILING,strict=True)
     stream: bool=Field(default=False,strict=True)
     stream_options: dict | None=None
     temperature: float=Field(default=0.7,ge=0,le=2)
@@ -203,7 +220,7 @@ class ChatInput(StrictBody):
     enable_thinking: bool | None=None
     thinking_config: dict | None=None
     think: bool | None=None
-    min_tokens: int | None=Field(default=None,ge=0,le=HARD_OUTPUT_TOKENS,strict=True)
+    min_tokens: int | None=Field(default=None,ge=0,le=MODEL_LIMIT_CEILING,strict=True)
     bad_words: list[str] | None=Field(default=None,max_length=64)
     stop_token_ids: list[int] | None=Field(default=None,max_length=64)
     skip_special_tokens: bool | None=None
@@ -274,8 +291,8 @@ class AdminConfigInput(StrictBody):
     global_concurrency: int=Field(ge=1,le=10000)
     holder_daily_tokens: int=Field(ge=1,le=10**9)
     global_daily_tokens: int=Field(ge=1,le=10**9)
-    default_output_tokens: int=Field(ge=1,le=HARD_OUTPUT_TOKENS)
-    max_output_tokens: int=Field(ge=1,le=HARD_OUTPUT_TOKENS)
+    default_output_tokens: int=Field(ge=1,le=MODEL_LIMIT_CEILING)
+    max_output_tokens: int=Field(ge=1,le=MODEL_LIMIT_CEILING)
     retail_input_nusd_per_token: int=Field(ge=1,le=10**6)
     retail_output_nusd_per_token: int=Field(ge=1,le=10**6)
     ngonka_per_token_budget: int | None=Field(default=None,ge=10,le=1000)
@@ -385,8 +402,17 @@ def validate_settings(settings):
         if not settings.solana_rpc.startswith('https://'): raise ValueError('Holder mode requires an HTTPS RPC URL')
     for value,label,maximum in ((settings.request_limit,'request rate limit',10000),(settings.wallet_concurrency,'wallet concurrency',100),(settings.global_request_limit,'global request rate limit',100000),(settings.global_concurrency,'global concurrency',10000)):
         if type(value) is not int or not 1<=value<=maximum: raise ValueError('Invalid '+label)
-    if type(settings.default_output_tokens) is not int or type(settings.max_output_tokens) is not int or not 1<=settings.default_output_tokens<=settings.max_output_tokens<=HARD_OUTPUT_TOKENS:
+    if type(settings.default_output_tokens) is not int or type(settings.max_output_tokens) is not int or not 1<=settings.default_output_tokens<=settings.max_output_tokens<=MODEL_LIMIT_CEILING:
         raise ValueError('Invalid output token limits')
+    if not isinstance(settings.model_limit_overrides,dict):raise ValueError('Invalid model limit override configuration')
+    for model_id,override in settings.model_limit_overrides.items():
+        if (model_id not in MODEL_POLICIES or not isinstance(override,dict) or
+                set(override)!={'context_length','max_completion_tokens'}):
+            raise ValueError('Invalid model limit override configuration')
+        context=override.get('context_length');output=override.get('max_completion_tokens')
+        if (type(context) is not int or type(output) is not int or
+                not 1<=output<context<=MODEL_LIMIT_CEILING or output>settings.max_output_tokens):
+            raise ValueError('Invalid model limit override configuration')
     if type(settings.max_request_bytes) is not int or not 131072<=settings.max_request_bytes<=MAX_BODY_BYTES: raise ValueError('Invalid request body limit')
     if settings.production and settings.admin_key and len(settings.admin_key)<32: raise ValueError('ADMIN_API_KEY must be at least 32 characters in production')
     for cap in (settings.daily_budget_nusd, settings.wallet_daily_budget_nusd):
@@ -425,7 +451,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     broker=Broker(client,settings.upstream_key)
     native_treasury=NativeTreasury(client,settings.gonka_treasury_address)
     member_gateway=MemberGateway(settings,client,broker,membership,runtime)
-    cache={'models':None,'metadata':None,'at':0,'live':False,'health':None,'health_at':0}
+    cache={'models':None,'metadata':None,'metadata_live':False,'at':0,'live':False,'health':None,'health_at':0}
     catalog_lock=asyncio.Lock()
     health_lock=asyncio.Lock()
 
@@ -552,22 +578,29 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         async with catalog_lock:
             cfg=runtime();ttl=60 if cache['live'] else 10
             if cache['models'] is not None and time.time()-cache['at']<ttl:
-                models=[merge_upstream_metadata(m['id'],m,cfg['max_output_tokens']) for m in cache['models'] if m['id'] not in set(cfg.get('disabled_models',[]))]
+                metadata=cache.get('metadata') or {}
+                models=[merge_upstream_metadata(m['id'],metadata.get(m['id']),cfg['max_output_tokens'],settings.model_limit_overrides.get(m['id']))
+                    for m in cache['models'] if m['id'] not in set(cfg.get('disabled_models',[]))]
                 return models,cache['live']
             try:
                 rows=(await broker.read('/v1/models'))['data']
                 if not isinstance(rows,list) or not rows or len(rows)>1000: raise ValueError()
                 ids=list(dict.fromkeys(m['id'] for m in rows if isinstance(m,dict) and isinstance(m.get('id'),str) and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_./:+-]{0,149}',m['id'])))
                 if not ids: raise ValueError()
-                try: metadata=await broker.model_metadata()
-                except Exception: metadata={}
-                models=[merge_upstream_metadata(i,metadata.get(i)) for i in ids]
-                cache.update(models=models,metadata=metadata,at=time.time(),live=True)
+                try:
+                    metadata=await broker.model_metadata()
+                    metadata_live=any(i in metadata for i in ids)
+                except Exception:
+                    metadata={};metadata_live=False
+                models=[{'id':i} for i in ids]
+                cache.update(models=models,metadata=metadata,metadata_live=metadata_live,at=time.time(),live=True)
             except Exception:
-                models=[merge_upstream_metadata(m['id'],m) for m in SNAPSHOT]
-                cache.update(models=models,metadata={},at=time.time(),live=False)
+                models=[{'id':m['id']} for m in SNAPSHOT]
+                cache.update(models=models,metadata={},metadata_live=False,at=time.time(),live=False)
             disabled=set(cfg.get('disabled_models',[]))
-            return [merge_upstream_metadata(m['id'],m,cfg['max_output_tokens']) for m in cache['models'] if m['id'] not in disabled],cache['live']
+            metadata=cache.get('metadata') or {}
+            return [merge_upstream_metadata(m['id'],metadata.get(m['id']),cfg['max_output_tokens'],settings.model_limit_overrides.get(m['id']))
+                for m in cache['models'] if m['id'] not in disabled],cache['live']
 
     async def provider_health(ttl=15):
         async with health_lock:
@@ -588,15 +621,18 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         meta=by_id.get(body.model)
         if not meta:error('Model not in current OpenBroker catalogue',400)
         requested=body.max_completion_tokens if body.max_completion_tokens is not None else body.max_tokens
-        if requested is None:requested=cfg['default_output_tokens']
-        model_cap=meta.get('max_completion_tokens') or cfg['max_output_tokens']
+        model_cap=meta.get('max_completion_tokens')
+        if not isinstance(model_cap,int) or model_cap<1:
+            error('No reviewed output policy for this model; operator review is required',503)
         cap=min(cfg['max_output_tokens'],model_cap)
+        if requested is None:requested=min(cfg['default_output_tokens'],cap)
         if requested>cap:error(f'max_tokens exceeds the {cap}-token limit for this model',400)
         body.max_tokens=requested;body.max_completion_tokens=None
         context=meta.get('context_length')
         if not isinstance(context,int) or context<1:
             error('No context policy for this model; operator review is required',503)
-        estimate=input_budget(body.model_dump(exclude_none=True))
+        payload,_=member_gateway.prepare(body)
+        estimate=input_budget(payload)
         if estimate+requested>context:
             error(f'Request exceeds the conservative context admission budget ({context} tokens including output). Reduce input/output. UTF-8 estimation can overcount; no content was truncated.',400)
         return meta
@@ -636,12 +672,17 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         for row in rows:
             h=health_by.get(row['id'],{})
             availability=h.get('status') if h.get('status') in ('healthy','degraded','unavailable') else ('listed' if live else 'unverified')
+            model_cap=row.get('max_completion_tokens')
             item={**row,'availability':availability,
-                'default_completion_tokens':min(cfg['default_output_tokens'],row.get('max_completion_tokens',cfg['max_output_tokens']))}
+                'default_completion_tokens':min(cfg['default_output_tokens'],model_cap) if isinstance(model_cap,int) and model_cap>0 else None}
             for key in ('routable','capacity_available_pct','capacity_lost_pct','load_pct','in_flight_requests','max_concurrency','effective_max_concurrency'):
                 if key in h:item[key]=h[key]
             data.append(item)
-        return {'data':data,'source':'OpenBroker live catalogue + Gonka model metadata' if live else 'Gonka/OpenBroker documented snapshot',
+        if live:
+            source=('OpenBroker live catalogue + separate Gonka proxy discovery metadata' if cache.get('metadata_live') else
+                'OpenBroker live catalogue + reviewed local model policy; separate Gonka proxy discovery unavailable')
+        else:source='Reviewed local model policy snapshot; live OpenBroker catalogue unavailable'
+        return {'data':data,'source':source,
             'live':live,'inference_tested':False,
             'pricing':{'input_per_million_usd':cfg['retail_input_nusd_per_token']/1000,
                        'output_per_million_usd':cfg['retail_output_nusd_per_token']/1000,
@@ -653,7 +694,15 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         rows,live=await catalog()
         if not live: error('Live model catalogue unavailable; see /api/models for a labelled snapshot',503)
         return {'object':'list','data':[{'id':m['id'],'object':'model','created':0,'owned_by':'openbroker',
-            'context_length':m.get('context_length'),'max_completion_tokens':m.get('max_completion_tokens')} for m in rows]}
+            'context_length':m.get('context_length'),'max_completion_tokens':m.get('max_completion_tokens'),
+            'openbroker_limits_verified':m.get('openbroker_limits_verified',False),
+            'limits_source':m.get('limits_source'),
+            'context_limit_source':m.get('context_limit_source'),
+            'completion_limit_source':m.get('completion_limit_source'),
+            'discovered_context_length':m.get('discovered_context_length'),
+            'discovered_max_completion_tokens':m.get('discovered_max_completion_tokens'),
+            'discovery_limits_status':m.get('discovery_limits_status'),
+            'operator_override_configured':m.get('operator_override_configured',False)} for m in rows]}
 
 
     @app.post('/api/auth/challenge')
@@ -758,7 +807,8 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         throttle(request,'csv-export',20)
         output=io.StringIO(newline='')
         holder=settings.access_mode=='holder_allowance'
-        fields=(['id','model','state','tokens','reserved_tokens','cost_ngonka','reserved_ngonka','cost_source','created_utc'] if holder else
+        fields=(['id','model','state','tokens','prompt_tokens','completion_tokens','cached_input_tokens','reasoning_tokens','usage_status',
+                 'reserved_tokens','cost_ngonka','reserved_ngonka','cost_source','created_utc'] if holder else
                 ['id','model','state','prompt_tokens','completion_tokens','billed_nusd','reserved_nusd','created_utc'])
         rows=membership.history(wallet,limit=100) if holder else store.history(wallet)
         writer=csv.DictWriter(output,fieldnames=fields)
@@ -848,7 +898,8 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         return {**cfg,
             'retail_input_per_million_usd':cfg['retail_input_nusd_per_token']/1000,
             'retail_output_per_million_usd':cfg['retail_output_nusd_per_token']/1000,
-            'upstream_hard_output_cap':HARD_OUTPUT_TOKENS,
+            'reviewed_default_output_cap':HARD_OUTPUT_TOKENS,
+            'model_limit_configuration_ceiling':MODEL_LIMIT_CEILING,
             'max_request_bytes':settings.max_request_bytes}
 
     @app.put('/api/admin/config')
@@ -1021,7 +1072,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         if not settings.upstream_key:error('OpenBroker is not configured; no inference was run',503)
         rows,live=await catalog()
         if not live:error('Cannot verify live model catalog; no inference was run',503)
-        normalize_completion_request(body,rows)
+        meta=normalize_completion_request(body,rows)
         health=await provider_health()
         h=next((m for m in (health or {}).get('models',[]) if isinstance(m,dict) and m.get('model')==body.model),None)
         if h and (h.get('status')=='unavailable' or h.get('routable') is False):
@@ -1031,6 +1082,9 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         cfg=runtime()
         if cfg['maintenance_mode']:error('Inference is paused for maintenance',503)
         _,tokens=member_gateway.prepare(body)
+        estimated_input=tokens-body.max_tokens*body.n
+        estimated_context=estimated_input+body.max_tokens
+        context_limit=meta['context_length']
         try:available=(await broker.balance())['available_ngonka']
         except Exception:error('Cannot verify provider funding; no inference was run',503)
         result=membership.preview(key['id'] if key else None,wallet,body.model,'',tokens,
@@ -1041,9 +1095,15 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         if result['reason_code']=='invalid_key':error('Invalid or revoked API key',401)
         if result['reason_code']=='user_disabled':error('This wallet is disabled',403)
         return {**result,'model':body.model,'estimated_ai_tokens':tokens,
+            'estimated_input_tokens':estimated_input,
+            'estimated_context_tokens':estimated_context,
+            'context_limit_tokens':context_limit,
+            'context_headroom_tokens':context_limit-estimated_context,
             'requested_output_tokens':body.max_tokens,'choices':body.n,
             'estimated_budget_ngonka':tokens*cfg['ngonka_per_token_budget'],
             'estimate_method':'conservative_utf8_admission','inference_requests':0,
+            'context_estimate_scope':'per_choice',
+            'allowance_estimate_scope':'input_once_plus_output_per_choice',
             'reservation_created':False,'checked_at':int(time.time()),
             'notice':'Snapshot only. No capacity booked. Sending rechecks all limits; actual tokenization and provider billing may differ.'}
 

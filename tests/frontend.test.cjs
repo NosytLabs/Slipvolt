@@ -16,5 +16,18 @@ if(fs.existsSync(target)) {
 }
 test('browser core exports only helpers used by the current product',()=>{
   const core=require(target);
-  assert.deepEqual(Object.keys(core).sort(),['escape','isCustomerKey','readApiResponse'].sort());
+  assert.deepEqual(Object.keys(core).sort(),['escape','isCustomerKey','readApiResponse','summarizeUsage'].sort());
+});
+test('recent usage summary counts only measured safe values and keeps model groups separate',()=>{
+  const core=require(target);
+  const summary=core.summarizeUsage([
+    {model:'a',state:'settled',tokens:15,cost_ngonka:150},
+    {model:'a',state:'reserved',tokens:0,reserved_tokens:20,cost_ngonka:null},
+    {model:'b',state:'needs_review',tokens:7,cost_ngonka:70},
+    {model:'bad',state:'settled',tokens:-1,cost_ngonka:Infinity},
+    null
+  ]);
+  assert.deepEqual({requests:summary.requests,settled:summary.settled,inFlight:summary.inFlight,needsReview:summary.needsReview,recentTokens:summary.recentTokens,recentCostNgonka:summary.recentCostNgonka},
+    {requests:4,settled:2,inFlight:1,needsReview:1,recentTokens:22,recentCostNgonka:220});
+  assert.deepEqual(summary.models,[{model:'a',tokens:15},{model:'b',tokens:7}]);
 });

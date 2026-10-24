@@ -72,12 +72,18 @@ class Broker:
         if not isinstance(rows,list) or len(rows)>1000:raise ValueError('Invalid model metadata')
         result={}
         for row in rows:
-            if not isinstance(row,dict) or not isinstance(row.get('id'),str):continue
-            item={'id':row['id']}
-            for key in ('context_length','max_completion_tokens'):
-                value=row.get(key)
-                if type(value) is int and 0<value<=10**7:item[key]=value
-            result[row['id']]=item
+            if not isinstance(row,dict) or not isinstance(row.get('id'),str):
+                raise ValueError('Invalid model metadata')
+            model_id=row['id']
+            if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_./:+-]{0,149}',model_id) or model_id in result:
+                raise ValueError('Invalid model metadata')
+            item={'id':model_id}
+            context=row.get('context_length')
+            if type(context) is int and 0<context<=10**7:item['context_length']=context
+            outputs=[value for value in (row.get('max_completion_tokens'),row.get('max_tokens'),row.get('max_output_length'))
+                if type(value) is int and 0<value<=10**7]
+            if outputs:item['max_completion_tokens']=min(outputs)
+            result[model_id]=item
         return result
 
     async def provider_status(self):
@@ -98,8 +104,10 @@ class Broker:
         totals=d.get('totals')
         if not isinstance(totals,dict):raise ValueError('Invalid usage summary')
         clean={}
-        for key in ('requests','errors','prompt_tokens','completion_tokens','total_tokens','cost_ngonka'):
-            if key in totals:clean[key]=quantity(totals[key])
+        detail_fields=('prompt_tokens','completion_tokens','cached_input_tokens','reasoning_tokens')
+        for key in ('requests','errors','prompt_tokens','completion_tokens','total_tokens','cached_input_tokens','reasoning_tokens','cost_ngonka'):
+            if key in totals:
+                clean[key]=None if key in detail_fields and totals[key] is None else quantity(totals[key])
         def clean_row(row, date_key=False):
             if not isinstance(row,dict):raise ValueError('Invalid usage row')
             model=row.get('model')
@@ -111,6 +119,8 @@ class Broker:
                 date.fromisoformat(day);out={'date':day,**out}
             for key in ('requests','errors','total_tokens','cost_ngonka'):
                 out[key]=quantity(row.get(key,0))
+            for key in detail_fields:
+                if row.get(key) is not None:out[key]=quantity(row[key])
             return out
         raw_models=d.get('models',[])
         raw_days=d.get('days',[])
@@ -120,8 +130,16 @@ class Broker:
         rows=[clean_row(row,True) for row in raw_days]
         daily_map={}
         for row in rows:
-            aggregate=daily_map.setdefault(row['date'],{'date':row['date'],'requests':0,'errors':0,'total_tokens':0,'cost_ngonka':0})
+            aggregate=daily_map.setdefault(row['date'],{'date':row['date'],'requests':0,'errors':0,'total_tokens':0,'cost_ngonka':0,'detail_model_rows':0})
+            aggregate['detail_model_rows']+=1
             for key in ('requests','errors','total_tokens','cost_ngonka'):aggregate[key]+=row[key]
+            for key in detail_fields:
+                coverage=key+'_reported_rows'
+                aggregate[coverage]=aggregate.get(coverage,0)+(1 if key in row else 0)
+                if key in row:aggregate[key]=aggregate.get(key,0)+row[key]
+        for aggregate in daily_map.values():
+            for key in detail_fields:
+                if aggregate[key+'_reported_rows']<aggregate['detail_model_rows']:aggregate[key]=None
         return {'totals':clean,'models':models,'days':rows,'daily':[daily_map[key] for key in sorted(daily_map)]}
 
     async def balance(self):

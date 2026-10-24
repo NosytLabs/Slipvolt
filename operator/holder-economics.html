@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Holder AI economics · Slipvolt</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#eaf0ed;background:#101614;color-scheme:dark;--line:#33463b;--muted:#a6b6ab;--accent:#c0f188}*{box-sizing:border-box}body{margin:0}main,header,footer{max-width:1160px;margin:auto;padding:26px}header{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);font-size:13px}a{color:var(--accent)}h1{font-size:clamp(34px,5vw,58px);line-height:1.05;letter-spacing:-2px;max-width:780px;margin:18px 0}h2{font-size:20px;margin-top:0}p{line-height:1.6}.lead{color:var(--muted);max-width:800px}.tag{color:var(--accent);font:11px ui-monospace,monospace;letter-spacing:1.3px}.layout{display:grid;grid-template-columns:1fr 1.1fr;gap:22px;align-items:start}.panel{border:1px solid var(--line);background:#19231d;border-radius:18px;padding:24px;min-width:0}.fields{display:grid;grid-template-columns:1fr 1fr;gap:15px}.field{min-width:0}label{display:block;font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:7px}input{width:100%;min-width:0;background:#111a15;border:1px solid var(--line);border-radius:7px;color:inherit;font:600 17px system-ui;padding:11px}input:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}button{background:var(--accent);color:#12230d;border:0;border-radius:8px;font:600 13px system-ui;padding:12px;cursor:pointer}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}details{margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}summary{cursor:pointer;font-size:14px;font-weight:600}details .fields{margin-top:18px}.number{font-size:clamp(34px,5vw,56px);font-weight:750;letter-spacing:-1.5px;overflow-wrap:anywhere;margin:12px 0}.caption,small{color:var(--muted);font-size:12px;line-height:1.5}.row{display:flex;justify-content:space-between;gap:20px;border-bottom:1px solid var(--line);padding:11px 0;font-size:13px}.row span{color:var(--muted)}.row strong{text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.stress{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:20px}.stress article{background:#101a14;border-radius:10px;padding:16px}.stress strong{display:block;font-size:24px;margin-top:8px;overflow-wrap:anywhere}.error{color:#ffd3aa;border-left:3px solid #ffd3aa;padding:12px;margin-top:18px}.notes{margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:22px}.notes p{font-size:14px;color:var(--muted)}footer{font-size:12px;color:var(--muted);padding-bottom:40px}[hidden]{display:none!important}@media(max-width:760px){.layout,.notes{grid-template-columns:1fr}main,header,footer{padding:18px}.panel{padding:19px}}@media(max-width:380px){.fields,.stress{grid-template-columns:1fr}.row{gap:10px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<header><strong>SLIPVOLT / OPERATOR</strong><span>Offline scenario · no wallet connection</span></header>
+<main>
+<span class="tag">FEES → COMPUTE → RESERVES → OPTIONAL BURNS</span>
+<h1>Can trading fees fund the AI allowance?</h1>
+<p class="lead">Test the numbers at full allowance usage. Compare collected creator fees with GNK costs and real operating expenses, then decide how much surplus could fund burns or the developer. Every input below is an assumption. Monthly cost and reserve inputs use a 30-day basis and scale to the selected period.</p>
+<div class="layout">
+<section class="panel"><h2>Business assumptions</h2><form id="scenario"><div id="primary" class="fields"></div><details><summary>Usage, funding, and surplus allocation</summary><div id="advanced" class="fields"></div></details><div class="actions"><button type="button" id="reset">Reset example</button><button type="button" id="export">Export scenario</button></div></form><p class="caption">The GNK acquisition-cost entry is an editable sensitivity assumption, not a live native-GNK purchase quote. The effective ngonka rate already includes your assumed retries.</p><p class="error" id="error" role="alert" hidden></p></section>
+<section class="panel" aria-live="polite" aria-label="Scenario results"><span class="tag">PERIOD SURPLUS AFTER COSTS + NEW RESERVES</span><div id="surplus" class="number">—</div><p class="caption" id="compute-note">Enter assumptions to calculate.</p><div id="breakdown"></div><div class="stress"><article><small>Zero trading: period funding gap</small><strong id="zero-volume">—</strong></article><article><small>GNK price doubles: period surplus</small><strong id="double-price">—</strong></article></div><p id="break-even" class="lead"></p><p class="caption">A burn budget is cash you might spend buying tokens. No number of tokens burned or price increase is inferred; actual execution needs a quote, authorization and an on-chain burn receipt.</p></section>
+</div>
+<div class="notes"><section class="panel"><h2>Count money that can pay the bill.</h2><p>Eligible trading volume is neither market capitalization nor money raised by the project. Use the creator share after any fee sharing, and the fraction actually collected. The default 30 basis points means 0.30%, not Pump’s entire trading fee.</p><p>Operating costs should include hosting, RPC, support, swaps, gas, refunds and tax obligations. Enter provider charges not included in per-request usage separately. Fund your service reserve before optional burns or developer distributions.</p></section><section class="panel"><h2>Keep principal out of revenue.</h2><p>User lock deposits, refundable balances, unclaimed fees, unspent customer prepayments, and unsold project tokens are not earned operating revenue here. A staking vault is separate from the developer-managed treasury.</p><p>Burning reduces token supply. Locking removes tokens from circulation temporarily. Neither creates GNK nor guarantees trading demand, profit or token appreciation.</p></section></div>
+</main>
+<footer><p>Research checked 24 October 2026. This tool makes no network calls and prepares no transactions. It is not customer checkout, a payout authorization, or an investment forecast.</p><p><a href="https://openbroker.gonka.gg/docs/pricing" target="_blank" rel="noopener noreferrer">OpenBroker cost units</a> · <a href="https://pump.fun/docs/fees" target="_blank" rel="noopener noreferrer">Pump creator fees</a> · <a href="https://pump.fun/docs/tokenized-agent-disclaimer" target="_blank" rel="noopener noreferrer">Pump buyback-and-burn setting</a></p></footer>
+<script src="holder-economics.js"></script>
+<script>
+'use strict';
+const fields = [
+  ['activeHolders', 'Fully active holders', 1], ['dailyTokensPerHolder', 'AI tokens / holder / day', 1000],
+  ['dailyTradingVolumeUsd', 'Eligible trading volume / day ($)', 100], ['creatorFeeBps', 'Creator fee (basis points)', 1],
+  ['gnkUsd', 'GNK acquisition cost ($; assumed)', 0.01], ['operatingUsd', 'Other service costs / month ($)', 1],
+  ['days', 'Days in scenario', 1], ['utilizationPct', 'Allowance used (%)', 1],
+  ['effectiveNgonka', 'Effective ngonka / AI token', 1], ['collectedPct', 'Creator fees actually collected (%)', 1],
+  ['otherProviderGnk', 'Other provider charges / month (GNK)', 0.01], ['reserveTopupUsd', 'New reserve provision / month ($)', 1],
+  ['burnSurplusPct', 'Burn budget / surplus (%)', 1], ['developerSurplusPct', 'Developer budget / surplus (%)', 1],
+];
+for (let i = 0; i < fields.length; i++) {
+  const [name, label, step] = fields[i], wrapper = document.createElement('div');
+  wrapper.className = 'field';
+  const text = document.createElement('label'); text.htmlFor = name; text.textContent = label;
+  const input = document.createElement('input'); input.type = 'number'; input.id = name; input.min = '0'; input.step = String(step); input.required = true; input.value = HolderEconomics.defaults[name];
+  wrapper.append(text, input); document.getElementById(i < 6 ? 'primary' : 'advanced').append(wrapper);
+}
+const dollars = number => new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 2}).format(number);
+let exported = null;
+function read() { return Object.fromEntries(fields.map(([name]) => [name, document.getElementById(name).value])); }
+function update() {
+  try {
+    const inputs = read(), x = HolderEconomics.project(inputs);
+    const zero = HolderEconomics.project({...inputs, dailyTradingVolumeUsd: 0});
+    let doubled = null;
+    try { doubled = HolderEconomics.project({...inputs, gnkUsd: Number(inputs.gnkUsd) * 2}); } catch {}
+    document.getElementById('error').hidden = true; document.getElementById('export').disabled = false;
+    document.getElementById('surplus').textContent = dollars(x.surplusUsd);
+    document.getElementById('compute-note').textContent = x.periodAiTokens.toLocaleString() + ' combined AI tokens over ' + x.periodDays + ' days · ' + x.computeGnk.toLocaleString() + ' GNK variable compute · ' + dollars(x.computeUsd) + ' at this assumed acquisition price.';
+    const rows = [
+      ['Collected creator fees', x.creatorFeesUsd], ['Variable inference cost', x.computeUsd],
+      ['Other provider charges', x.providerOtherUsd], ['All service costs', x.serviceCostUsd],
+      ['New reserve provision', x.reserveTopupUsd], ['Unfunded amount', x.fundingGapUsd],
+      ['Optional buyback/burn budget', x.burnBudgetUsd], ['Developer budget', x.developerBudgetUsd], ['Retained surplus', x.retainedUsd],
+    ];
+    const breakdown = document.getElementById('breakdown'); breakdown.replaceChildren();
+    for (const [label, amount] of rows) {
+      const row = document.createElement('div'), text = document.createElement('span'), value = document.createElement('strong');
+      row.className = 'row'; text.textContent = label; value.textContent = dollars(amount); row.append(text, value); breakdown.append(row);
+    }
+    document.getElementById('zero-volume').textContent = dollars(zero.fundingGapUsd);
+    document.getElementById('double-price').textContent = doubled ? dollars(doubled.surplusUsd) : 'Outside planner range';
+    document.getElementById('break-even').textContent = x.breakEvenDailyVolumeUsd === null ? 'No finite trading volume covers these costs when the collected creator fee is zero.' : 'Break-even eligible daily volume: ' + dollars(x.breakEvenDailyVolumeUsd) + ', including the requested reserve addition. This is arithmetic, not a volume forecast.';
+    exported = {schema: 'slipvolt-holder-economics-v1', monthlyBasisDays: 30, assumptions: inputs, result: x, zeroTrading: zero, doubledGnkPrice: doubled, doubledGnkStatus: doubled ? 'calculated' : 'outside_planner_range'};
+  } catch (error) {
+    exported = null; document.getElementById('error').textContent = error.message; document.getElementById('error').hidden = false; document.getElementById('export').disabled = true;
+    for (const id of ['surplus', 'zero-volume', 'double-price']) document.getElementById(id).textContent = '—';
+    document.getElementById('compute-note').textContent = 'Correct the assumptions to recalculate.';
+    document.getElementById('breakdown').replaceChildren(); document.getElementById('break-even').textContent = '';
+  }
+}
+document.getElementById('scenario').addEventListener('input', update);
+document.getElementById('scenario').addEventListener('submit', event => {event.preventDefault(); update();});
+document.getElementById('reset').addEventListener('click', () => {for (const [name] of fields) document.getElementById(name).value = HolderEconomics.defaults[name]; update();});
+document.getElementById('export').addEventListener('click', () => {
+  if (!exported) return;
+  const url = URL.createObjectURL(new Blob([JSON.stringify(exported, null, 2)], {type: 'application/json'}));
+  const link = document.createElement('a'); link.href = url; link.download = 'holder-ai-economics.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+update();
+</script>
+</body>
+</html>
