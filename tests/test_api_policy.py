@@ -24,7 +24,7 @@ def transport(req):
         return httpx.Response(200,json={'response_id':'up-tools','model':MODEL,'total_tokens':15,'cost_ngonka':150,'cost_source':'devshard_settled'})
     if req.url.path.endswith('/chat/completions'):
         body=__import__('json').loads(req.content)
-        assert body['max_tokens'] in (4096,16384)
+        assert body['max_tokens']==4096
         if body.get('tools'):
             return httpx.Response(200,json={'id':'up-tools','model':MODEL,'choices':[{'index':0,'message':{'role':'assistant','content':None,'tool_calls':[{'id':'call_1','type':'function','function':{'name':'weather','arguments':'{"city":"Paris"}'}}]},'finish_reason':'tool_calls'}],'usage':{'prompt_tokens':10,'completion_tokens':5,'total_tokens':15}})
         return provider(req)
@@ -36,7 +36,7 @@ def make_member(tmp_path):
     key=client.post('/api/member-key',headers=ORIGIN).json()['key']
     return app,client,{'Authorization':'Bearer '+key}
 
-def test_model_metadata_has_real_context_and_output_caps(tmp_path):
+def test_model_metadata_exposes_local_reviewed_context_and_output_caps(tmp_path):
     app=create_app(holder_settings(),str(tmp_path/'models.db'),httpx.MockTransport(transport))
     with TestClient(app) as c:
         d=c.get('/api/models').json()['data']
@@ -44,7 +44,7 @@ def test_model_metadata_has_real_context_and_output_caps(tmp_path):
         assert by[MODEL]['context_length']==180000
         assert by[DEEP]['context_length']==400000
         assert by[GLM]['context_length']==400000
-        assert {m['max_completion_tokens'] for m in d}=={16384}
+        assert {m['max_completion_tokens'] for m in d}=={4096}
         o=c.get('/v1/models').json()['data'][0]
         assert 'context_length' in o and 'max_completion_tokens' in o
         assert o['openbroker_limits_verified'] is False
@@ -52,16 +52,27 @@ def test_model_metadata_has_real_context_and_output_caps(tmp_path):
         assert o['context_limit_source']=='reviewed_policy'
         assert o['completion_limit_source']=='reviewed_policy'
 
-def test_default_output_is_4096_and_hard_cap_is_16384(tmp_path):
-    app,c,h=make_member(tmp_path)
-    try:
-        r=c.post('/v1/chat/completions',headers=h,json={'model':MODEL,'messages':[{'role':'user','content':'hi'}]})
-        assert r.status_code==200,r.text
-        ok=c.post('/v1/chat/completions',headers={**h,'Idempotency-Key':'max'},json={'model':MODEL,'messages':[{'role':'user','content':'hi'}],'max_completion_tokens':16384})
-        assert ok.status_code==200,ok.text
-        bad=c.post('/v1/chat/completions',headers={**h,'Idempotency-Key':'too-high'},json={'model':MODEL,'messages':[{'role':'user','content':'hi'}],'max_tokens':16385})
-        assert bad.status_code in (400,422)
-    finally:c.__exit__(None,None,None)
+def test_default_policy_rejects_4097_before_provider_dispatch_or_reservation(tmp_path):
+    sent=[]
+    def guarded(req):
+        if req.url.path.endswith('/chat/completions'):
+            sent.append(__import__('json').loads(req.content)['max_tokens'])
+        return transport(req)
+    app=create_app(holder_settings(),str(tmp_path/'default-cap.db'),httpx.MockTransport(guarded))
+    app.state.membership.allocate(10_000_000,'funded')
+    with TestClient(app) as c:
+        login(c);key=c.post('/api/member-key',headers=ORIGIN).json()['key'];h={'Authorization':'Bearer '+key}
+        rejected=c.post('/v1/chat/completions',headers=h,json={
+            'model':MODEL,'messages':[{'role':'user','content':'hi'}],'max_tokens':4097})
+        assert rejected.status_code==400,rejected.text
+        assert sent==[]
+        assert app.state.membership.pending()==[]
+        assert app.state.membership.history(WALLET)==[]
+
+        accepted=c.post('/v1/chat/completions',headers=h,json={
+            'model':MODEL,'messages':[{'role':'user','content':'hi'}]})
+        assert accepted.status_code==200,accepted.text
+        assert sent==[4096]
 
 def test_function_tools_pass_through_and_are_returned(tmp_path):
     app,c,h=make_member(tmp_path)
@@ -184,7 +195,7 @@ def test_model_sources_remain_truthful_when_discovery_metadata_fails(tmp_path):
         compat=c.get('/v1/models').json()['data'][0]
         assert compat['owned_by']=='openbroker'
         assert compat['openbroker_limits_verified'] is False
-        assert compat['limits_source'].startswith('Reviewed local safety policy')
+        assert compat['limits_source'].startswith('Conservative reviewed local policy informed by Gonka documentation')
 
 
 def test_null_optional_usage_settles_nonstream_and_stream_without_review(tmp_path):

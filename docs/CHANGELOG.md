@@ -2,6 +2,10 @@
 
 ## Unreleased — 2026-10-24
 
+- Reduced the reviewed local output default to 4,096 after tracing Gonka's configurable gateway defaults in the official source. Corrected the FAQ's implication of a universal 4K ceiling; kept 180K/400K context policies and deliberate, unverified operator overrides. No paid account boundary was claimed.
+- Made generated API examples follow the selected model's effective output limit, including explicit larger overrides, instead of a separate hardcoded 16K ceiling.
+- Tightened the proposed lock design to next-period, lock-only eligibility with isolated owner positions; treasury burns remain a separate, unimplemented operation on project-owned funds.
+
 - Introduced the Holdbyte display brand, original illustration and SVG identity; simplified the home page, navigation, wallet pass and customer guides. Retained the existing repository, key prefixes, environment-key names and database compatibility.
 - Added editable prompt starters, tab-memory follow-up context, a fresh-chat action, text downloads and keyboard sending. Advanced request controls remain available without dominating the chat interface.
 - Added an explicit `TOKEN_LAUNCHED` display flag and a canonical Pump.fun link tied to the validated configured mint. Configuration alone does not verify a launch or perform a transaction.
@@ -95,8 +99,8 @@ Previous release notes (historical):
 
 Historical note: the output-limit assertions below were corrected in the 2026-10-24 entry. Separate proxy metadata does not verify an OpenBroker account's serving limits.
 
-- Verified current active OpenBroker models against live Gonka metadata: MiniMax M2.7 (180K context), DeepSeek V4 Flash 0731 (400K), GLM 5.3 Flash (400K), each advertising a 16,384 completion-token ceiling.
-- Kept a 4,096 default output while exposing the verified 16,384 hard cap; live upstream metadata may tighten but never expand the configured cap.
+- Recorded the then-current OpenBroker model IDs and separate Gonka proxy metadata: MiniMax M2.7 (180K context), DeepSeek V4 Flash 0731 (400K), GLM 5.3 Flash (400K), with a reported 16,384 output field. This separate route did not verify OpenBroker limits; the current policy above supersedes it.
+- Kept a 4,096 default output while exposing a local 16,384 cap at that time; the earlier description of that cap as verified was incorrect. Discovery may tighten but never expand reviewed policy.
 - Expanded OpenAI/Gonka Chat Completions compatibility and mirrored key request safety bounds (10 MiB body, nesting depth 32, <=2,048 messages, n<=5).
 - Preserved actionable upstream/client HTTP statuses and Retry-After instead of flattening 400/413/422/429/503 conditions into generic 502 responses.
 - Added live model-health gating before dispatch.

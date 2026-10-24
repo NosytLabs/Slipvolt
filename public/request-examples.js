@@ -1,9 +1,10 @@
 /* Pure example builder: never copies a real credential into an example. */
 (function(root) {
   'use strict';
-  function example(language, base, model, maxTokens) {
+  function example(language, base, model, maxTokens, outputCeiling = 4096) {
     if (!['curl','python','javascript'].includes(language)) throw new Error('Unsupported example language');
-    if (!Number.isInteger(maxTokens) || maxTokens < 1 || maxTokens > 16384) throw new Error('Invalid output budget');
+    if (!Number.isSafeInteger(outputCeiling) || outputCeiling < 1 || outputCeiling > 1048576 ||
+        !Number.isSafeInteger(maxTokens) || maxTokens < 1 || maxTokens > outputCeiling) throw new Error('Invalid output budget');
     const payload = {model, messages:[{role:'user',content:'Hello!'}], max_tokens:maxTokens, stream:false};
     const q = value => JSON.stringify(value);
     if (language === 'python') return `import os\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=${q(base)},\n    api_key=os.environ["SLIPVOLT_API_KEY"],\n    max_retries=0,  # inspect usage before retrying uncertain failures\n)\nresponse = client.chat.completions.create(\n    model=${q(model)},\n    messages=[{"role": "user", "content": "Hello!"}],\n    max_tokens=${maxTokens},\n)\nprint(response.choices[0].message.content)`;

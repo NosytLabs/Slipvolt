@@ -35,9 +35,10 @@ def test_admin_can_persist_runtime_limits_and_pricing(tmp_path):
         assert r.status_code==200,r.text
         d=c.get('/api/admin/config',headers=auth()).json()
         assert d['wallet_rpm']==42 and d['retail_input_per_million_usd']==0.075 and d['retail_output_per_million_usd']==0.30
-        assert d['reviewed_default_output_cap']==16384
+        assert d['reviewed_default_output_cap']==4096
         assert d['model_limit_configuration_ceiling']==1048576
         assert 'upstream_hard_output_cap' not in d
+        assert c.get('/api/models').json()['data'][0]['max_completion_tokens']==4096
         assert c.get('/api/status').json()['holder_daily_tokens']==500000
 
 def test_admin_user_disable_blocks_key_creation(tmp_path):

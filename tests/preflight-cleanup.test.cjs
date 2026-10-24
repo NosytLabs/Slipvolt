@@ -23,7 +23,7 @@ function setup({model='MiniMaxAI/MiniMax-M2.7'}={}){
     fetch(path,options){return new Promise((resolve,reject)=>{calls.push({path,options,resolve,reject});options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true});})}};
   vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/launch-tools.js','utf8'),ctx);
   el('prompt').value='test prompt';
-  el('output-tokens').max='16384';
+  el('output-tokens').max='4096';
   const click=()=>el('check-request').handlers.click();
   const respond=(index,ok=true)=>calls[index].resolve(new Response(ok?JSON.stringify({allowed:true,estimated_ai_tokens:1000,estimated_budget_ngonka:15000}):JSON.stringify({error:{message:'Unavailable'}}),{status:ok?200:503,headers:{'content-type':'application/json'}}));
   return {el,calls,click,respond,clearAccount:()=>listeners.get('slipvolt:account-cleared')(),conversationChanged:()=>listeners.get('slipvolt:conversation-changed')()};

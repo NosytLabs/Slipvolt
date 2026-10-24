@@ -35,9 +35,9 @@ def run():
             check(f'offline {width}px: three models',page.locator('.model-tab').count()==3)
             check(f'offline {width}px: service detail stays on status page',page.locator('#service-status-link').get_attribute('href') in ('status/','/status/'))
             page.locator('.model-tab').nth(1).click();page.locator('#tab-api').click()
-            page.locator('#output-tokens').evaluate("e=>{e.value='8192';e.dispatchEvent(new Event('change'))}")
+            page.locator('#output-tokens').evaluate("e=>{e.value='2048';e.dispatchEvent(new Event('change'))}")
             page.locator('#example-language').select_option('python')
-            check(f'offline {width}px: Python reflects output and avoids retry', 'max_tokens=8192' in page.locator('#api-code').inner_text() and 'max_retries=0' in page.locator('#api-code').inner_text())
+            check(f'offline {width}px: Python reflects output and avoids retry', 'max_tokens=2048' in page.locator('#api-code').inner_text() and 'max_retries=0' in page.locator('#api-code').inner_text())
             page.locator('#example-language').select_option('javascript')
             check(f'offline {width}px: JavaScript uses env key', 'process.env.SLIPVOLT_API_KEY' in page.locator('#api-code').inner_text())
             check(f'offline {width}px: exact selected model in code','deepseek-ai/DeepSeek-V4-Flash-0731' in page.locator('#api-code').inner_text())
@@ -47,6 +47,23 @@ def run():
             check(f'offline {width}px: usable models stay in keyboard order',page.locator('.model-tab:not(:disabled)').evaluate_all("els=>els.every(e=>e.tabIndex===0)"))
             page.locator('#existing-key').evaluate("e=>e.closest('details').open=true")
             if width==390:
+                preserved_budget=page.evaluate("""() => {
+                  selectModel(snapshot[2].id);
+                  return {value:$('output-tokens').value,model:S.selected};
+                }""")
+                check('model switches preserve a user-edited output budget',preserved_budget['value']=='2048' and preserved_budget['model']=='zai-org/GLM-5.3-Flash')
+                example_boundary=page.evaluate("""() => {
+                  const original=S.models;
+                  S.models=original.map(model=>model.id===S.selected?{...model,max_completion_tokens:32768}:model);
+                  refreshRequestControls();$('output-tokens').value='32768';renderCode();
+                  const expanded=$('api-code').textContent.includes('32768');
+                  S.models=original;refreshRequestControls();$('output-tokens').value='4097';renderCode();
+                  const rejected=$('api-code').textContent==='Connection example unavailable.';
+                  $('output-tokens').value='2048';renderCode();
+                  return {expanded,rejected};
+                }""")
+                check('API examples follow an explicit larger model override',example_boundary['expanded'])
+                check('API examples reject output above the selected model limit',example_boundary['rejected'])
                 request_count=len(requests)
                 page.locator('[data-starter="write"]').click()
                 check('offline prompt starter inserts editable text without inference',page.locator('#prompt').input_value().startswith('Write a clear') and len(requests)==request_count)
@@ -62,9 +79,9 @@ def run():
                 catalog_boundary=page.evaluate("""() => {
                   S.conversation=[{user:'old model prompt',assistant:'old model answer'}];renderConversationContext();
                   S.catalogLive=true;S.models=[{id:'replacement',name:'Replacement',availability:'listed',max_completion_tokens:1000}];renderModels();
-                  return {selected:S.selected,turns:S.conversation.length,context:$('conversation-context').textContent};
+                  return {selected:S.selected,turns:S.conversation.length,context:$('conversation-context').textContent,budget:$('output-tokens').value};
                 }""")
-                check('catalog-driven model replacement clears prior-model memory',catalog_boundary['selected']=='replacement' and catalog_boundary['turns']==0 and 'Model changed' in catalog_boundary['context'])
+                check('catalog-driven model replacement clears memory and clamps the edited budget',catalog_boundary['selected']=='replacement' and catalog_boundary['turns']==0 and catalog_boundary['budget']=='1000' and 'Model changed' in catalog_boundary['context'])
             page.locator('#existing-key').fill('obk-never-send-master-key');page.locator('#prompt').fill('Hello')
             page.locator('#send').click()
             check(f'offline {width}px: blocks upstream key','Never paste' in page.locator('#toast').inner_text())
@@ -77,6 +94,7 @@ def run():
                 page.evaluate("""() => { S.catalogLive=true; S.models=[{id:'down',name:'Unavailable model',availability:'unavailable'}]; renderModels(); }""")
                 check('offline unavailable catalog: no callable fallback',page.evaluate("S.selected === ''") and page.locator('.model-tab').is_disabled())
                 check('offline unavailable catalog: actions disabled',page.locator('#send').is_disabled() and page.locator('#check-request').is_disabled())
+                check('offline unavailable catalog: effective policy is unknown',page.locator('#policy-default-output').text_content()=='Unknown' and page.locator('#policy-max-output').text_content()=='Unknown' and page.locator('#output-tokens').is_disabled())
                 check('offline unavailable catalog: stale API example cleared','down' not in page.locator('#api-code').inner_text())
             check(f'offline {width}px: zero page errors',not errors)
             if width in (390,1280):
@@ -99,6 +117,7 @@ def run():
             return handler(req)
         settings=member_settings();settings.origin=origin
         app=create_app(settings,str(tmp/'test.db'),httpx.MockTransport(upstream))
+        app.state.store.set_operator_settings({'default_output_tokens':1024,'max_output_tokens':16384})
         app.state.membership.allocate(10000000,'fixture-allocation')
         server=uvicorn.Server(uvicorn.Config(app,host='127.0.0.1',port=port,access_log=False,log_level='error'))
         thread=threading.Thread(target=server.run,daemon=True);thread.start()
@@ -141,6 +160,20 @@ def run():
         check('homepage skips status-only network and treasury requests',not any(url.endswith(('/api/network','/api/treasury')) for url in live_requests))
         expect(page.locator('#model-source')).to_contain_text('Live OpenBroker')
         check('served catalog obtains provider fixture',page.locator('.model-tab').count()==1)
+        effective_policy=page.evaluate("""() => ({
+          savedGlobalMax:S.status?.limits?.max_output_tokens,
+          displayedDefault:$('policy-default-output').textContent,
+          displayedCap:$('policy-max-output').textContent,
+          budget:$('output-tokens').value,
+          inputMax:$('output-tokens').max,
+          example:$('api-code').textContent
+        })""")
+        check('selected model policy overrides a larger saved global cap in the workspace',
+              effective_policy['savedGlobalMax']==16384 and effective_policy['displayedDefault']=='1,024 tokens' and
+              effective_policy['displayedCap']=='4,096 tokens' and effective_policy['budget']=='1024' and
+              effective_policy['inputMax']=='4096')
+        check('initial API example uses the selected model effective default',
+              '"max_tokens": 1024' in effective_policy['example'] and '16384' not in effective_policy['example'])
         check('operational detail links to service status',page.locator('#service-status-link').get_attribute('href') in ('status/','/status/'))
         key_only=page.evaluate("""async () => {
           const realApi=api,realFetch=fetch;let rejectAccount,resolveChat;
@@ -224,7 +257,9 @@ def run():
         check('key created without dollar balance',secret.startswith('sv_') and app.state.store.account(WALLET)['balance_nusd']==0)
         check('newly created key clears any existing-key override',page.locator('#existing-key').input_value()=='')
         page.locator('#output-tokens').evaluate("e=>e.closest('details').open=true")
-        page.locator('#output-tokens').fill('8192')
+        page.locator('#output-tokens').fill('2048')
+        page.evaluate('refreshRequestControls()')
+        check('request-control refresh preserves a user-edited output budget',page.locator('#output-tokens').input_value()=='2048')
         page.locator('#prompt').fill('Hello test only')
         page.locator('#check-request').click()
         expect(page.locator('#preflight-result')).to_contain_text('Fits the current limits')
@@ -243,7 +278,7 @@ def run():
         check('completed response is the only turn added to tab memory',page.evaluate("JSON.stringify(S.conversation)==JSON.stringify([{user:'Hello test only',assistant:'Hello stream'}])"))
         check('actual fixture usage settles allowance',app.state.membership.totals(WALLET)['used_tokens']==15)
         check('native GNK cost ledger used',app.state.membership.pool()['budget_spent_ngonka']==150)
-        check('selected output forwarded',dispatched[0]['max_tokens']==8192)
+        check('selected output forwarded',dispatched[0]['max_tokens']==2048)
         check('request trace exposed',bool(page.locator('#request-id').inner_text().strip()))
         expect(page.locator('#usage-dashboard')).to_be_visible()
         expect(page.locator('#usage-used')).to_have_text('15')

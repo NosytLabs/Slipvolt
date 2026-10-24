@@ -22,7 +22,7 @@ def test_context_is_checked_before_inference(tmp_path):
     with client as c:
         login(c);app.state.membership.allocate(100_000_000,'budget')
         r=c.post('/v1/chat/completions',headers=make_key(c),json={
-            'model':MODEL,'messages':[{'role':'user','content':'x'*180_000}],'max_tokens':16_384})
+            'model':MODEL,'messages':[{'role':'user','content':'x'*180_000}],'max_tokens':4_096})
         assert r.status_code == 400, r.text
         assert 'context' in r.text.lower()
         assert not sent
@@ -124,11 +124,11 @@ def test_user_disabled_during_provider_balance_read_cannot_dispatch(tmp_path):
         assert not sent
 
 
-def test_cached_catalog_reflects_operator_cap_changes(tmp_path):
+def test_saved_operator_max_can_tighten_but_cannot_raise_reviewed_model_cap(tmp_path):
     app,client=member(tmp_path)
     with client as c:
-        assert c.get('/api/models').json()['data'][0]['max_completion_tokens']==16384
-        app.state.store.set_operator_settings({'max_output_tokens':4096})
         assert c.get('/api/models').json()['data'][0]['max_completion_tokens']==4096
+        app.state.store.set_operator_settings({'max_output_tokens':2048})
+        assert c.get('/api/models').json()['data'][0]['max_completion_tokens']==2048
         app.state.store.set_operator_settings({'max_output_tokens':16384})
-        assert c.get('/api/models').json()['data'][0]['max_completion_tokens']==16384
+        assert c.get('/api/models').json()['data'][0]['max_completion_tokens']==4096

@@ -22,7 +22,7 @@ def test_discovery_can_tighten_but_never_raise_reviewed_model_caps():
         'max_completion_tokens': 99_999,
     })
     assert raised['context_length'] == 180_000
-    assert raised['max_completion_tokens'] == 16_384
+    assert raised['max_completion_tokens'] == 4_096
     assert raised['discovered_context_length'] == 999_999
     assert raised['discovered_max_completion_tokens'] == 99_999
     assert raised['context_limit_source'] == 'reviewed_policy'
@@ -31,10 +31,10 @@ def test_discovery_can_tighten_but_never_raise_reviewed_model_caps():
 
     tightened = merge_upstream_metadata(MODEL, {
         'context_length': 120_000,
-        'max_completion_tokens': 8_192,
+        'max_completion_tokens': 2_048,
     })
     assert tightened['context_length'] == 120_000
-    assert tightened['max_completion_tokens'] == 8_192
+    assert tightened['max_completion_tokens'] == 2_048
     assert tightened['context_limit_source'] == 'discovery_tighter_than_reviewed_policy'
     assert tightened['completion_limit_source'] == 'discovery_tighter_than_reviewed_policy'
 
@@ -42,7 +42,7 @@ def test_discovery_can_tighten_but_never_raise_reviewed_model_caps():
 def test_zero_or_missing_discovery_is_unknown_without_erasing_reviewed_caps():
     row = merge_upstream_metadata(MODEL, {'context_length': 0, 'max_tokens': 0})
     assert row['context_length'] == 180_000
-    assert row['max_completion_tokens'] == 16_384
+    assert row['max_completion_tokens'] == 4_096
     assert row['discovered_context_length'] is None
     assert row['discovered_max_completion_tokens'] is None
     assert row['discovery_limits_status'] == 'unknown'

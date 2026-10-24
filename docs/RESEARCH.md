@@ -1,120 +1,31 @@
-# Slipvolt research/audit snapshot — September 20, 2026
+# Research record
 
-This document records the external facts that drive the current implementation. Re-check them before a public launch because model catalogs, network parameters, provider pricing and launchpad fees can change.
+Sources reviewed **24 October 2026**. Model catalogs, provider configuration, prices, platform fees and launch availability can change. Keep the current conclusions in these focused documents instead of maintaining duplicate limit and pricing tables here.
 
-## October 24, 2026 correction and follow-up
+| Topic | Current record |
+| --- | --- |
+| Model IDs, native versus deployed context, configurable output limits, request policy and provider pricing | [API policy](API-POLICY.md) |
+| Pump.fun, StockLaunch, creator fees, treasury burns, proposed period locks and the AntSeed seller observation | [Token and treasury design](TOKEN-DESIGN.md) |
+| Holdbyte identity and dated domain-availability quotes | [Brand](BRAND.md) |
+| Keyless Gonka reads and the separation of treasury, broker credit and local allowance | [Gonka RPC](GONKA-RPC.md) |
+| Remaining deployment and launch work | [Launch runbook](LAUNCH_RUNBOOK.md) |
+| Automated checks and limits of fixture-based evidence | [Verification](VERIFICATION.md) |
 
-The older limit wording below is superseded by [API policy](API-POLICY.md). The separate Gonka proxy advertises `max_tokens: 16384`; OpenBroker's own model endpoint currently supplies no numeric context/output limits. The proxy values are useful conservative local defaults, not verified OpenBroker hard caps. The parser now handles that field name, preserves unknown discovery, prevents automatic cap increases, and supports clearly labelled explicit server overrides.
+## Source corrections retained
 
-[Token and treasury design](TOKEN-DESIGN.md) contains the current Pump/StonkFun research, AntSeed seller observations, optional burn design and source links. It distinguishes cheap per-token inference from all-in provider/account costs and collected creator fees from trading volume. Public launchpad fees and eligibility must be rechecked at launch.
+- OpenBroker's model catalog publishes current IDs without numeric context/output limits. A separate Gonka proxy's 16,384 output field does not verify OpenBroker's route.
+- Gonka's pinned DevShard source calls 3,072 and 4,096 configurable defaults. The FAQ's description of 4,096 as a network ceiling is too broad. Holdbyte's local default is conservative; deliberate larger operator overrides remain labelled unverified.
+- Native model configuration, Gonka deployment windows, local admission policy and measured account limits are separate kinds of evidence.
+- The AntSeed seller is listed as OMA-AI. Its reported free usage is not paid settlement revenue or measured Holdbyte adoption.
+- Manual business entries record operator assertions. They do not independently verify a fee receipt, swap, buyback or burn.
+- The lock vault and treasury execution described in the design are proposals, not deployed contracts or enabled application features.
 
-The remainder is the historical September research record; quoted prices, concurrency defaults and serving-limit interpretations are not a current offer.
+## Primary references
 
-## OpenBroker setup
+- [OpenBroker models](https://openbroker.gonka.gg/docs/models), [chat completions](https://openbroker.gonka.gg/docs/chat-completions), [pricing](https://openbroker.gonka.gg/docs/pricing), [usage](https://openbroker.gonka.gg/docs/usage), and [deposits](https://openbroker.gonka.gg/docs/deposits).
+- [Pinned Gonka DevShard proxy documentation](https://github.com/gonka-ai/gonka/blob/b88062c9529389a61d4ba15b8b5603716a50909e/devshard/docs/proxy.md).
+- Gonka [MiniMax](https://gonka.ai/docs/host/minimax-bootstrap/), [DeepSeek](https://gonka.ai/docs/host/deepseek-bootstrap/), and [GLM](https://gonka.ai/docs/host/glm-bootstrap/) deployment instructions.
+- [Pump fees](https://pump.fun/docs/fees), [Tokenized Agent mechanism](https://pump.fun/docs/tokenized-agent-disclaimer), and [Solana burn instructions](https://solana.com/docs/tokens/basics/burn-tokens).
+- [StockLaunch trust model](https://stocklaunch.world/docs/trust-model). Indexed official pages were available; direct retrieval returned HTTP 502 during this review.
 
-OpenBroker describes itself as “a broker for brokers”: create an account, create a private `obk-` key, deposit **native GNK** to the dashboard's dedicated Deposit & top-up address, then use the OpenAI-compatible base `https://api.openbroker.gonka.gg/v1`.
-
-Documented endpoints used by Slipvolt:
-
-- `GET /v1/models` — live OpenBroker catalog.
-- `POST /v1/chat/completions` — standard chat, streaming and function calling.
-- `GET /v1/balance` — account/spendable GNK.
-- `GET /v1/usage/summary`, `/v1/usage`, `/v1/usage/{id}` — usage/cost/reconciliation.
-
-The public `/api/status` and `/api/registry/brokers` feeds power OpenBroker's public statistics. They are treated as best-effort observability rather than a stable billing contract.
-
-OpenBroker says the old 1-ngonka governance price is stale for DevShard billing. Current DevShard token price is **10 ngonka/token/attempt**; retries/racing commonly produce **10–25 effective ngonka/token (~15 average)**. Estimated usage rows use the observed redundancy factor when the gateway does not return settled cost. Epoch accounting is separate. OpenBroker's documented markup is 0%.
-
-## Models and context/output limits
-
-At the September 2026 source check, OpenBroker listed MiniMax M2.7, DeepSeek V4 Flash 0731 and GLM 5.3 Flash, while marking Kimi K2.6 deprecated. Treat this as dated catalog evidence and use the live endpoint for present availability.
-
-The current Gonka chain model configuration (`/productscience/inference/inference/models_all`) uses:
-
-- MiniMax M2.7: `--max-model-len 180000`
-- DeepSeek V4 Flash 0731: `--max-model-len 400000`
-- GLM 5.3 Flash: `--max-model-len 400000`
-
-The current Gonka proxy `/v1/models` advertises those same context lengths and **16,384 max completion tokens** for all three. OpenBroker's docs accept `max_tokens` but do not separately publish a numeric ceiling, so Slipvolt uses live Gonka metadata and labels it as upstream capability rather than an OpenBroker SLA.
-
-Gonka's Chat Completions docs also define: 10 MiB max body, nesting depth 32, max 2,048 messages, `n<=5`, max 16 stop sequences x 256 bytes, standard function tools, `max_tokens`/`max_completion_tokens`, and bounded response/tool schemas.
-
-## Historical retail comparison
-
-Direct-provider prices collected during the September research pass are not a current customer rate card. Model revisions, cache tiers and time-based discounts differed, so the figures are unsuitable for present marketing without a fresh matched comparison. Slipvolt does not enable checkout or automatic overage billing in holder mode. Runtime reference-rate fields remain operator planning inputs only.
-
-## Rate limits
-
-Gonka's self-host gateway defaults are not a reseller business policy. Slipvolt starts lower per customer and uses a separate global guard:
-
-- 30 RPM/wallet, 2 concurrent/wallet.
-- 300 RPM global, 50 concurrent global.
-
-OpenBroker publishes live model capacity. Raise these only after real latency/failure/cost observations. Returning “queued” is misleading unless Slipvolt actually implements a queue, so capacity failures are surfaced as temporary upstream unavailability with no fabricated queue state.
-
-## Native GNK treasury
-
-The compute treasury asset is **native GNK**, not an SPL imitation and not WGNK held indefinitely.
-
-Candidate acquisition path A: HOT/NEAR Intents advertises swaps from SOL/USDC and other major assets into native GNK; its SDK includes Gonka mainnet and native `ngonka`. This supports quote-testing the path but does not guarantee a route/liquidity/fee in every region or amount.
-
-Fallback path B: acquire official Ethereum WGNK, then use Gonka's official bridge back to native GNK. The destination Gonka account is derived from the **same signing key** used for the Ethereum bridge action; it is not an arbitrary broker deposit address. Verify the key/address relationship first.
-
-After native GNK arrives in an owner-controlled account, send only the intended operating amount to the **dedicated OpenBroker deposit address shown in the account dashboard**. Then verify `available_ngonka` before allocating it inside Slipvolt.
-
-The web server contains no treasury private key and does not automate bridge/swap signing.
-
-## Holder access and abuse
-
-A current holder check is simple, legible utility: hold token → sign in → get API key → use a funded allowance. The same wallet's multiple keys share one allowance.
-
-Current-balance eligibility is not Sybil resistance. A transferable threshold can be moved between wallets to seek repeated allowances. Global GNK and AI-token budgets cap total exposure, but a public-scale launch should add an admission/cooldown or reviewed time-weighted/locking mechanism before offering large recurring subsidies.
-
-## Pump.fun creator fees
-
-Pump.fun's published bonding-curve creator fee is 0.30%; the total trading fee is not all creator revenue. Post-graduation canonical PumpSwap creator fees vary by market-cap tier. Creator fee revenue therefore depends on actual eligible trading volume and configuration.
-
-Example only: $100,000 eligible volume x 0.30% = $300 gross creator fees. Market cap is not trading volume, revenue or treasury cash.
-
-A regular creator-fee coin is compatible with funding operations. Holder-reward launch modes that redirect creator fees to holders should not simultaneously be budgeted as developer/compute revenue.
-
-## Admin/business accounting
-
-The admin console separates:
-
-1. OpenBroker spendable native GNK,
-2. local holder allowance allocation,
-3. optional self-custody public GNK treasury,
-4. OpenBroker usage/cost,
-5. local usage/holds/reconciliation,
-6. actual cash business entries.
-
-The business ledger only records explicit realized entries. It does not count token market cap or unclaimed fees as income. Its “profit” view is a cash ledger for operations, not GAAP/tax financial statements.
-
-## Sources
-
-- https://openbroker.gonka.gg/docs
-- https://openbroker.gonka.gg/stats
-- https://rpc.gonka.gg/chain-api/productscience/inference/inference/models_all
-- https://proxy.gonka.gg/v1/models
-- https://github.com/gonka-ai/gonka/blob/main/docs/chat-api/README.md
-- https://github.com/gonka-ai/gonka/blob/main/devshard/docs/proxy.md
-- https://gonka.ai/docs/developer/quickstart/
-- https://gonka.ai/docs/network-updates/
-- https://gonka.ai/docs/cross-chain-transfers/ethereum-bridge/withdraw-gnk/
-- https://hot-labs.org/chains/gonka
-- https://github.com/hot-dao/omni-sdk
-- https://pump.fun/docs/fees
-- https://platform.minimax.io/subscribe/token-plan?tab=api-enterprise
-- https://docs.z.ai/guides/overview/pricing
-- https://api-docs.deepseek.com/quick_start/pricing/
-
-## September 21, 2026 follow-up
-
-- OpenBroker's current docs continue to expose an OpenAI-compatible `/v1` surface and GNK-native billing. The documented DevShard protocol rate is 10 ngonka per token per attempt, with retries/racing commonly increasing effective usage; the project therefore keeps a conservative local allowance factor rather than treating the protocol rate as an all-in guarantee.
-- Gonka's FAQ still identifies the official Ethereum WGNK contract/bridge as `0x972a7a92d92796a98801a8818bcf91f1648f2f68` and warns that coins claiming to be GNK on Solana are not official GNK.
-- HOT now advertises HOT Exchange / NEAR Intents swaps from SOL, USDC and other assets into native GNK. This is treated only as a third-party route candidate because it is not the canonical Gonka bridge and availability/fees can change.
-- Pump.fun's current holder-rewards mode redirects the creator fee to holders, leaving no creator fee to claim. Slipvolt's proposed holder AI utility therefore remains an application-level benefit and does not use Pump holder-rewards mode when creator fees are intended to replenish compute.
-- Dependency review found the previous `cryptography==46.0.4` and Starlette 0.50.x baseline behind patched 2026 security releases. The runtime pins now target cryptography 50.0.1 and Starlette 1.6.0 with FastAPI 0.141.1.
-
-References: https://openbroker.gonka.gg/docs · https://gonka.ai/docs/FAQ/ · https://gonka.ai/docs/cross-chain-transfers/ethereum-bridge/overview/ · https://hot-labs.org/chains/gonka · https://pump.fun/docs/fees · https://github.com/pump-fun/pump-public-docs/blob/main/docs/HOLDER_REWARDS_README.md
+The independent [AntSeedStats seller page](https://antseedstats.com/sellers/0x7b35030f77793159e86933e678b4e502c8fd9509) is a third-party observation source, not an official AntSeed settlement attestation. No paid inference, token launch, swap, bridge, burn, or treasury transaction was performed during this research.
