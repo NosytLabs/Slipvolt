@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Token record · Holdbyte</title>
+<meta name="description" content="Finalized mint data and recorded burn receipts for the configured Holdbyte access token. Read-only; no wallet signature required.">
+<link rel="icon" href="../assets/brand-mark.svg"><link rel="stylesheet" href="token.css"><script src="token.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header><a class="brand" href="../"><img src="../assets/brand-mark.svg" alt="" width="32" height="32">Holdbyte</a><nav aria-label="Main navigation"><a href="../#playground">Workspace</a><a href="../funding/">Funding</a><a href="../help/">Help</a></nav></header>
+<main id="main">
+<div class="eyebrow">TOKEN RECORD <span class="badge">READ ONLY</span></div>
+<div class="heading"><div><h1>Token supply &amp; burns.</h1><p class="intro">Finalized mint data and recorded burn transactions.<br>Read-only. No wallet signature required.</p></div><button id="refresh" type="button">Refresh data <span aria-hidden="true">↻</span></button></div>
+<p id="state" class="notice" role="status">Checking the configured token…</p>
+<section class="metrics" aria-label="Token figures">
+<article><p class="label">CURRENT MINT SUPPLY</p><strong id="supply">Unavailable</strong><p class="detail">Finalized RPC snapshot</p></article>
+<article><p class="label">RECORDED TOKENS BURNED</p><strong id="burned">Unavailable</strong><p class="detail">Gross burns in the receipt ledger</p></article>
+<article><p class="label">RECORDED TRANSACTIONS</p><strong id="receipt-count">Unavailable</strong><p class="detail">Duplicate signatures count once</p></article>
+</section>
+<section class="panel" aria-labelledby="mint-title">
+<div class="section-head"><h2 id="mint-title">Know the mint.</h2><span id="checked" class="detail">No snapshot yet</span></div>
+<dl class="mint-grid"><div class="wide"><dt>Configured mint</dt><dd id="mint">Not published</dd></div><div><dt>Mint authority</dt><dd id="mint-authority">Unavailable</dd></div><div><dt>Freeze authority</dt><dd id="freeze-authority">Unavailable</dd></div><div><dt>Token program</dt><dd id="program">Unavailable</dd></div><div><dt>Snapshot slot</dt><dd id="slot">Unavailable</dd></div></dl>
+<details class="footnote"><summary>What these authority fields do not show</summary><p>They do not audit delegates, token extensions, vault controls or upgrade powers. An active mint authority can issue more tokens; recorded burns alone do not establish net deflation.</p></details>
+</section>
+<section class="panel" aria-labelledby="receipts-title">
+<div class="section-head"><div><p class="eyebrow">ON-CHAIN EVIDENCE</p><h2 id="receipts-title">Recorded burns</h2></div><span class="detail">Latest 25 receipts</span></div>
+<p id="empty" class="empty">No receipt history is available yet.</p>
+<div id="receipt-list" class="receipt-list"></div>
+<p class="footnote">Only submitted receipts are tracked—not every historical burn. Verification uses the configured mainnet RPC and does not establish who funded a burn or whether it followed a buyback.</p>
+</section>
+<div class="closing"><p><strong>Burn totals are not net supply change.</strong><br>Holdbyte does not execute swaps or burns from this page.</p><a href="../funding/">Read the funding policy <span aria-hidden="true">↗</span></a></div>
+</main>
+<footer><span>Holdbyte</span><nav aria-label="Footer navigation"><a href="../developers/">Developers</a><a href="../privacy/">Privacy</a><a href="../terms/">Service rules</a></nav></footer>
+</body></html>
