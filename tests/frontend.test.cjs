@@ -16,7 +16,27 @@ if(fs.existsSync(target)) {
 }
 test('browser core exports only helpers used by the current product',()=>{
   const core=require(target);
-  assert.deepEqual(Object.keys(core).sort(),['escape','isCustomerKey','readApiResponse','summarizeUsage'].sort());
+  assert.deepEqual(Object.keys(core).sort(),['escape','isCustomerKey','readApiResponse','safeCount','selectableModelId','summarizeUsage'].sort());
+});
+test('unknown counts stay distinct from a measured zero',()=>{
+  const core=require(target);
+  assert.equal(core.safeCount(null),null);
+  assert.equal(core.safeCount(undefined),null);
+  assert.equal(core.safeCount('0'),null);
+  assert.equal(core.safeCount(0),0);
+});
+test('model selection keeps a usable choice, falls forward, and fails closed',()=>{
+  const core=require(target);
+  const models=[
+    {id:'first',availability:'unavailable'},
+    {id:'listed',availability:'listed'},
+    {id:'blocked',availability:'healthy',routable:false}
+  ];
+  assert.equal(core.selectableModelId(models,'listed'),'listed');
+  assert.equal(core.selectableModelId(models,'missing'),'listed');
+  assert.equal(core.selectableModelId(models,'blocked'),'listed');
+  assert.equal(core.selectableModelId(models.filter(row=>row.id!=='listed'),'first'),'');
+  assert.equal(core.selectableModelId([], 'listed'),'');
 });
 test('recent usage summary counts only measured safe values and keeps model groups separate',()=>{
   const core=require(target);

@@ -8,6 +8,13 @@
 - Added validated, env-only per-model context/output overrides for deliberate operator configuration, without automatically trusting larger discovery values. Preflight reports per-choice context headroom separately from aggregate multi-choice allowance reservations.
 - Made omitted output budgets respect smaller effective model limits, accepted optional null cache/reasoning counters, enforced requested streaming choice indexes, and prevented partial provider daily detail from appearing complete.
 - Added current token/treasury research and an offline creator-fee economics planner with cost/reserve priority, zero-volume stress and explicitly hypothetical burn/developer budgets. No staking, swaps, payouts or token launch are activated.
+- Audited the customer workspace and operator console for overlapping refreshes and account changes. Private key/quota/usage state clears at ownership changes, and delayed responses cannot replace newer wallet or dashboard state.
+- Made empty or unavailable live catalogs disable inference and clear stale model examples; hardened key lifecycle, request cancellation, preflight errors and keyboard tab behavior.
+- Preserved unknown and genuine zero values in account/admin metrics. Incomplete upstream usage no longer crashes admin economics or appears as zero revenue/cost, and settled zero-cost requests no longer display old reservations.
+- Sanitized advisory provider health fields and reused the existing status cache for admin overview reads. Conflicting duplicate health entries cannot present a model as verified routable.
+- Removed duplicated homepage network/treasury widgets and their two initial API reads; linked the dedicated status page, dropped the unused homepage documentation stylesheet, and improved small usage/source text.
+- Consolidated current setup, funding and launch guidance; removed stale release/run evidence, hypothetical customer prices and volatile acquisition instructions from customer pages. Unified documentation navigation and branding while retaining provider and custody disclosures.
+- Documented a remaining launch limitation: current per-wallet holder checks do not prevent sequential reuse of the same fungible tokens across wallets. Period-lock or fixed-boundary entitlement semantics must be implemented before claiming a daily benefit per holding.
 
 ## 0.9.5 — 2026-09-23
 
@@ -81,6 +88,8 @@ Added wallet-wide key revocation, wallet-wide browser logout, configurable publi
 Previous release notes (historical):
 
 # Slipvolt 0.8.0 — OpenBroker/Gonka production hardening
+
+Historical note: the output-limit assertions below were corrected in the 2026-10-24 entry. Separate proxy metadata does not verify an OpenBroker account's serving limits.
 
 - Verified current active OpenBroker models against live Gonka metadata: MiniMax M2.7 (180K context), DeepSeek V4 Flash 0731 (400K), GLM 5.3 Flash (400K), each advertising a 16,384 completion-token ceiling.
 - Kept a 4,096 default output while exposing the verified 16,384 hard cap; live upstream metadata may tighten but never expand the configured cap.

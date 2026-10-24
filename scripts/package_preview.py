@@ -6,7 +6,7 @@ def build(target):
     public=ROOT/'public'
     html=(public/'index.html').read_text()
     html=html.replace('<html lang="en">','<html lang="en" data-preview="offline">')
-    for name in ('styles.css','content.css','tools.css'):
+    for name in ('styles.css','tools.css'):
         # Fail before writing if the source package is incomplete.
         css = (public/name).read_text(encoding='utf-8')
         html=html.replace(f'<link rel="stylesheet" href="{name}">','<style>'+css+'</style>')

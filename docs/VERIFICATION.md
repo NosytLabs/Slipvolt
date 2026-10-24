@@ -33,7 +33,7 @@ Use these sources instead:
 2. **This file** for the current verification scope and limitations.
 3. **CHANGELOG.md** for release-specific behavior changes.
 
-PR #10 (September 23, 2026) locally verified the repository cleanup with **306 Python tests** and **82 JavaScript tests**. Subsequent maintenance should run the canonical verifier again before deployment rather than treating those historical counts as permanent.
+Run the canonical verifier again after every change and before deployment. Test counts and individual run links belong to their pull request or Actions record rather than this current operating guide.
 
 ## Production acceptance still required
 

@@ -3,7 +3,8 @@
   'use strict';
   const el=id=>document.getElementById(id),T=globalThis.SlipvoltRequestTools;
   let serial=0,lastCode=null,activeCheck=null;
-  const clear=()=>{serial++;lastCode=null;activeCheck?.abort();activeCheck=null;el('check-request').disabled=false;el('preflight-result').textContent='Check the current request without running the model.';el('preflight-result').removeAttribute('data-verdict');};
+  const canCheck=()=>Boolean(selected())&&!el('output-tokens').disabled&&Number(el('output-tokens').max)>=1;
+  const clear=()=>{serial++;lastCode=null;activeCheck?.abort();activeCheck=null;el('check-request').disabled=Boolean(modelState()?.busy)||!canCheck();el('preflight-result').textContent='Check the current request without running the model.';el('preflight-result').removeAttribute('data-verdict');};
   function selected(){return document.querySelector('.model-tab[aria-pressed="true"]')?.dataset.model||'';}
   function modelState(){return typeof S!=='undefined'?S:null;}
   for(const id of ['prompt','output-tokens','existing-key'])el(id)?.addEventListener('input',clear);
@@ -14,6 +15,8 @@
     clear();
     if(document.documentElement.dataset.preview==='offline'){el('preflight-result').textContent='Offline preview. Start the server and sign in to check a request. No inference was sent.';return;}
     const text=el('prompt').value.trim(),key=el('existing-key').value.trim()||state?.key||'';
+    const model=selected();
+    if(!model||!canCheck()){el('preflight-result').textContent='No service model with a usable output limit is currently available.';return;}
     if(!text){el('preflight-result').textContent='Write a prompt first.';return;}
     if(key&&!globalThis.SlipvoltCore.isCustomerKey(key)){el('preflight-result').textContent='Use a Slipvolt customer key, never the OpenBroker master key.';return;}
     let output;try{output=requestedOutput();}catch(e){el('preflight-result').textContent=e.message;return;}
@@ -24,16 +27,16 @@
     try{
       const response=await fetch('/api/preflight',{method:'POST',credentials:'same-origin',
         headers:{'Content-Type':'application/json',...(key?{Authorization:'Bearer '+key}:{})},signal:controller.signal,
-        body:JSON.stringify({model:selected(),messages:[{role:'user',content:text}],max_tokens:output,stream:!!state?.status?.capabilities?.streaming})});
-      const data=await response.json();if(mine!==serial||epoch!==state?.epoch)return;
-      if(!response.ok)throw Error(data.error?.message||'Request check unavailable.');
+        body:JSON.stringify({model,messages:[{role:'user',content:text}],max_tokens:output,stream:!!state?.status?.capabilities?.streaming})});
+      const data=await globalThis.SlipvoltCore.readApiResponse(response);if(mine!==serial||epoch!==state?.epoch)return;
       lastCode=data.reason_code;
       el('preflight-result').dataset.verdict=data.allowed?'fits':'blocked';
+      const estimatedTokens=globalThis.SlipvoltCore.safeCount(data.estimated_ai_tokens);
       el('preflight-result').textContent=(data.allowed?'Fits the current limits. ':T.explain(data.reason_code)+' ')+
-        'Estimated reservation: '+Number(data.estimated_ai_tokens).toLocaleString()+' AI tokens / '+gnk(data.estimated_budget_ngonka)+' GNK. '+
+        'Estimated reservation: '+(estimatedTokens===null?'Unavailable':estimatedTokens.toLocaleString())+' AI tokens / '+gnk(data.estimated_budget_ngonka)+' GNK. '+
         'Nothing was spent or reserved. Sending checks again.';
     }catch(e){if(mine===serial)el('preflight-result').textContent=e.name==='TimeoutError'?'The check timed out. No inference was requested.':e.message;}
-    finally{clearTimeout(timeoutHandle);if(activeCheck===controller){activeCheck=null;button.disabled=false;}}
+    finally{clearTimeout(timeoutHandle);if(activeCheck===controller){activeCheck=null;button.disabled=Boolean(state?.busy)||!canCheck();}}
   });
   function kit(){return T.connectionKit(document.documentElement.dataset.preview==='offline'?'https://YOUR_DEPLOYED_HOST':location.origin,selected());}
   function renderKit(){try{el('connection-kit').textContent=JSON.stringify(kit(),null,2);}catch{el('connection-kit').textContent='Connection settings need the deployed service origin and a selected model.';}}

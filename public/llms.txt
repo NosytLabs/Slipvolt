@@ -35,10 +35,9 @@ Daily reset: 00:00 UTC; no rollover; unresolved reservations survive the reset.
 Recent usage CSV: GET /api/usage/export (wallet cookie required; latest 100 records only).
 Revoke all API keys: POST /api/keys/revoke-all (wallet cookie + same origin).
 Sign out all sessions: POST /api/auth/logout-all (separate from key revocation).
-Planned metered pricing is not enabled checkout or automatic overage billing.
-At the proposed $0.075 input / $0.30 output per-million rates, an 80/20 mix costs
-$0.12 per million total tokens; 1 billion represents $120 hypothetical revenue.
-Holder usage is funded allowance, not booked metered revenue.
+Configured rate-card fields are operator planning inputs, not enabled checkout,
+automatic overage billing or a customer price commitment.
+Holder usage is funded allowance, not automatically booked metered revenue.
 
 Developer quickstart: /developers/ (customer key, live model IDs, request/error guidance).
 Funding explainer: /funding/ (project token vs native GNK vs WGNK and OpenBroker deposit flow).

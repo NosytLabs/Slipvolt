@@ -1023,25 +1023,29 @@ def create_app(settings=None, db_path=':memory:', transport=None):
             except Exception:provider_errors.append('balance_unavailable')
             try:provider_usage=await broker.usage_summary(days)
             except Exception:provider_errors.append('usage_unavailable')
-        try:provider_status=await broker.provider_status()
-        except Exception:provider_errors.append('status_unavailable')
+        provider_status=await provider_health()
+        if provider_status is None:provider_errors.append('status_unavailable')
         local=membership.admin_summary(days);pool=membership.pool();business=_business_public(store.business_summary(days))
         totals=(provider_usage or {}).get('totals',{})
-        avg_daily_cost=totals.get('cost_ngonka',0)/days if provider_usage else 0
+        provider_cost=totals.get('cost_ngonka')
+        provider_cost_known=type(provider_cost) is int
+        avg_daily_cost=provider_cost/days if provider_cost_known else 0
         available=(provider_balance or {}).get('available_ngonka',0)
         runway_days=(available/avg_daily_cost) if avg_daily_cost>0 else None
-        prompt_tokens=totals.get('prompt_tokens',0);completion_tokens=totals.get('completion_tokens',0)
-        metered_nusd=prompt_tokens*cfg['retail_input_nusd_per_token']+completion_tokens*cfg['retail_output_nusd_per_token']
-        economics={'metered_revenue_reference_usd':metered_nusd/10**9,
-            'provider_cost_gnk':totals.get('cost_ngonka',0)/10**9,
+        prompt_tokens=totals.get('prompt_tokens');completion_tokens=totals.get('completion_tokens')
+        detail_known=type(prompt_tokens) is int and type(completion_tokens) is int
+        metered_nusd=(prompt_tokens*cfg['retail_input_nusd_per_token']+completion_tokens*cfg['retail_output_nusd_per_token']) if detail_known else None
+        economics={'metered_revenue_reference_usd':metered_nusd/10**9 if metered_nusd is not None else None,
+            'provider_cost_gnk':provider_cost/10**9 if provider_cost_known else None,
             'scope':'Reference margin at configured retail rates using OpenBroker usage summary. Excludes epoch accounting, hosting, RPC, support, refunds, taxes and token/treasury costs.'}
         if cfg.get('gnk_usd') is not None:
             try:
-                cost_usd=economics['provider_cost_gnk']*float(number(cfg['gnk_usd'],positive=True,maximum='1000000'))
+                gnk_usd=float(number(cfg['gnk_usd'],positive=True,maximum='1000000'))
+                cost_usd=economics['provider_cost_gnk']*gnk_usd if provider_cost_known else None
                 economics['provider_cost_usd']=cost_usd
-                contribution=economics['metered_revenue_reference_usd']-cost_usd
+                contribution=(economics['metered_revenue_reference_usd']-cost_usd) if metered_nusd is not None and cost_usd is not None else None
                 economics['compute_contribution_reference_usd']=contribution
-                economics['compute_margin_reference_pct']=(contribution/economics['metered_revenue_reference_usd']*100) if economics['metered_revenue_reference_usd'] else None
+                economics['compute_margin_reference_pct']=(contribution/economics['metered_revenue_reference_usd']*100) if contribution is not None and economics['metered_revenue_reference_usd'] else None
             except ValueError:pass
         budget_rate=cfg['ngonka_per_token_budget']
         local_capacity=pool['available_budget_ngonka']//budget_rate if budget_rate else 0

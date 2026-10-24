@@ -27,7 +27,7 @@ OpenBroker says the old 1-ngonka governance price is stale for DevShard billing.
 
 ## Models and context/output limits
 
-OpenBroker currently lists MiniMax M2.7, DeepSeek V4 Flash 0731 and GLM 5.3 Flash. Kimi K2.6 is deprecated there.
+At the September 2026 source check, OpenBroker listed MiniMax M2.7, DeepSeek V4 Flash 0731 and GLM 5.3 Flash, while marking Kimi K2.6 deprecated. Treat this as dated catalog evidence and use the live endpoint for present availability.
 
 The current Gonka chain model configuration (`/productscience/inference/inference/models_all`) uses:
 
@@ -39,17 +39,9 @@ The current Gonka proxy `/v1/models` advertises those same context lengths and *
 
 Gonka's Chat Completions docs also define: 10 MiB max body, nesting depth 32, max 2,048 messages, `n<=5`, max 16 stop sequences x 256 bytes, standard function tools, `max_tokens`/`max_completion_tokens`, and bounded response/tool schemas.
 
-## Retail price references
+## Historical retail comparison
 
-Current matched/direct references researched for the rate-card decision:
-
-- MiniMax M2.7: $0.30/M uncached input, $1.20/M output, $0.06/M cache read.
-- Z.AI GLM-5.3 Flash: $0.15/M input, $0.03/M cached input, $0.50/M output.
-- DeepSeek direct currently references V4.1 Flash, not OpenBroker's V4 Flash 0731. Off-peak cache-miss reference is $0.15/M input and $0.60/M output; cached input is materially cheaper. Do not call the two revisions the “same model.”
-
-Slipvolt's planned metered reference defaults to **$0.075/M input and $0.30/M output**. That is intentionally simple and materially below uncached direct rates, but it is not guaranteed to beat cached direct-provider traffic.
-
-Critical math: at an 80/20 mix, the planned rate averages $0.12/M total tokens. **1B tokens = $120 revenue**, not $120,000. The business can have a very high compute gross percentage margin while still needing enormous token volume for meaningful absolute revenue.
+Direct-provider prices collected during the September research pass are not a current customer rate card. Model revisions, cache tiers and time-based discounts differed, so the figures are unsuitable for present marketing without a fresh matched comparison. Slipvolt does not enable checkout or automatic overage billing in holder mode. Runtime reference-rate fields remain operator planning inputs only.
 
 ## Rate limits
 

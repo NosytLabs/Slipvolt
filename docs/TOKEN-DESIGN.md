@@ -68,6 +68,14 @@ Moving tokens from a wallet into the vault must not create a second copy of the 
 
 The base holder allowance is assigned once per wallet from that combined amount. A lock tier may modify rate limits, duration, or an explicitly budgeted discount, but it must not grant another full base allowance for every receipt. Splitting 100,000 tokens among ten positions must have the same economic effect as one 100,000-token position with the same duration. Expired or withdrawn positions stop contributing. The vault's aggregate token balance is never counted as a project holding or again as a single holder.
 
+### Prevent sequential allowance reuse
+
+The current application checks each wallet's finalized liquid balance immediately before a new request and accounts for daily usage by wallet. It does **not** prevent the same fungible tokens from qualifying wallet A, moving to wallet B after A consumes its allowance, and qualifying B during the same UTC day. A loses permission to start new calls after the transfer is finalized, but B has a separate usage ledger. Global daily quotas and funded reservation budgets continue to limit admission; they do not establish one daily benefit per set of tokens.
+
+Before a public launch, choose and implement one explicit entitlement policy. The recommended lock option qualifies principal only for allowance periods during which it remains locked to the same owner; publish the activation cutoff and require the unlock time to cover the entire period. Moving or withdrawing the same principal must not create another benefit in that period. A fixed-boundary daily holder snapshot is an alternative: only wallets eligible at the published cutoff receive that day's allowance, and later recipients wait until the next cutoff. That alternative intentionally keeps the original wallet's snapshotted benefit after a sale and changes the current immediate holder-check policy.
+
+An on-demand positive eligibility cache is not a mitigation: caching A when A first calls and B when B later receives the tokens can preserve both entitlements. The current software implements neither period locks nor fixed-boundary snapshots. Treat this as an unresolved launch requirement, and test transfers, cutoff boundaries, withdrawn positions, and split positions before claiming reuse prevention.
+
 ### Upgrade authority
 
 An upgradeable Solana program can acquire new custody behavior after users deposit. That is a material custody risk even if version one has no seizure instruction. Before accepting deposits, either revoke the upgrade authority after independent review or place it behind a published multisig and time-delayed, monitored upgrade process. Publish the authority address and change policy. A website promise cannot offset an undisclosed unilateral upgrade key.

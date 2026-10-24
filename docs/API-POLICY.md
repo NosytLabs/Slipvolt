@@ -73,17 +73,10 @@ Default policy:
 
 These are operator safety limits, not upstream capacity claims. OpenBroker publishes live capacity separately; the admin console shows it. Wallet/global RPM limits return 429 with `Retry-After`; concurrency limits use a short retry interval; daily allowance exhaustion reports the seconds until the 00:00 UTC reset. Holder responses include `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` (seconds) and wallet scope. The currently configured RPC budget is separate: 15 reads/second with eight reads in flight by default. Raise limits only after observing successful calls, latency and GNK consumption for the deployment.
 
-## Pricing
+## Provider cost and customer-price boundary
 
 OpenBroker documents 10 ngonka per token **per attempt** and usually 10–25 effective ngonka per token due to retries/racing (about 15 typical), with additional epoch accounting possible. OpenBroker says its markup is 0%.
 
-The planned Slipvolt metered/overage reference rate is:
+Configurable input/output rate-card fields are operator planning and reporting inputs. They do not charge a holder, create revenue or enable checkout. Before paid usage is offered, publish final prices, included amounts, payment settlement, taxes, expiration, refunds and dispute handling.
 
-- **$0.075 / 1M input tokens**
-- **$0.30 / 1M output tokens**
-
-This is not currently a checkout-enabled promise. Holder allowance is funded separately in native GNK. Admin can change the reference rate at runtime.
-
-At an 80/20 input/output mix, that rate produces $0.12 revenue per million total tokens. Therefore **1 billion tokens produces about $120 revenue, not $120,000**. Any profitability model must include volume, GNK/USD acquisition cost, OpenBroker epoch charges, hosting, RPC, support, refunds, taxes and token-launch/treasury expenses.
-
-Market comparison is not apples-to-apples: OpenBroker currently serves DeepSeek V4 Flash 0731 while DeepSeek direct pricing now references V4.1 Flash. Cached direct-provider input can also be cheaper than Slipvolt's proposed input price. Do not market “same model 50% cheaper” without matching the exact revision and cache tier.
+Holder allowance is funded separately in native GNK. Profitability analysis must include actual volume, GNK acquisition cost, provider retries and epoch adjustments, hosting, RPC, support, refunds, taxes and treasury operations. Do not make savings claims without matching the exact model revision, cache treatment, input/output mix and service limits.

@@ -5,6 +5,11 @@
   function isCustomerKey(value){return /^(sv_|grd_)[A-Za-z0-9_-]{20,96}$/.test(value);}
 
   function safeCount(value){return Number.isSafeInteger(value)&&value>=0?value:null;}
+  function selectableModelId(models,current){
+    const usable=model=>model&&typeof model.id==='string'&&model.id.length>0&&model.availability!=='unavailable'&&model.routable!==false;
+    const rows=Array.isArray(models)?models:[];
+    return rows.find(model=>model.id===current&&usable(model))?.id||rows.find(usable)?.id||'';
+  }
   function summarizeUsage(rows){
     const items=Array.isArray(rows)?rows:[],models=new Map();
     const summary={requests:0,settled:0,inFlight:0,needsReview:0,recentTokens:0,recentCostNgonka:0,models:[]};
@@ -46,5 +51,5 @@
     if(data!==null)return data;
     const err=new Error('The server returned an invalid response.');err.status=response.status;throw err;
   }
-  return {escape,isCustomerKey,readApiResponse,summarizeUsage};
+  return {escape,isCustomerKey,readApiResponse,safeCount,selectableModelId,summarizeUsage};
 });

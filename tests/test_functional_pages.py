@@ -22,6 +22,7 @@ def test_packaged_preview_contains_functional_controls(tmp_path):
 
 def test_new_pages_do_not_advertise_completed_launch_or_guaranteed_returns():
     s=Path('public/status/index.html').read_text()
-    assert 'not a completed inference test' in s
-    assert 'not a verified token launch' in s
+    assert 'each listed model still requires a successful inference test' in s
+    assert 'configured token mint needs separate verification' in s
     assert 'not Slipvolt customer activity' in s
+    assert 'No promise of returns.' in s

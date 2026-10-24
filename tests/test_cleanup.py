@@ -168,7 +168,7 @@ def test_preview_refuses_missing_styles_instead_of_shipping_a_broken_page(tmp_pa
     from pathlib import Path
     import scripts.package_preview as package
     shutil.copytree(Path('public'), tmp_path/'public')
-    (tmp_path/'public'/'content.css').unlink()
+    (tmp_path/'public'/'tools.css').unlink()
     monkeypatch.setattr(package, 'ROOT', tmp_path)
     target = tmp_path/'preview.html'
     target.write_text('previous-good-preview')

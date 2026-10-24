@@ -89,12 +89,43 @@ class Broker:
     async def provider_status(self):
         d=await self.read('/api/status',max_bytes=4_000_000)
         models=d.get('models')
-        if not isinstance(models,list):return {'status':d.get('status','unknown'),'models':[],'updated_at':d.get('updated_at')}
+        if not isinstance(models,list) or len(models)>1000:raise ValueError('Invalid provider status')
+        top_status=d.get('status')
+        if top_status not in ('ok','operational','healthy','degraded','unavailable','unknown'):top_status='unknown'
+        updated_at=d.get('updated_at')
+        if isinstance(updated_at,str) and len(updated_at)<=64 and updated_at.isprintable():
+            try:datetime.fromisoformat(updated_at.replace('Z','+00:00'))
+            except ValueError:updated_at=None
+        else:updated_at=None
         clean=[]
+        seen=set();duplicates=set()
         for row in models:
-            if not isinstance(row,dict) or not isinstance(row.get('model'),str):continue
-            clean.append({k:row.get(k) for k in ('model','status','routable','capacity_available_pct','capacity_lost_pct','load_pct','in_flight_requests','max_concurrency','effective_max_concurrency') if k in row})
-        return {'status':d.get('status','unknown'),'models':clean,'updated_at':d.get('updated_at')}
+            if not isinstance(row,dict):continue
+            model=row.get('model')
+            if not isinstance(model,str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_./:+-]{0,149}',model):
+                continue
+            if model in seen:
+                duplicates.add(model);continue
+            seen.add(model);item={'model':model}
+            if 'status' in row:
+                item['status']=row['status'] if row['status'] in ('healthy','degraded','unavailable','unknown') else 'unknown'
+            if type(row.get('routable')) is bool:
+                item['routable']=row['routable']
+            for key in ('capacity_available_pct','capacity_lost_pct','load_pct'):
+                if key in row:
+                    value=row[key]
+                    if type(value) in (int,float) and 0<=value<=100:item[key]=value
+            for key in ('in_flight_requests','max_concurrency','effective_max_concurrency'):
+                if key in row:
+                    value=row[key]
+                    if type(value) is int and 0<=value<=1_000_000_000:item[key]=value
+            clean.append(item)
+        # Conflicting duplicate rows cannot establish health or an outage. Keep
+        # the model identity, but make admission conservative and order-independent.
+        if duplicates:
+            clean=[{'model':item['model'],'status':'unknown','routable':False}
+                if item['model'] in duplicates else item for item in clean]
+        return {'status':top_status,'models':clean,'updated_at':updated_at}
 
     async def usage_summary(self, days=30):
         if type(days) is not int or not 1<=days<=90:raise ValueError('Invalid usage window')
