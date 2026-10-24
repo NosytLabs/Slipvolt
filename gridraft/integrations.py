@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 MAINNET_GENESIS='5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d'
 SOL_MINT='So11111111111111111111111111111111111111112'
 USDC_MINT='EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
-READ_METHODS={'getGenesisHash','getHealth','getSlot','getAccountInfo','getTokenAccountsByOwner','qn_estimatePriorityFees'}
+READ_METHODS={'getGenesisHash','getHealth','getSlot','getAccountInfo','getTokenAccountsByOwner','qn_estimatePriorityFees','getSignatureStatuses','getTransaction'}
 
 
 def validate_endpoint(value,scheme='https'):
