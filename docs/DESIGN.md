@@ -22,6 +22,6 @@ No module stores a treasury signing key or executes swaps. GNK allocation in the
 
 ## Capacity policy
 
-The live OpenBroker catalog is intersected with reviewed local policies. Their defaults are 180K context for MiniMax M2.7, 400K for DeepSeek V4 Flash and GLM 5.3 Flash, and 16,384 output tokens for each, with 4,096 requested by default. These are informed by Gonka deployment/proxy metadata, not verified OpenBroker serving limits. Missing or zero discovery remains unknown; positive discovery can only tighten reviewed policy. Explicit server-side overrides are separately labelled unverified and cannot silently enable new models. See [API policy](API-POLICY.md).
+The live OpenBroker catalog is intersected with reviewed local policies. Their defaults are 180K context for MiniMax M2.7, 400K for DeepSeek V4 Flash and GLM 5.3 Flash, and a conservative 4,096 output-token default and cap for each. These are informed by Gonka deployment configuration and configurable gateway defaults, not verified OpenBroker serving limits. Missing or zero discovery remains unknown; positive discovery can only tighten reviewed policy. Explicit server-side overrides are separately labelled unverified and cannot silently enable new models. See [API policy](API-POLICY.md).
 
 Provider health, local wallet/global quotas and spendable GNK are independent gates. A model advertised in a catalog but explicitly unavailable in OpenBroker health is blocked before provider spend.

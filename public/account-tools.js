@@ -1,13 +1,21 @@
 /* Customer quality-of-life controls. No secrets persist outside this tab. */
 'use strict';
 function refreshRequestControls() {
-  const model = S.models.find(item => item.id === S.selected);
-  const modelLimit = SlipvoltCore.safeCount(model?.max_completion_tokens);
-  const ceiling = modelLimit&&modelLimit>0?modelLimit:(OFFLINE?16384:null);
+  const ceiling=selectedOutputCeiling(),candidateDefault=selectedOutputDefault();
+  const effectiveDefault=candidateDefault&&ceiling&&candidateDefault<=ceiling?candidateDefault:null;
   const input = $('output-tokens');
   input.disabled=!ceiling;
-  if(ceiling){input.max=String(ceiling);if(Number(input.value)>ceiling)input.value=String(ceiling);$('output-ceiling').textContent=`Service limit ${ceiling.toLocaleString()} tokens; provider acceptance may vary.`;}
-  else{$('output-ceiling').textContent='Output service limit unavailable.';}
+  if(ceiling){
+    input.max=String(ceiling);
+    if(!S.outputBudgetEdited)input.value=effectiveDefault?String(effectiveDefault):'';
+    else if(Number(input.value)>ceiling)input.value=String(ceiling);
+    $('output-ceiling').textContent=`Service limit ${ceiling.toLocaleString()} tokens; provider acceptance may vary.`;
+  }else{
+    input.removeAttribute('max');if(!S.outputBudgetEdited)input.value='';
+    $('output-ceiling').textContent='Output service limit unavailable.';
+  }
+  $('policy-default-output').textContent=effectiveDefault?`${effectiveDefault.toLocaleString()} tokens`:'Unknown';
+  $('policy-max-output').textContent=ceiling?`${ceiling.toLocaleString()} tokens`:'Unknown';
   const rpm=SlipvoltCore.safeCount(S.status?.limits?.wallet_rpm),concurrency=SlipvoltCore.safeCount(S.status?.limits?.wallet_concurrency);
   if(rpm!==null&&concurrency!==null)$('account-limits').textContent=`${rpm} requests/minute · ${concurrency} concurrent · shared across your keys`;
   else if(S.status)$('account-limits').textContent='Wallet request limits unavailable.';
@@ -18,7 +26,9 @@ function requestedOutput() {
   if (!Number.isInteger(value) || value < 1 || value > maximum) throw new Error(`Choose an output budget between 1 and ${maximum.toLocaleString()}.`);
   return value;
 }
+$('output-tokens').addEventListener('input',()=>{S.outputBudgetEdited=true;});
 $('output-tokens').addEventListener('change', () => {
+  S.outputBudgetEdited=true;
   try { requestedOutput(); renderCode(); } catch (error) { toast(error.message); }
 });
 $('stop-request').addEventListener('click', () => {

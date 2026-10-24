@@ -37,7 +37,7 @@ from .integrations import SolanaRPC, MetisQuotes, validate_endpoint
 from .broker import Broker
 from .member_gateway import MemberGateway
 from .gonka import NativeTreasury, validate_address
-from .model_policy import MODEL_POLICIES, DEFAULT_OUTPUT_TOKENS, HARD_OUTPUT_TOKENS, MODEL_LIMIT_CEILING, MAX_BODY_BYTES, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
+from .model_policy import MODEL_POLICIES, DEFAULT_OUTPUT_TOKENS, REVIEWED_OUTPUT_TOKENS, MODEL_LIMIT_CEILING, MAX_BODY_BYTES, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
 
 APP_VERSION = '0.9.5'
 UPSTREAM = 'https://api.openbroker.gonka.gg/v1'
@@ -102,7 +102,7 @@ class Settings:
     global_request_limit: int = 300
     global_concurrency: int = 50
     default_output_tokens: int = DEFAULT_OUTPUT_TOKENS
-    max_output_tokens: int = HARD_OUTPUT_TOKENS
+    max_output_tokens: int = REVIEWED_OUTPUT_TOKENS
     model_limit_overrides: dict = field(default_factory=dict)
     max_request_bytes: int = MAX_BODY_BYTES
     timeout: int = 180
@@ -142,7 +142,7 @@ class Settings:
             global_request_limit=int(os.getenv('GLOBAL_REQUESTS_PER_MINUTE','300')),
             global_concurrency=int(os.getenv('GLOBAL_CONCURRENCY','50')),
             default_output_tokens=int(os.getenv('DEFAULT_OUTPUT_TOKENS','4096')),
-            max_output_tokens=int(os.getenv('MAX_OUTPUT_TOKENS','16384')),
+            max_output_tokens=int(os.getenv('MAX_OUTPUT_TOKENS','4096')),
             model_limit_overrides=model_limit_overrides_from_env(),
             max_request_bytes=int(os.getenv('MAX_REQUEST_BYTES',str(MAX_BODY_BYTES))),
             timeout=int(os.getenv('UPSTREAM_TIMEOUT_SECONDS','180')),
@@ -905,7 +905,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         return {**cfg,
             'retail_input_per_million_usd':cfg['retail_input_nusd_per_token']/1000,
             'retail_output_per_million_usd':cfg['retail_output_nusd_per_token']/1000,
-            'reviewed_default_output_cap':HARD_OUTPUT_TOKENS,
+            'reviewed_default_output_cap':REVIEWED_OUTPUT_TOKENS,
             'model_limit_configuration_ceiling':MODEL_LIMIT_CEILING,
             'max_request_bytes':settings.max_request_bytes}
 

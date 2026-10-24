@@ -9,7 +9,7 @@ Run the server and open `/admin/`. The console uses a dedicated `ADMIN_API_KEY`;
 - Provider/model health and capacity from OpenBroker's public status feed.
 - Wallet and global RPM/concurrency plus the conservative ngonka-per-AI-token reservation factor.
 - Holder and global daily AI-token allowance.
-- Default and global output caps. The reviewed per-model output default is 16,384; higher limits require explicit server-side model overrides as described in [API policy](API-POLICY.md). The 1,048,576 configuration ceiling is not an OpenBroker capability claim.
+- Default and global output caps. The reviewed per-model output default is 4,096; higher limits require explicit server-side model overrides as described in [API policy](API-POLICY.md). The 1,048,576 configuration ceiling is not an OpenBroker capability claim.
 - Input/output reference-rate fields for operator planning and reporting; no customer checkout is enabled.
 - Maintenance mode.
 - Wallet search, user disable/enable, optional per-wallet daily token overrides, API-key inspection and immediate revocation.
@@ -29,7 +29,7 @@ The overview uses only recorded data from the selected 7/30/90-day window:
 
 The top scorecard shows OpenBroker spendable GNK, local funded AI-token capacity, settled local tokens/requests, active wallets, unresolved reviews, provider cost and approximate runway. Missing upstream data renders as unavailable rather than zero.
 
-Settings are grouped by traffic, allowance/funding, generation and reference economics. Editing a field marks the form **Unsaved changes**; **Discard** restores the last server-confirmed configuration. Browser validation catches obvious conflicts (default output <= hard output, shared daily allowance >= wallet allowance, global concurrency >= wallet concurrency) before the server performs authoritative validation.
+Settings are grouped by traffic, allowance/funding, generation and reference economics. Editing a field marks the form **Unsaved changes**; **Discard** restores the last server-confirmed configuration. Browser validation catches obvious conflicts (default output <= global output cap, shared daily allowance >= wallet allowance, global concurrency >= wallet concurrency) before the server performs authoritative validation.
 
 Refresh failures are scoped: a failed overview clears the old overview and disables settings until a current snapshot loads; failures in users, requests or the audit log clear only that panel so stale rows are not left looking current.
 

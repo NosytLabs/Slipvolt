@@ -7,7 +7,7 @@ const snapshot=[
   {id:'deepseek-ai/DeepSeek-V4-Flash-0731',name:'DeepSeek V4 Flash',label:'Reasoning & generation',mark:'D / 02'},
   {id:'zai-org/GLM-5.3-Flash',name:'GLM 5.3 Flash',label:'General-purpose AI',mark:'G / 03'}
 ];
-const S={models:snapshot,selected:snapshot[0].id,catalogLive:OFFLINE,status:null,wallet:null,provider:null,key:'',epoch:0,memberSerial:0,requestSerial:0,authOps:0,busy:false,authBusy:false,controller:null,memberController:null,revoke:null,handlers:null,conversation:[],conversationFull:false};
+const S={models:snapshot,selected:snapshot[0].id,catalogLive:OFFLINE,status:null,wallet:null,provider:null,key:'',epoch:0,memberSerial:0,requestSerial:0,authOps:0,busy:false,authBusy:false,controller:null,memberController:null,revoke:null,handlers:null,conversation:[],conversationFull:false,outputBudgetEdited:false};
 const CHAT_LIMITS=Object.freeze({maxTurns:24,maxChars:250000});
 let toastTimer;
 
@@ -54,7 +54,13 @@ function rememberConversationTurn(prompt,answer){
 }
 
 function selectedModel(){return S.catalogLive?C.selectableModelId(S.models,S.selected):'';}
-function selectedOutputCeiling(){const value=safeInteger(S.models.find(model=>model.id===selectedModel())?.max_completion_tokens);return value&&value>0?value:OFFLINE?16384:null;}
+function selectedPolicyValue(field,offlineFallback){
+  const id=selectedModel();if(!id)return null;
+  const value=safeInteger(S.models.find(model=>model.id===id)?.[field]);
+  return value&&value>0?value:OFFLINE?offlineFallback:null;
+}
+function selectedOutputCeiling(){return selectedPolicyValue('max_completion_tokens',4096);}
+function selectedOutputDefault(){return selectedPolicyValue('default_completion_tokens',4096);}
 function syncRequestActions(){
   const available=Boolean(selectedModel()&&selectedOutputCeiling()&&!S.conversationFull);
   $('send').disabled=S.busy||!available;
@@ -113,8 +119,8 @@ function renderModels(){
 function renderCode(){
   if(!selectedModel()){$('api-code').textContent='No service model is currently available.';return;}
   const base=OFFLINE?'https://YOUR_HOST/v1':location.origin+'/v1';
-  const budget=Number($('output-tokens')?.value)||4096;
-  try{$('api-code').textContent=globalThis.SlipvoltExamples.example($('example-language')?.value||'curl',base,S.selected,budget);}catch{$('api-code').textContent='Connection example unavailable.';}
+  const budget=Number($('output-tokens')?.value);
+  try{$('api-code').textContent=globalThis.SlipvoltExamples.example($('example-language')?.value||'curl',base,S.selected,budget,selectedOutputCeiling());}catch{$('api-code').textContent='Connection example unavailable.';}
 }
 
 function tab(name){for(const value of ['chat','api']){const active=name===value;$('tab-'+value).setAttribute('aria-selected',String(active));$('tab-'+value).tabIndex=active?0:-1;$(value+'-panel').hidden=!active;}}
@@ -404,8 +410,6 @@ async function init(){
     document.title=displayBrand+' — Funded AI for token holders';renderTokenLaunch();
     if(typeof refreshRequestControls==='function')refreshRequestControls();
     const limits=S.status.limits||{};
-    $('policy-default-output').textContent=safeInteger(limits.default_output_tokens)?whole(limits.default_output_tokens)+' tokens':'Unavailable';
-    $('policy-max-output').textContent=safeInteger(limits.max_output_tokens)?whole(limits.max_output_tokens)+' tokens':'Unavailable';
     $('policy-wallet-rate').textContent=safeInteger(limits.wallet_rpm)&&safeInteger(limits.wallet_concurrency)?whole(limits.wallet_rpm)+' requests/min · '+whole(limits.wallet_concurrency)+' concurrent':'Unavailable';
     if(S.status.holder_gate_configured){const publishedBuy=canonicalBuyUrl(S.status.token_buy_url,S.status.holder_mint);$('stage').textContent=S.status.token_launched===true&&publishedBuy?'TOKEN LINK PUBLISHED':'PILOT · TOKEN GATE CONFIGURED';$('holding-requirement').textContent=rawTokens(S.status.min_holding_raw,S.status.holder_token_decimals)+' '+S.status.holder_token_symbol;$('allowance-label').textContent=compact(S.status.holder_daily_tokens)+' AI tokens / day';$('allowance-note').textContent='Shared pool: '+compact(S.status.global_daily_tokens)+' AI tokens/day. Funding and capacity limits apply.';$('access-message').textContent='Connect to verify your holdings.';}
     else $('allowance-note').textContent='Pilot setting: '+compact(S.status.holder_daily_tokens)+' AI tokens/day; final terms are not published.';
