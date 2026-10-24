@@ -1,96 +1,48 @@
-# Slipvolt — hold, connect, use AI
+# Holdbyte
 
-Slipvolt is a holder-access AI API built on **OpenBroker / Gonka**. A qualifying Solana wallet signs in, creates a revocable `sv_` API key, and uses a finite native-GNK-funded allowance through an OpenAI-compatible Chat Completions endpoint.
+Holdbyte gives eligible token holders a finite, operator-funded AI allowance. A user signs in with a Solana wallet, creates a revocable `sv_` API key, and calls an OpenAI-style Chat Completions endpoint backed by OpenBroker and Gonka.
 
-The public experience stays simple. Operational complexity lives at **`/admin/`**.
+This repository is still named `Slipvolt`, and compatibility names such as `SLIPVOLT_API_KEY`, `gridraft_session`, and legacy key handling remain supported. Holdbyte is the customer-facing display brand. This is a display migration, not a package, database, or API namespace migration.
 
-> Status: prelaunch software. No project mint, treasury signing key, payment processor, token launch, automatic swap, or automatic developer payout is included. The code can make real OpenBroker calls once a dedicated server-side `OPENBROKER_API_KEY` is configured.
+## What works
 
+- Phantom and Solflare message-signature login with finalized holder checks.
+- Revocable customer API keys tied to one wallet allowance.
+- Text chat, SSE streaming, function definitions, and returned tool calls through `POST /v1/chat/completions`.
+- A live usable model catalog at `GET /v1/models` and source-labelled policy metadata at `GET /api/models`.
+- Conservative context admission, output bounds, per-wallet and global quotas, rate limits, and concurrency limits.
+- Native-GNK reservations, provider-reported settlement, and manual review for uncertain outcomes.
+- Request preflight without inference, recent usage, CSV export, key revocation, and browser-session logout.
+- An operator console for configuration, provider health, funding, reconciliation, users, requests, and realized ledger entries.
+- Read-only Solana, Gonka, and provider diagnostics.
 
+The server does not hold a treasury signing key or provide token checkout, automatic swaps, buybacks, burns, developer payouts, or overage billing. Production requires persistent storage, backups, HTTPS, a stable pepper, private credentials, and approved operating terms.
 
-## Operations dashboard (0.9.4)
+## Customer flow
 
-The operator console now prioritizes measured service state instead of configuration chrome: local usage and realized cash-flow charts use only ledgered data, settings are grouped by task with saved/unsaved state, and failed secondary refreshes invalidate only the affected panel instead of leaving stale tables looking current. The public status page adds one source-labelled OpenBroker network trend from sanitized provider-wide daily aggregates; it is explicitly not Slipvolt traffic or uptime.
+1. Verify the published mint, threshold, and funded allowance.
+2. Connect a supported wallet and sign the login message. It is not a transaction or token approval.
+3. Create a private `sv_` key and store it outside public browser code.
+4. Choose a model from the live catalog and send a bounded request.
+5. Review usage before retrying an interrupted or uncertain request.
 
-## Security baseline (0.9.3)
+All keys for a wallet share one allowance. Selling below the threshold blocks new calls once finalized holdings reflect the change.
 
-Production validates the Host authority against `APP_ORIGIN`, uses the routed ASGI path for API security decisions, and pins the current reviewed FastAPI/Starlette/cryptography/Pydantic security baseline. Run the GitHub test workflow after dependency changes; local fixture success is not a substitute for a clean dependency install.
+**Known cycling limit:** the same fungible tokens can move to another wallet and unlock that wallet’s separate allowance. Global limits still apply, but this build has no allowance-period lock or fixed-boundary eligibility snapshot. Resolve the [sequential-reuse design](docs/TOKEN-DESIGN.md#prevent-sequential-allowance-reuse) before describing the benefit as one daily allowance per holding rather than per currently eligible wallet.
 
-## Functional setup and request tools (0.9.1)
+## API quickstart
 
-Use `python -m gridraft.cli doctor` for a secret-safe, local-only setup check.
-The playground now has an authenticated **Check request** action that uses shared
-admission logic without submitting inference or reserving allowance. `/status/`
-separates service configuration, model availability and GNK funding. The API tab
-includes a credential-free connection kit; a reviewed support report excludes
-prompts, keys, wallet addresses and private endpoints.
+```bash
+export SLIPVOLT_BASE_URL="https://YOUR_DEPLOYED_HOST/v1"
+export SLIPVOLT_API_KEY="sv_..."
 
-See [functional setup and limits](docs/FUNCTIONAL-SETUP.md). These are implemented
-software features, not a claim of deployed service, paid inference or token launch.
+curl --fail-with-body -sS "$SLIPVOLT_BASE_URL/chat/completions" \
+  -H "Authorization: Bearer $SLIPVOLT_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"MiniMaxAI/MiniMax-M2.7","messages":[{"role":"user","content":"Hello"}],"max_tokens":256}'
+```
 
-## Customer documentation
-
-- [Developer quickstart](public/developers/index.html), served at `/developers/`: exact customer API setup, current documented model IDs, streaming/tools and retry guidance.
-- [GNK funding explainer](public/funding/index.html), served at `/funding/`: project-token, native-GNK, WGNK and OpenBroker funding boundaries.
-- [Help and API guide](public/help/index.html), served at `/help/`: wallet setup, supported endpoints, allowance resets, pricing examples, errors and key recovery.
-- [Data-handling disclosure](public/privacy/index.html), served at `/privacy/`: local records, upstream processing, cookies and retention limitations.
-- [Draft service rules](public/terms/index.html), served at `/terms/`: current access versus planned staking/payments, funding and developer compensation.
-- [Launch content checklist](docs/CONTENT.md): facts and policies that must be finalized before launch. Public guides do not imply legal review or a deployed service.
-
-The account area links to a wallet-authenticated export of the latest 100 usage records. `public/llms.txt` now matches the implemented function-tool support.
-
-## Account tools and launch readiness (0.9.0)
-
-- Owners can revoke every API key for their wallet without losing usage history, or sign out all browser sessions without revoking API keys. These are separate confirmed actions.
-- The playground has an explicit output budget, stop control, response copy, request trace ID, and wallet-shared rate information. Canceling the browser request does not prove zero provider cost.
-- cURL, Python, and JavaScript examples reflect the selected model and output budget, and use an environment variable rather than inserting a private key. Automatic retries are disabled in examples where applicable.
-- `/api/admin/readiness` and the admin checklist distinguish missing configuration, accounting blockers, and items still needing real testing. A configured key is never presented as a successful inference test.
-- The checklist highlights the difference between a context window and a funded allowance: 400K context cannot be fully used under a 250K daily quota. A 1M shared pool covers four full 250K allowances, not every possible holder.
-- `SITE_NAME=OMA-AI` changes the running public brand without renaming this repository or moving the unrelated OMA production deployment. Key prefixes, cookies, and database identity remain migration-compatible.
-
-Staking, payment settlement, token launching, and automatic treasury transactions remain out of scope of this release.
-
-## Current upstream policy snapshot — September 23, 2026
-
-OpenBroker currently lists three active models. Slipvolt intersects the live OpenBroker catalog with current Gonka model metadata:
-
-| Model | Context | Max completion | Slipvolt default output |
-|---|---:|---:|---:|
-| MiniMax M2.7 | 180,000 | 16,384 | 4,096 |
-| DeepSeek V4 Flash 0731 | 400,000 | 16,384 | 4,096 |
-| GLM 5.3 Flash | 400,000 | 16,384 | 4,096 |
-
-OpenBroker currently marks **Kimi-K2.6 as deprecated** because the chain has no validation weights for it; it is intentionally not offered in the customer picker. OpenBroker's current broker setup also requires **at least 100 GNK** to activate an account before inference.
-
-The 16,384 output ceiling comes from Gonka's current model metadata; OpenBroker's own documentation supports `max_tokens` but does not publish a separate numeric ceiling. Live metadata is checked at runtime and admin settings may only tighten the cap.
-
-Gonka's documented Chat Completions safeguards are mirrored where practical: 10 MiB body, <=2,048 messages, `n<=5`, <=16 stop strings, standard function tools, SSE streaming, and `max_tokens` / `max_completion_tokens` compatibility.
-
-See [API policy](docs/API-POLICY.md). Numeric upstream metadata is **not** a funded OpenBroker account benchmark; context admission uses a conservative byte estimate and may reject early.
-
-## Pricing and GNK accounting
-
-OpenBroker documents **10 ngonka per token per attempt**, commonly **10–25 ngonka/token effective** because the DevShard gateway races/retries hosts (~15 typical), plus separate epoch accounting. OpenBroker states that its markup is 0%.
-
-Slipvolt's configurable planned metered/overage reference card defaults to:
-
-- **$0.075 / 1M input tokens**
-- **$0.30 / 1M output tokens**
-
-Holder allowance is funded separately and no checkout is enabled in the default holder mode. This rate card is useful for modeling future overage/business access; it is not presented as already activated billing.
-
-At an 80/20 input/output mix, the reference revenue is **$0.12 per million total tokens**. Therefore 1 billion tokens is about **$120 revenue**, not $120,000. High compute gross-margin percentages do not imply high absolute profit without high usage volume.
-
-## User flow
-
-1. Hold the configured Solana token.
-2. Connect Phantom/Solflare and sign a login-only message.
-3. Slipvolt checks finalized token holdings.
-4. Create a private `sv_` API key; the operator's `obk-` credential never reaches the browser.
-5. Call `/v1/chat/completions` or use the playground.
-6. Wallet/global daily allowances, RPM/concurrency, live model availability and spendable native GNK all constrain dispatch.
-
-Selling below the threshold blocks new requests when the finalized balance check reflects the change. Multiple API keys share one wallet allowance.
+Call `GET $SLIPVOLT_BASE_URL/models` before relying on a model ID. The reviewed source snapshot includes `MiniMaxAI/MiniMax-M2.7`, `deepseek-ai/DeepSeek-V4-Flash-0731`, and `zai-org/GLM-5.3-Flash`. Their published context and output values are local admission policy, not verified OpenBroker account limits. Missing or zero provider metadata stays unknown. See [API policy](docs/API-POLICY.md).
 
 ## Run locally
 
@@ -100,141 +52,86 @@ Python 3.13 is tested.
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -r requirements.txt
-python -m pip install -r requirements-dev.txt   # tests/browser checks
+python -m pip install -r requirements-dev.txt
 python -m gridraft.cli init-env
 python -m gridraft.cli serve
 ```
 
-Open:
-
-- Public app: `http://127.0.0.1:8000/`
-- Admin: `http://127.0.0.1:8000/admin/`
-
-`init-env` creates a private pepper and admin key. Preserve `KEY_PEPPER` and the database across upgrades.
-
-## QuickNode and new operational safeguards
-
-Read [QuickNode setup](docs/QUICKNODE.md) and [launch / holder / lock / payment decisions](docs/LAUNCH-AND-UTILITY.md).
-
-The server now has private Solana RPC configuration, paced read-only calls, mainnet identity checks, exact mint-decimal validation, admin diagnostics and indicative Metis quotes. **No swap or payment execution is enabled.** WSS and 0x are configuration-only. Customer allowance still needs no second checkout.
-
-Fixed: missing context admission checks; reserving only one output for `n>1`; unenforced per-wallet quota overrides; suspension during provider lookup; stale displayed operator caps; duplicate GNK allocation errors; missing-cost displays implying zero; and admin credentials persisted in browser storage.
+Open `http://127.0.0.1:8000/` for the customer app and `http://127.0.0.1:8000/admin/` for the operator console. Preserve `KEY_PEPPER` and the database across upgrades.
 
 ```bash
+python -m gridraft.cli --env-file .env doctor
+```
+
+The setup doctor is local and makes no network calls. Read-only live diagnostics are separate:
+
+```bash
+python scripts/check_gonka.py --env-file .env
 python scripts/check_connections.py --env-file .env
-python scripts/check_connections.py --env-file .env --priority-fees
+python scripts/check_openbroker.py --env-file .env
 ```
 
-## Required production configuration
+The OpenBroker check reads catalog and account state by default. Paid inference requires both explicit paid-test flags.
 
-At minimum:
+## Production configuration
 
-```env
-APP_ENV=production
-APP_ORIGIN=https://your-domain.example
-KEY_PEPPER=<stable 32+ chars>
-ADMIN_API_KEY=<separate 32+ char secret>
-OPENBROKER_API_KEY=obk-...
-ACCESS_MODE=holder_allowance
-HOLDER_MINT=<actual Solana mint>
-MIN_HOLDING_RAW=<raw base units>
-HOLDER_TOKEN_DECIMALS=<mint decimals>
-HOLDER_TOKEN_SYMBOL=<ticker/name>
-SOLANA_RPC_URL=https://...
-```
+Start with [.env.example](.env.example). Required production values include `APP_ORIGIN`, a stable `KEY_PEPPER`, a separate `ADMIN_API_KEY`, `OPENBROKER_API_KEY`, holder-mode mint settings, a Solana RPC URL, and persistent `DATABASE_PATH`.
 
-Recommended defaults are in `.env.example`. Keep SQLite on persistent single-instance storage; do not put this build unchanged on ephemeral multi-instance serverless storage.
+`TOKEN_LAUNCHED=false` is the safe default. Set it to `true` only after the operator verifies the configured holder mint’s listing on Pump.fun. The flag controls whether the customer interface shows a link derived as `https://pump.fun/coin/{mint}`; it does not mint a token, validate a launch, prove liquidity, or prove funded inference. The link appears only with holder mode and a valid configured mint. Follow the [launch runbook](docs/LAUNCH_RUNBOOK.md).
 
-## Admin console
+Use `SITE_NAME` for a deployment-specific display name where supported. Keep compatibility environment names and `sv_` customer keys unless a separately planned namespace migration updates clients, tests, stored data, and support material together.
 
-`/admin/` provides:
+Review [deployment](docs/DEPLOYMENT.md), [security](docs/SECURITY.md), [RPC setup](docs/QUICKNODE.md), and [admin operations](docs/ADMIN.md). Restrict `/admin/` at the reverse proxy or VPN as well as with its application credential.
 
-- OpenBroker spendable GNK and provider usage/cost.
-- Local native-GNK allowance allocation and reconciliation state.
-- Provider/model health and capacity.
-- Wallet/global RPM and concurrency, with 30 RPM / 4 concurrent per wallet as the initial defaults.
-- Wallet/global daily token allowances.
-- Default/hard output caps and planned input/output pricing.
-- Maintenance mode and per-model enable/disable controls.
-- Wallet search, user disable/enable, per-wallet quota overrides, key inspection/revocation and operator audit history.
-- Recent requests and uncertain reservations.
-- Actual business cash ledger for creator fees/API revenue/subscriptions and hosting/RPC/support/refunds/taxes/developer payouts/GNK purchases.
-- Selectable 7/30/90-day provider usage, configured-rate contribution reference and approximate provider-balance runway.
+## Funding boundaries
 
-See [admin operations](docs/ADMIN.md).
+The project token controls eligibility. Native GNK funds OpenBroker inference. WGNK is a separate Ethereum representation used only in an operator-chosen bridge route. Holding does not create a claim on GNK, treasury assets, creator fees, or developer revenue.
 
-## Funding native GNK
+Keep these values separate:
 
-The web server does **not** hold treasury signing keys or automatically swap assets.
+- self-custody native GNK, if the operator publishes it;
+- spendable credit in the dedicated OpenBroker account;
+- local allowance reservations and settled usage.
 
-Operationally:
+An admin allocation records provider funds the operator has already verified; it does not transfer cryptocurrency. A reservation is an admission estimate, and final provider cost can exceed it. Market capitalization, unclaimed creator fees, and user lock principal are not operating cash.
 
-1. Acquire native GNK into an owner-controlled Gonka wallet using a currently verified route.
-2. Transfer the operating amount to **your dedicated OpenBroker dashboard deposit address** (not the registration wallet and not OpenBroker's public operator wallet).
-3. Verify `/v1/balance` with the dedicated `obk-` key.
-4. Use the admin console or `allocate-gnk` CLI only to mirror already-credited GNK into Slipvolt's local allowance ledger.
+## Documentation
 
-HOT/NEAR Intents currently advertises third-party native GNK routes from SOL/USDC and is the first route to quote-test. Gonka’s own FAQ still points users to the official Ethereum WGNK bridge, whose return path has a critical same-signing-key Gonka destination rule. Always verify route, fees, min received and destination with a small test before moving operating funds.
+**For customers**
 
-See [operating model](docs/OPERATING-MODEL.md) and [research](docs/RESEARCH.md).
+- [Developer quickstart](public/developers/index.html)
+- [Help](public/help/index.html)
+- [Funding](public/funding/index.html)
+- [Privacy disclosure](public/privacy/index.html)
+- [Draft service rules](public/terms/index.html)
 
-## OpenAI-compatible API
+**For operators**
 
-```bash
-curl https://YOUR_HOST/v1/chat/completions \
-  -H "Authorization: Bearer $SLIPVOLT_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model":"MiniMaxAI/MiniMax-M2.7",
-    "messages":[{"role":"user","content":"Hello"}],
-    "max_tokens":4096,
-    "stream":false
-  }'
-```
+- [Functional setup](docs/FUNCTIONAL-SETUP.md)
+- [Admin operations](docs/ADMIN.md)
+- [Launch gates](docs/LAUNCH_RUNBOOK.md)
+- [Publication checklist](docs/CONTENT.md)
+- [Security](docs/SECURITY.md)
+- [Verification](docs/VERIFICATION.md)
 
-Supported surface includes text Chat Completions, standard roles, sampling fields, `max_tokens` / `max_completion_tokens`, SSE streaming, function tool definitions/tool calls, `response_format`, `structured_outputs`, `n<=5`, stop sequences, logit/logprob options, reasoning/thinking hints and selected vLLM-compatible sampling extensions. Slipvolt passes tools to the model but **never executes a tool itself**.
+**Design and evidence**
 
-`GET /v1/models` returns the live intersection with `context_length` and `max_completion_tokens` metadata.
+- [Holdbyte brand and domains](docs/BRAND.md)
+- [Product and architecture](docs/DESIGN.md)
 
-## Real OpenBroker smoke check
+- [Operating model](docs/OPERATING-MODEL.md)
+- [Token and treasury proposal](docs/TOKEN-DESIGN.md)
+- [Research snapshot](docs/RESEARCH.md)
+- [Changelog](docs/CHANGELOG.md)
 
-The repository includes a read-only catalog/balance check and an explicitly opt-in paid inference smoke test. Keep the provider key in the environment.
+## Verify
 
-```bash
-python scripts/check_openbroker.py
-python scripts/check_openbroker.py --allow-paid-inference --acknowledge-cost \
-  --model MiniMaxAI/MiniMax-M2.7
-```
-
-Do not blindly retry uncertain requests; inspect OpenBroker usage first.
-
-## Publishing
-
-This is the canonical `NosytLabs/Slipvolt` repository. See [publishing](docs/PUBLISHING.md) for the release checklist and hosting boundaries. Do not force-push shared history or treat a GitHub commit as proof that a public deployment is live.
-
-## Verification
-
-GitHub verification passed the Python suite, Node tests, compile checks, and holder/admin/content/status Chromium UI checks in [Actions run 37081752211](https://github.com/NosytLabs/Slipvolt/actions/runs/37081752211). The permanent workflow runs on pushes to `main`, pull requests, and manual dispatch. Each run verifies its own revision; it does not establish a live deployment.
-
-Earlier maintenance details: [current verification scope and production gates](docs/VERIFICATION.md).
-
+Run the canonical offline verifier:
 
 ```bash
 sh scripts/verify.sh
 ```
 
-The suite covers wallet auth, holder checks, key lifecycle, quota/rate concurrency, billing reservations/reconciliation, streaming, tool calls, current model metadata policy, admin authorization/config/user controls/GNK allocation/business ledger, frontend helpers and browser UI checks.
+It runs Python and JavaScript regressions, compilation checks, and browser checks. Local fixtures do not prove live wallet interoperability, provider capacity, successful paid inference, a token launch, legal review, profitability, or deployment. See [verification and production acceptance](docs/VERIFICATION.md).
 
-Passing fixtures do not establish real Phantom/Solflare interoperability, live provider latency, a successful paid OpenBroker call, Solana mainnet traffic, token popularity, profitability, or a production security audit.
-
-## Business model
-
-A reasonable structure is:
-
-- holder token unlocks a bounded funded allowance;
-- optional future paid overage/business usage uses explicit metered pricing;
-- Pump.fun creator fees can be additional realized operating revenue;
-- operating costs/reserves and native-GNK compute are funded before developer distributions;
-- developer compensation comes from disclosed actual surplus, not from treating token market cap as cash.
-
-The admin ledger records actual cash entries rather than projecting market cap or unclaimed fees as revenue. No outcome, trading-volume or profit guarantee is made.
+This is the canonical `NosytLabs/Slipvolt` repository. Publishing code does not deploy the service.

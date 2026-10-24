@@ -12,11 +12,28 @@ from .membership import integer
 REJECTIONS={400,401,403,404,413,422,429}
 
 
-def usage_tokens(usage):
+def parse_usage(usage):
     if not isinstance(usage,dict):raise ValueError('Missing usage')
     a=integer(usage['prompt_tokens'],0,10**7);b=integer(usage['completion_tokens'],0,10**7)
-    if 'total_tokens' in usage and integer(usage['total_tokens'])!=a+b:raise ValueError('Usage mismatch')
-    return a+b
+    total=a+b
+    if 'total_tokens' in usage and integer(usage['total_tokens'],0,2*10**7)!=total:raise ValueError('Usage mismatch')
+    prompt_details=usage.get('prompt_tokens_details')
+    completion_details=usage.get('completion_tokens_details')
+    if prompt_details is not None and not isinstance(prompt_details,dict):raise ValueError('Invalid prompt usage details')
+    if completion_details is not None and not isinstance(completion_details,dict):raise ValueError('Invalid completion usage details')
+    cached_value=prompt_details.get('cached_tokens') if isinstance(prompt_details,dict) else None
+    reasoning_value=completion_details.get('reasoning_tokens') if isinstance(completion_details,dict) else None
+    cached=None if cached_value is None else integer(cached_value,0,10**7)
+    reasoning=None if reasoning_value is None else integer(reasoning_value,0,10**7)
+    if cached is not None and cached>a:raise ValueError('Cached usage exceeds prompt usage')
+    if reasoning is not None and reasoning>b:raise ValueError('Reasoning usage exceeds completion usage')
+    return {'prompt_tokens':a,'completion_tokens':b,'total_tokens':total,
+        'cached_input_tokens':cached,'reasoning_tokens':reasoning}
+
+
+def usage_tokens(usage):
+    """Compatibility helper for callers that need only the exact reported total."""
+    return parse_usage(usage)['total_tokens']
 
 
 class MemberGateway:
@@ -93,7 +110,8 @@ class MemberGateway:
             self.ledger.review(rid,upstream_id)
             raise HTTPException(502,'Provider result uncertain; allowance is held for review.')
         if body.stream:
-            return StreamingResponse(self.stream(upstream,rid,body.model,upstream_id,cfg.get('ngonka_per_token_budget',s.allowance_ngonka_per_token)),media_type='text/event-stream',
+            return StreamingResponse(self.stream(upstream,rid,body.model,upstream_id,
+                cfg.get('ngonka_per_token_budget',s.allowance_ngonka_per_token),body.n),media_type='text/event-stream',
                 headers={'X-Request-Id':rid,'Cache-Control':'no-store','X-Accel-Buffering':'no'})
         try:
             chunks=[];size=0
@@ -113,11 +131,11 @@ class MemberGateway:
                 tool_calls=message.get('tool_calls')
                 if content is not None and not isinstance(content,str):raise ValueError('Invalid assistant content')
                 if content is None and not isinstance(tool_calls,list):raise ValueError('Missing assistant content/tool call')
-            tokens=usage_tokens(data['usage'])
+            usage=parse_usage(data['usage']);tokens=usage['total_tokens']
             uid=data.get('id',upstream_id)
             if not isinstance(uid,str) or not 1<=len(uid)<=200:raise ValueError('Missing request ID')
             cost,source=await self.broker.request_cost(uid,body.model,tokens,tokens*cfg.get('ngonka_per_token_budget',s.allowance_ngonka_per_token))
-            self.ledger.settle(rid,tokens,cost,source,uid)
+            self.ledger.settle(rid,tokens,cost,source,uid,usage=usage)
             return JSONResponse(data,headers={'X-Request-Id':rid,'X-Slipvolt-Allowance-Tokens':str(tokens),
                 'X-Slipvolt-Budget-Ngonka':str(cost),'X-Slipvolt-Cost-Source':source})
         except asyncio.CancelledError:
@@ -127,8 +145,8 @@ class MemberGateway:
             raise HTTPException(502,'Provider response or usage uncertain; allowance is held for review.')
         finally:await upstream.aclose()
 
-    async def stream(self,upstream,rid,model,upstream_id,budget_rate):
-        done=False;tokens=None;uid=upstream_id;response_id=None;size=0;frame=[]
+    async def stream(self,upstream,rid,model,upstream_id,budget_rate,requested_choices):
+        done=False;usage=None;uid=upstream_id;response_id=None;size=0;frame=[];terminal_usage=False
         try:
             async with asyncio.timeout(self.settings.timeout):
                 async for line in upstream.aiter_lines():
@@ -140,9 +158,10 @@ class MemberGateway:
                     if not frame:continue
                     content='\n'.join(frame);frame=[]
                     if content=='[DONE]':
-                        if tokens is None:raise ValueError('No usage in completed stream')
+                        if usage is None:raise ValueError('No usage in completed stream')
+                        tokens=usage['total_tokens']
                         cost,source=await self.broker.request_cost(uid,model,tokens,tokens*budget_rate)
-                        self.ledger.settle(rid,tokens,cost,source,uid)
+                        self.ledger.settle(rid,tokens,cost,source,uid,usage=usage)
                         done=True
                         yield 'data: [DONE]\n\n'
                         break
@@ -152,12 +171,23 @@ class MemberGateway:
                         if not isinstance(d['id'],str) or len(d['id'])>200:raise ValueError('Bad stream ID')
                         if response_id is not None and response_id!=d['id']:raise ValueError('Response ID changed during stream')
                         response_id=d['id'];uid=d['id']
-                    if d.get('usage') is not None:tokens=usage_tokens(d['usage'])
                     choices=d.get('choices',[])
-                    if not isinstance(choices,list) or len(choices)>5:raise ValueError('Invalid choices')
+                    if not isinstance(choices,list) or len(choices)>requested_choices:raise ValueError('Invalid choices')
+                    if terminal_usage and choices:raise ValueError('Choices after terminal usage')
+                    frame_indexes=set()
                     for choice in choices:
+                        if not isinstance(choice,dict):raise ValueError('Invalid choice')
+                        index=choice.get('index')
+                        if type(index) is not int or not 0<=index<requested_choices or index in frame_indexes:
+                            raise ValueError('Invalid choice index')
+                        frame_indexes.add(index)
                         delta=choice.get('delta',{})
                         if not isinstance(delta,dict):raise ValueError('Invalid delta')
+                    if d.get('usage') is not None:
+                        usage=parse_usage(d['usage'])
+                        # The first usage report may share the model's last choice
+                        # frame. Once observed, later frames must not add output.
+                        terminal_usage=True
                     yield 'data: '+json.dumps(d,ensure_ascii=False)+'\n\n'
                 if not done:raise ValueError('Incomplete stream')
         except asyncio.CancelledError:

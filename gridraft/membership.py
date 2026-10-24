@@ -28,6 +28,8 @@ class Membership:
               idem TEXT NOT NULL, model TEXT NOT NULL, reserved_tokens INTEGER NOT NULL,
               tokens INTEGER NOT NULL DEFAULT 0, reserved_ngonka INTEGER NOT NULL,
               cost_ngonka INTEGER NOT NULL DEFAULT 0, cost_source TEXT,
+              prompt_tokens INTEGER, completion_tokens INTEGER,
+              cached_input_tokens INTEGER, reasoning_tokens INTEGER,
               state TEXT NOT NULL, upstream_id TEXT, evidence TEXT, created REAL NOT NULL,
               UNIQUE(key_id,idem));
             CREATE INDEX IF NOT EXISTS member_usage_wallet ON member_usage(wallet,created);
@@ -35,6 +37,9 @@ class Membership:
             CREATE INDEX IF NOT EXISTS member_usage_created ON member_usage(created);
             CREATE INDEX IF NOT EXISTS member_usage_wallet_state ON member_usage(wallet,state);
             ''')
+            columns={row['name'] for row in self.db.execute("PRAGMA table_info('member_usage')")}
+            for name in ('prompt_tokens','completion_tokens','cached_input_tokens','reasoning_tokens'):
+                if name not in columns:self.db.execute(f'ALTER TABLE member_usage ADD COLUMN {name} INTEGER')
         initialize_pool_totals(store)
 
     def allocate(self, amount, reference, *, upstream_available=None):
@@ -137,17 +142,31 @@ class Membership:
         return {'RateLimit-Limit':str(limit),'RateLimit-Remaining':str(max(0,limit-row[0])),
                 'RateLimit-Reset':str(reset),'X-RateLimit-Scope':'wallet'}
 
-    def settle(self,rid,tokens,cost,source,upstream_id=None,evidence=None):
+    def settle(self,rid,tokens,cost,source,upstream_id=None,evidence=None,usage=None):
         integer(tokens,0,10**9);integer(cost)
         if not isinstance(source,str) or len(source)>100:raise ValueError('Invalid cost source')
+        details=(None,None,None,None)
+        if usage is not None:
+            if not isinstance(usage,dict):raise ValueError('Invalid usage detail')
+            prompt=integer(usage.get('prompt_tokens'),0,10**9)
+            completion=integer(usage.get('completion_tokens'),0,10**9)
+            total=integer(usage.get('total_tokens'),0,10**9)
+            if prompt+completion!=total or total!=tokens:raise ValueError('Usage detail mismatch')
+            cached=usage.get('cached_input_tokens')
+            reasoning=usage.get('reasoning_tokens')
+            if cached is not None:cached=integer(cached,0,prompt)
+            if reasoning is not None:reasoning=integer(reasoning,0,completion)
+            details=(prompt,completion,cached,reasoning)
         with self.store.transaction():
             row=self.db.execute('SELECT state FROM member_usage WHERE id=?',(rid,)).fetchone()
             if not row or row[0] not in ('reserved','needs_review'):return False
             if row[0]=='needs_review' and not evidence:raise ValueError('Reconciliation evidence required')
             if evidence is not None and (not isinstance(evidence,str) or not 1<=len(evidence)<=200):
                 raise ValueError('Invalid evidence reference')
-            self.db.execute("UPDATE member_usage SET tokens=?,cost_ngonka=?,cost_source=?,state='settled',upstream_id=?,evidence=? WHERE id=?",
-                (tokens,cost,source,upstream_id,evidence,rid))
+            self.db.execute("""UPDATE member_usage SET tokens=?,cost_ngonka=?,cost_source=?,
+                prompt_tokens=?,completion_tokens=?,cached_input_tokens=?,reasoning_tokens=?,
+                state='settled',upstream_id=?,evidence=? WHERE id=?""",
+                (tokens,cost,source,*details,upstream_id,evidence,rid))
             return True
 
     def review(self,rid,upstream_id=None):
@@ -161,9 +180,13 @@ class Membership:
     def history(self,wallet,limit=50):
         integer(limit,1,100)
         with self.store.lock:
-            return [dict(r) for r in self.db.execute(
-                'SELECT id,model,tokens,reserved_tokens,cost_ngonka,reserved_ngonka,cost_source,state,created FROM member_usage WHERE wallet=? ORDER BY created DESC LIMIT ?',
-                (wallet,limit))]
+            rows=[dict(r) for r in self.db.execute("""SELECT id,model,tokens,reserved_tokens,
+                prompt_tokens,completion_tokens,cached_input_tokens,reasoning_tokens,
+                cost_ngonka,reserved_ngonka,cost_source,state,created FROM member_usage
+                WHERE wallet=? ORDER BY created DESC LIMIT ?""",(wallet,limit))]
+        for row in rows:
+            row['usage_status']='reported' if row['prompt_tokens'] is not None and row['completion_tokens'] is not None else 'unreported'
+        return rows
 
 
     def admin_summary(self,days=30):
@@ -197,16 +220,33 @@ class Membership:
         with self.store.lock:
             total=dict(self.db.execute("""SELECT COUNT(*) AS requests,
                 COALESCE(SUM(tokens),0) AS total_tokens,
+                SUM(prompt_tokens) AS prompt_tokens,
+                SUM(completion_tokens) AS completion_tokens,
+                SUM(cached_input_tokens) AS cached_input_tokens,
+                SUM(reasoning_tokens) AS reasoning_tokens,
+                COALESCE(SUM(CASE WHEN prompt_tokens IS NOT NULL AND completion_tokens IS NOT NULL THEN 1 ELSE 0 END),0) AS usage_reported_requests,
+                COUNT(*)-COALESCE(SUM(CASE WHEN prompt_tokens IS NOT NULL AND completion_tokens IS NOT NULL THEN 1 ELSE 0 END),0) AS usage_unreported_requests,
+                COUNT(cached_input_tokens) AS cached_usage_reported_requests,
+                COUNT(reasoning_tokens) AS reasoning_usage_reported_requests,
                 COALESCE(SUM(cost_ngonka),0) AS cost_ngonka,
                 COALESCE(SUM(CASE WHEN state IN ('reserved','needs_review') THEN reserved_ngonka ELSE 0 END),0) AS held_ngonka,
                 COALESCE(SUM(CASE WHEN state='needs_review' THEN 1 ELSE 0 END),0) AS needs_review
                 FROM member_usage WHERE wallet=?""",(wallet,)).fetchone())
             rows=self.db.execute("""SELECT strftime('%Y-%m-%d',created,'unixepoch') AS day,
                 COUNT(*) AS requests,COALESCE(SUM(cost_ngonka),0) AS cost_ngonka,
-                COALESCE(SUM(tokens),0) AS tokens FROM member_usage
+                COALESCE(SUM(tokens),0) AS tokens,
+                SUM(prompt_tokens) AS prompt_tokens,SUM(completion_tokens) AS completion_tokens,
+                SUM(cached_input_tokens) AS cached_input_tokens,SUM(reasoning_tokens) AS reasoning_tokens,
+                SUM(CASE WHEN prompt_tokens IS NOT NULL AND completion_tokens IS NOT NULL THEN 1 ELSE 0 END) AS usage_reported_requests,
+                COUNT(*)-SUM(CASE WHEN prompt_tokens IS NOT NULL AND completion_tokens IS NOT NULL THEN 1 ELSE 0 END) AS usage_unreported_requests,
+                COUNT(cached_input_tokens) AS cached_usage_reported_requests,
+                COUNT(reasoning_tokens) AS reasoning_usage_reported_requests FROM member_usage
                 WHERE wallet=? AND created>=? GROUP BY day""",(wallet,start)).fetchall()
         mapping={row['day']:dict(row) for row in rows}
         total['daily']=[mapping.get((today-timedelta(days=i)).strftime('%Y-%m-%d'),
-            {'day':(today-timedelta(days=i)).strftime('%Y-%m-%d'),'requests':0,'cost_ngonka':0,'tokens':0}) for i in range(6,-1,-1)]
+            {'day':(today-timedelta(days=i)).strftime('%Y-%m-%d'),'requests':0,'cost_ngonka':0,'tokens':0,
+             'prompt_tokens':None,'completion_tokens':None,'cached_input_tokens':None,'reasoning_tokens':None,
+             'usage_reported_requests':0,'usage_unreported_requests':0,
+             'cached_usage_reported_requests':0,'reasoning_usage_reported_requests':0}) for i in range(6,-1,-1)]
         return {**total,'period':'all_time','daily_timezone':'UTC','access_mode':'holder_allowance',
             'cost_unit':'ngonka','cost_scope':'Allocated project compute; confirmed costs or conservative estimates, not a customer bill.'}

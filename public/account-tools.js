@@ -2,12 +2,15 @@
 'use strict';
 function refreshRequestControls() {
   const model = S.models.find(item => item.id === S.selected);
-  const ceiling = model?.max_completion_tokens || S.status?.limits?.max_output_tokens || 16384;
+  const modelLimit = SlipvoltCore.safeCount(model?.max_completion_tokens);
+  const ceiling = modelLimit&&modelLimit>0?modelLimit:(OFFLINE?16384:null);
   const input = $('output-tokens');
-  input.max = String(ceiling);
-  if (Number(input.value) > ceiling) input.value = String(ceiling);
-  $('output-ceiling').textContent = `Maximum ${ceiling.toLocaleString()} · reasoning may consume part of the output budget`;
-  if (S.status?.limits) $('account-limits').textContent = `${S.status.limits.wallet_rpm} requests/minute · ${S.status.limits.wallet_concurrency} concurrent · shared across your keys`;
+  input.disabled=!ceiling;
+  if(ceiling){input.max=String(ceiling);if(Number(input.value)>ceiling)input.value=String(ceiling);$('output-ceiling').textContent=`Service limit ${ceiling.toLocaleString()} tokens; provider acceptance may vary.`;}
+  else{$('output-ceiling').textContent='Output service limit unavailable.';}
+  const rpm=SlipvoltCore.safeCount(S.status?.limits?.wallet_rpm),concurrency=SlipvoltCore.safeCount(S.status?.limits?.wallet_concurrency);
+  if(rpm!==null&&concurrency!==null)$('account-limits').textContent=`${rpm} requests/minute · ${concurrency} concurrent · shared across your keys`;
+  else if(S.status)$('account-limits').textContent='Wallet request limits unavailable.';
 }
 function requestedOutput() {
   const value = Number($('output-tokens').value);
@@ -19,7 +22,8 @@ $('output-tokens').addEventListener('change', () => {
   try { requestedOutput(); renderCode(); } catch (error) { toast(error.message); }
 });
 $('stop-request').addEventListener('click', () => {
-  S.controller?.abort();
+  if(!S.controller)return;
+  S.controller.abort();
   $('request-note').textContent = 'Stopping this browser request. Provider charges may still need reconciliation.';
 });
 $('copy-response').addEventListener('click', async () => {
@@ -30,19 +34,24 @@ $('copy-response').addEventListener('click', async () => {
 $('revoke-all-keys').addEventListener('click', async () => {
   if (OFFLINE) return toast('Offline preview. No keys were changed.');
   if (!confirm('Revoke all API keys for this wallet? Existing applications will stop making new calls. In-flight requests may finish.')) return;
+  const button=$('revoke-all-keys'),epoch=S.epoch,wallet=S.wallet;if(button.disabled)return;button.disabled=true;
   try {
     const result = await api('/api/keys/revoke-all', {method:'POST'});
-    clearSecrets(); await refreshMember();
-    toast(`${result.revoked_count} keys revoked. Usage history was kept.`);
-  } catch (error) { toast(error.message); }
+    if(S.epoch!==epoch||S.wallet!==wallet)return;clearSecrets(); await refreshMember();
+    if(S.epoch===epoch&&S.wallet===wallet)toast(`${result.revoked_count} keys revoked. Usage history was kept.`);
+  } catch (error) { if(S.epoch===epoch&&S.wallet===wallet)toast(error.message); }
+  finally{if(S.epoch===epoch&&S.wallet===wallet)button.disabled=false;}
 });
 $('logout-everywhere').addEventListener('click', async () => {
   if (OFFLINE) return toast('Offline preview. No sessions were changed.');
+  if(S.authBusy)return toast('Finishing the previous wallet session. Try again in a moment.');
   if (!confirm('Sign out every browser session for this wallet? API keys will remain active.')) return;
+  const button=$('logout-everywhere'),epoch=S.epoch,wallet=S.wallet,releaseAuth=beginAuthOperation();if(button.disabled){releaseAuth();return;}button.disabled=true;
   try {
     await api('/api/auth/logout-all', {method:'POST'});
-    clearAccount(); toast('Signed out all browser sessions. API keys were not revoked.');
-  } catch (error) { toast(error.message); }
+    if(S.epoch!==epoch||S.wallet!==wallet)return;clearAccount(); toast('Signed out all browser sessions. API keys were not revoked.');
+  } catch (error) { if(S.epoch===epoch&&S.wallet===wallet)toast(error.message); }
+  finally{releaseAuth();if(S.epoch===epoch&&S.wallet===wallet)button.disabled=false;}
 });
 $('example-language').addEventListener('change', renderCode);
 refreshRequestControls();

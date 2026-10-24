@@ -29,6 +29,11 @@ def test_preview_does_not_reserve_dispatch_or_echo_prompt(tmp_path):
             assert r.status_code==200,r.text
             d=r.json();assert d['allowed'] is True and d['inference_requests']==0 and d['reservation_created'] is False
             assert d['estimated_ai_tokens']>16 and 'CONFIDENTIAL' not in r.text and 'obk-' not in r.text
+            assert d['estimated_ai_tokens']==d['estimated_input_tokens']+d['requested_output_tokens']*d['choices']
+            assert d['estimated_context_tokens']==d['estimated_input_tokens']+d['requested_output_tokens']
+            assert d['context_headroom_tokens']==d['context_limit_tokens']-d['estimated_context_tokens']
+            assert d['context_estimate_scope']=='per_choice'
+            assert d['allowance_estimate_scope']=='input_once_plus_output_per_choice'
         assert app.state.membership.pool()==before and app.state.membership.history(WALLET)==[]
         assert all('/chat/completions' not in u and b'CONFIDENTIAL' not in data for _,u,data in sent)
 

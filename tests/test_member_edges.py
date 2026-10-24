@@ -22,7 +22,10 @@ def open_client(tmp_path, override, **settings):
 
 def sse(*,usage=True,done=True,second_id=False):
     rows=[{'id':'up-1','model':MODEL,'choices':[{'index':0,'delta':{'role':'assistant','content':'Hello stream'}}]}]
-    if usage:rows.append({'id':'changed' if second_id else 'up-1','model':MODEL,'choices':[], 'usage':{'prompt_tokens':12,'completion_tokens':3,'total_tokens':15}})
+    if usage:rows.append({'id':'changed' if second_id else 'up-1','model':MODEL,'choices':[], 'usage':{
+        'prompt_tokens':12,'completion_tokens':3,'total_tokens':15,
+        'prompt_tokens_details':{'cached_tokens':8},
+        'completion_tokens_details':{'reasoning_tokens':2}}})
     return ''.join('data: '+json.dumps(r)+'\n\n' for r in rows)+('data: [DONE]\n\n' if done else '')
 
 
@@ -37,7 +40,16 @@ def test_stream_settles_reported_usage_and_cost(tmp_path):
         login(c);r=c.post('/v1/chat/completions',headers=make_key(c),json={**BODY,'stream':True})
         assert r.status_code==200 and 'Hello stream' in r.text and '[DONE]' in r.text
         assert app.state.membership.pool()['budget_spent_ngonka']==150
-        assert c.get('/api/membership').json()['used_tokens']==15
+        membership=c.get('/api/membership').json()
+        assert membership['used_tokens']==15
+        assert membership['history'][0]['prompt_tokens']==12
+        assert membership['history'][0]['completion_tokens']==3
+        assert membership['history'][0]['cached_input_tokens']==8
+        assert membership['history'][0]['reasoning_tokens']==2
+        assert membership['history'][0]['usage_status']=='reported'
+        export=c.get('/api/usage/export')
+        assert export.status_code==200
+        assert 'prompt_tokens,completion_tokens,cached_input_tokens,reasoning_tokens,usage_status' in export.text
 
 
 @pytest.mark.parametrize('options',[{'usage':False},{'done':False},{'second_id':True}])

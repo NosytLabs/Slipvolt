@@ -1,10 +1,12 @@
 'use strict';
 // Server-only credentials are never returned by these endpoints.
-async function loadConnections() {
+async function loadConnections(parent = () => true) {
+  const isCurrent = nextRefresh('connections', parent);
   const target=document.getElementById('connection-list');
   if (!target || !key) return;
   try {
     const d=await api('/api/admin/connections');
+    if (!isCurrent()) return;
     const labels=[['Solana RPC',d.solana_rpc?.configured,'Server side · '+d.solana_rpc?.rps_budget+' requests/s budget'],
       ['Solana WebSocket',d.solana_websocket?.configured,'Configured only; no subscription running'],
       ['OpenBroker',d.openbroker?.configured,'Private inference credential'],
@@ -19,7 +21,7 @@ async function loadConnections() {
       row.append(name,status,sub);target.append(row);
     }
     document.getElementById('connections-note').textContent='Configuration is not a successful connectivity test. 0x execution, staking and customer checkout remain off.';
-  } catch { target.textContent='Connection settings unavailable. Unlock the console and retry.'; }
+  } catch { if (isCurrent()) target.textContent='Connection settings unavailable. Unlock the console and retry.'; }
 }
 function showReadOnlyResult(id,result) {
   document.getElementById(id).textContent=typeof result==='string'?result:JSON.stringify(result,null,2);

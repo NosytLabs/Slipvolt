@@ -17,9 +17,11 @@ node --check public/account-tools.js
 node --check public/admin/readiness.js
 node --check operator/profit-core.js
 node --check operator/calculate.cjs
+node --check operator/holder-economics.js
 python -m compileall -q gridraft scripts
 python scripts/check_holder_ui.py
 python scripts/check_admin_ui.py
 python scripts/check_status_ui.py
 python scripts/check_content_ui.py
+python scripts/check_holder_economics_ui.py
 python scripts/package_preview.py slipvolt-preview.html

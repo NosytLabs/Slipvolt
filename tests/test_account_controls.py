@@ -101,6 +101,10 @@ def test_site_name_is_configurable_without_changing_key_prefix(tmp_path):
     a,c=client_for(tmp_path,site_name='OMA-AI')
     with c:
         assert c.get('/api/status').json()['brand']=='OMA-AI'
+        challenge=c.post('/api/auth/challenge',json={'wallet':WALLET},headers=ORIGIN).json()
+        assert 'requests a OMA-AI sign-in.' in challenge['message']
+        assert 'Sign-in only.' in challenge['message']
+        assert a.title=='OMA-AI API'
         login(c)
         assert make_key(c)['Authorization'].startswith('Bearer sv_')
 
@@ -109,3 +113,45 @@ def test_site_name_is_configurable_without_changing_key_prefix(tmp_path):
 def test_bad_brand_is_rejected(tmp_path,name):
     with pytest.raises(ValueError,match='site name'):
         create_app(member_settings(site_name=name),str(tmp_path/'bad.db'))
+
+
+def test_configured_mint_alone_does_not_publish_purchase_link(tmp_path):
+    a,c=client_for(tmp_path)
+    with c:
+        status=c.get('/api/status').json()
+        assert status['holder_gate_configured'] is True
+        assert status['token_launched'] is False
+        assert status['token_buy_url'] is None
+
+
+def test_explicit_launch_uses_only_configured_mint_for_pump_link(tmp_path):
+    from test_gridraft import MINT
+    a,c=client_for(tmp_path,token_launched=True)
+    with c:
+        status=c.get('/api/status').json()
+        assert status['token_launched'] is True
+        assert status['token_buy_url']==f'https://pump.fun/coin/{MINT}'
+        assert status['payments_enabled'] is False
+        assert status['treasury_execution_enabled'] is False
+        readiness=c.get('/api/admin/readiness',headers=AH).json()
+        assert readiness['launch_authorized'] is False
+
+
+@pytest.mark.parametrize('changes',[
+    {'token_launched':True,'holder_mint':''},
+    {'token_launched':True,'access_mode':'prepaid'},
+    {'token_launched':'true'},
+    {'token_launched':1},
+])
+def test_purchase_link_rejects_ambiguous_launch_configuration(tmp_path,changes):
+    with pytest.raises(ValueError,match='[Tt]oken launch'):
+        create_app(member_settings(**changes),str(tmp_path/'launch.db'))
+
+
+def test_launch_env_requires_explicit_true(monkeypatch):
+    monkeypatch.delenv('TOKEN_LAUNCHED',raising=False)
+    assert Settings.from_env().token_launched is False
+    monkeypatch.setenv('TOKEN_LAUNCHED','true')
+    assert Settings.from_env().token_launched is True
+    monkeypatch.setenv('TOKEN_LAUNCHED','1')
+    assert Settings.from_env().token_launched is False

@@ -8,13 +8,22 @@ let snapshot = null;
 let selectedWallet = '';
 let configDirty = false;
 let serverConfig = null;
+let userDetailGeneration = 0;
+let userSavePending = false;
+let unlocking = false;
+const refreshGenerations = Object.create(null);
+function nextRefresh(name, parent = () => true) {
+  const generation = (refreshGenerations[name] || 0) + 1;
+  refreshGenerations[name] = generation;
+  return () => parent() && refreshGenerations[name] === generation;
+}
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[c]));
-const num = value => new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 2 }).format(Number(value || 0));
-const usd = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(value || 0));
-const gnk = value => (Number(value || 0) / 1e9).toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' GNK';
+const num = value => Number.isFinite(value) ? new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 2 }).format(value) : 'Unavailable';
+const usd = value => Number.isFinite(value) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(value) : 'Unavailable';
+const gnk = value => Number.isFinite(value) ? (value / 1e9).toLocaleString(undefined, { maximumFractionDigits: 4 }) + ' GNK' : 'Unavailable';
 
 function notice(message) {
   $('notice').textContent = message;
@@ -29,13 +38,14 @@ async function api(path, options = {}) {
     ...options.headers,
   };
   const response = await fetch(path, { ...options, headers, credentials: 'same-origin' });
-  let data = {};
+  let data = null;
   try { data = await response.json(); } catch {}
   if (!response.ok) {
-    const error = new Error(data.error?.message || response.statusText);
+    const error = new Error(data?.error?.message || `Request failed (${response.status}). Try again after checking service status.`);
     error.status = response.status;
     throw error;
   }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('The server returned an unreadable response. Refresh and try again.');
   return data;
 }
 
@@ -105,9 +115,11 @@ function renderCharts(overview) {
   const businessOk=!!charts?.renderBars?.($('business-chart'),businessRows,{x:'day',series:[{key:'revenue_usd',label:'Revenue'},{key:'expense_usd',label:'Expenses'}],ariaLabel:'Daily realized revenue and expenses',format:'usd'});
   $('business-chart-empty').hidden=businessOk;
 }
-async function loadSecondary(fn, id, label, countId) {
-  try { await fn(); return true; }
+async function loadSecondary(fn, id, label, countId, parent = () => true) {
+  const isCurrent = nextRefresh(id, parent);
+  try { await fn(isCurrent); return isCurrent(); }
   catch (error) {
+    if (!isCurrent()) return false;
     renderPanelError(id, label+' unavailable. '+(error.message||'Refresh failed.'));
     if (countId) $(countId).textContent='Unavailable';
     return false;
@@ -140,11 +152,13 @@ function render(overview) {
 
   const provider = overview.provider_status;
   $('provider-state').textContent = provider?.status || 'unavailable';
-  $('provider-state').className = 'pill ' + ((provider?.status === 'ok' || provider?.status === 'healthy') ? 'good' : 'bad');
+  $('provider-state').className = 'pill ' + (['ok','operational','healthy'].includes(provider?.status) ? 'good' : provider?.status === 'unknown' ? 'muted' : 'bad');
   const models = provider?.models || [];
   $('model-health').innerHTML = table(['Model', 'Status', 'Routable', 'Capacity', 'Load', 'In flight', 'Policy'], models.map(model => {
     const disabled = (overview.config.disabled_models || []).includes(model.model);
-    return `<tr><td>${esc(model.model)}</td><td class="${model.status === 'healthy' ? 'good' : 'bad'}">${esc(model.status)}</td><td>${model.routable === true ? 'yes' : 'no'}</td><td>${esc(model.capacity_available_pct ?? '—')}%</td><td>${esc(model.load_pct ?? '—')}%</td><td>${esc(model.in_flight_requests ?? '—')}</td><td><button class="small-action model-toggle" data-model="${esc(model.model)}">${disabled ? 'Enable' : 'Disable'}</button></td></tr>`;
+    const routable = model.routable === true ? 'yes' : model.routable === false ? 'no' : '—';
+    const percent = value => Number.isFinite(value) ? value + '%' : '—';
+    return `<tr><td>${esc(model.model)}</td><td class="${model.status === 'healthy' ? 'good' : model.status === 'unavailable' ? 'bad' : 'muted'}">${esc(model.status ?? 'unknown')}</td><td>${routable}</td><td>${percent(model.capacity_available_pct)}</td><td>${percent(model.load_pct)}</td><td>${esc(model.in_flight_requests ?? '—')}</td><td><button class="small-action model-toggle" data-model="${esc(model.model)}">${disabled ? 'Enable' : 'Disable'}</button></td></tr>`;
   }));
 
   $('fund-summary').innerHTML = `<div class="metrics compact">${[
@@ -175,7 +189,7 @@ function render(overview) {
     metric('Net cash ledger', usd(business.cash_net_usd)),
     metric('Configured-rate usage value', usd(economics.metered_revenue_reference_usd)),
     metric('Provider compute', economics.provider_cost_usd == null ? (Number.isFinite(providerTotals.cost_ngonka) ? gnk(providerTotals.cost_ngonka) : 'Unavailable') : usd(economics.provider_cost_usd)),
-    metric('Modeled contribution', economics.compute_contribution_reference_usd == null ? 'Set GNK/USD' : usd(economics.compute_contribution_reference_usd)),
+    metric('Modeled contribution', usd(economics.compute_contribution_reference_usd)),
     metric('Modeled compute margin', economics.compute_margin_reference_pct == null ? '—' : economics.compute_margin_reference_pct.toFixed(1) + '%'),
   ].join('');
   $('business-table').innerHTML = table(['Date', 'Category', 'Amount', 'Reference'], (business.recent || []).slice(0, 20).map(entry =>
@@ -201,9 +215,10 @@ function render(overview) {
   });
 }
 
-async function loadUsers() {
+async function loadUsers(isCurrent = nextRefresh('users')) {
   const query = $('user-search').value.trim();
   const result = await api('/api/admin/users?limit=100&q=' + encodeURIComponent(query));
+  if (!isCurrent()) return;
   $('user-count').textContent = result.data.length + (query ? ' matches' : ' shown');
   $('users').innerHTML = table(['Wallet', 'Keys', 'Requests', 'AI tokens', 'GNK cost', 'Status', 'Manage'], result.data.map(user =>
     `<tr><td class="wallet" title="${esc(user.wallet)}">${esc(user.wallet)}</td><td>${user.active_keys}</td><td>${user.requests}</td><td>${num(user.tokens)}</td><td>${gnk(user.cost_ngonka)}</td><td>${user.disabled ? '<span class="bad">disabled</span>' : '<span class="good">active</span>'}</td><td><button class="small-action user-manage" data-wallet="${esc(user.wallet)}">Manage</button></td></tr>`
@@ -213,58 +228,91 @@ async function loadUsers() {
   });
 }
 
-async function manageUser(wallet, user) {
+async function manageUser(wallet, user = {}) {
+  const generation = ++userDetailGeneration;
+  const isCurrent = () => selectedWallet === wallet && generation === userDetailGeneration;
   selectedWallet = wallet;
   $('user-detail').hidden = false;
   $('user-detail-title').textContent = wallet;
   $('user-disabled').checked = !!user.disabled;
   $('user-daily').value = user.daily_tokens_override ?? '';
   $('user-note').value = user.note || '';
-  const result = await api('/api/admin/users/' + encodeURIComponent(wallet) + '/keys');
+  $('user-policy-form').querySelector('button').disabled = userSavePending;
+  $('user-keys').textContent = 'Loading keys…';
+  await loadUserKeys(wallet, isCurrent);
+}
+
+async function loadUserKeys(wallet, parent) {
+  const isCurrent = nextRefresh('user-keys', parent);
+  let result;
+  try {
+    result = await api('/api/admin/users/' + encodeURIComponent(wallet) + '/keys');
+    if (!isCurrent()) return;
+    if (!Array.isArray(result.data)) throw new Error('The server returned an unreadable key list.');
+  } catch (error) {
+    if (isCurrent()) renderPanelError('user-keys', 'Keys unavailable. ' + error.message);
+    return;
+  }
   $('user-keys').innerHTML = table(['Prefix', 'Name', 'Created', 'Status', 'Action'], result.data.map(item =>
     `<tr><td><code>${esc(item.prefix)}</code></td><td>${esc(item.name)}</td><td>${new Date(item.created * 1000).toLocaleDateString()}</td><td>${item.revoked ? '<span class="bad">revoked</span>' : '<span class="good">active</span>'}</td><td>${item.revoked ? '—' : `<button class="small-action revoke-key" data-id="${esc(item.id)}">Revoke</button>`}</td></tr>`
   ));
   document.querySelectorAll('.revoke-key').forEach(button => {
     button.onclick = async () => {
+      if (!isCurrent() || button.disabled) return;
       if (!confirm('Revoke this API key immediately?')) return;
+      button.disabled = true;
       try {
         await api('/api/admin/users/' + encodeURIComponent(wallet) + '/keys/' + encodeURIComponent(button.dataset.id), { method: 'DELETE' });
-        await manageUser(wallet, user);
-        await loadAudit();
+        if (isCurrent()) await loadUserKeys(wallet, parent);
+        await loadSecondary(loadAudit, 'audit-log', 'Audit log');
         notice('API key revoked.');
       } catch (error) { notice(error.message); }
+      finally { if (isCurrent()) button.disabled = false; }
     };
   });
 }
 
-async function loadRequests() {
+async function loadRequests(isCurrent = nextRefresh('requests')) {
   const result = await api('/api/admin/requests');
-  $('requests').innerHTML = table(['Time', 'Wallet', 'Model', 'State', 'Tokens', 'Cost'], result.data.map(item =>
-    `<tr><td>${new Date(item.created * 1000).toLocaleString()}</td><td class="wallet" title="${esc(item.wallet)}">${esc(item.wallet)}</td><td>${esc(item.model.split('/').pop())}</td><td>${esc(item.state)}</td><td>${num(item.tokens || item.reserved_tokens)}</td><td>${gnk(item.cost_ngonka || item.reserved_ngonka)}</td></tr>`
-  ));
+  if (!isCurrent()) return;
+  $('requests').innerHTML = table(['Time', 'Wallet', 'Model', 'State', 'Tokens', 'Cost'], result.data.map(item => {
+    const pending = item.state === 'reserved' || item.state === 'needs_review';
+    return `<tr><td>${new Date(item.created * 1000).toLocaleString()}</td><td class="wallet" title="${esc(item.wallet)}">${esc(item.wallet)}</td><td>${esc(item.model.split('/').pop())}</td><td>${esc(item.state)}</td><td>${num(pending ? item.reserved_tokens : item.tokens)}</td><td>${gnk(pending ? item.reserved_ngonka : item.cost_ngonka)}</td></tr>`;
+  }));
 }
 
-async function loadAudit() {
+async function loadAudit(isCurrent = nextRefresh('audit-log')) {
   const result = await api('/api/admin/audit?limit=100');
+  if (!isCurrent()) return;
   $('audit-log').innerHTML = table(['Time', 'Action', 'Target', 'Note'], result.data.map(item =>
     `<tr><td>${new Date(item.created * 1000).toLocaleString()}</td><td>${esc(item.action)}</td><td class="wallet" title="${esc(item.target)}">${esc(item.target)}</td><td>${esc(item.note)}</td></tr>`
   ));
 }
 
 async function load() {
+  const isCurrent = nextRefresh('overview');
   const days = Number($('window-days').value) || 30;
   let overviewError = null;
-  try { render(await api('/api/admin/overview?days=' + days)); }
-  catch (error) { overviewError=error; renderOverviewUnavailable(error.message); }
+  try {
+    const overview = await api('/api/admin/overview?days=' + days);
+    if (!isCurrent()) return false;
+    render(overview);
+  }
+  catch (error) {
+    if (!isCurrent()) return false;
+    overviewError=error; renderOverviewUnavailable(error.message);
+  }
   await Promise.all([
-    loadSecondary(loadUsers,'users','Users','user-count'),
-    loadSecondary(loadRequests,'requests','Requests'),
-    loadSecondary(loadAudit,'audit-log','Audit log'),
+    loadSecondary(loadUsers,'users','Users','user-count',isCurrent),
+    loadSecondary(loadRequests,'requests','Requests',undefined,isCurrent),
+    loadSecondary(loadAudit,'audit-log','Audit log',undefined,isCurrent),
   ]);
+  if (!isCurrent()) return false;
   const optional=[];
-  if (typeof loadConnections === 'function') optional.push(loadConnections().catch(error=>notice('Connections: '+error.message)));
-  if (typeof loadReadiness === 'function') optional.push(loadReadiness().catch(error=>notice('Readiness: '+error.message)));
+  if (typeof loadConnections === 'function') optional.push(loadConnections(isCurrent));
+  if (typeof loadReadiness === 'function') optional.push(loadReadiness(isCurrent));
   await Promise.all(optional);
+  if (!isCurrent()) return false;
   if (overviewError) notice('Overview: '+overviewError.message);
   return !overviewError;
 }
@@ -292,8 +340,11 @@ async function saveConfig(disabled) {
   return api('/api/admin/config', { method: 'PUT', body: JSON.stringify(configPayload(disabled)) });
 }
 async function unlock() {
+  if (unlocking) return;
   key = $('admin-key').value.trim() || key;
   if (!key) return;
+  unlocking = true;
+  $('unlock').disabled = true;
   $('login-msg').textContent = 'Checking…';
   try {
     await api('/api/admin/config');
@@ -303,6 +354,7 @@ async function unlock() {
     $('console').hidden = false;
     await load();
   } catch (error) { $('login-msg').textContent = error.message; }
+  finally { unlocking = false; $('unlock').disabled = false; }
 }
 
 $('unlock').onclick = unlock;
@@ -329,14 +381,30 @@ $('business-form').onsubmit = async event => {
 };
 $('user-search-btn').onclick = () => loadSecondary(loadUsers,'users','Users','user-count');
 $('user-search').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); loadSecondary(loadUsers,'users','Users','user-count'); } });
-$('user-detail-close').onclick = () => { $('user-detail').hidden = true; selectedWallet = ''; };
+$('user-detail-close').onclick = () => {
+  ++userDetailGeneration;
+  selectedWallet = '';
+  $('user-detail').hidden = true;
+  $('user-keys').replaceChildren();
+  $('user-policy-form').reset();
+  $('user-detail-title').textContent = 'Wallet';
+};
 $('user-policy-form').onsubmit = async event => {
   event.preventDefault();
-  if (!selectedWallet) return;
+  if (!selectedWallet || userSavePending) return;
+  const wallet = selectedWallet;
+  const generation = userDetailGeneration;
+  const isCurrent = () => selectedWallet === wallet && generation === userDetailGeneration;
+  userSavePending = true;
+  const button = $('user-policy-form').querySelector('button');
+  button.disabled = true;
   try {
     const daily = $('user-daily').value.trim();
-    const updated=await api('/api/admin/users/' + encodeURIComponent(selectedWallet), { method: 'PUT', body: JSON.stringify({ disabled: $('user-disabled').checked, daily_tokens_override: daily ? Number(daily) : null, note: $('user-note').value }) });
-    await loadUsers(); await loadAudit(); await manageUser(selectedWallet,updated); notice('User policy updated.');
+    const updated=await api('/api/admin/users/' + encodeURIComponent(wallet), { method: 'PUT', body: JSON.stringify({ disabled: $('user-disabled').checked, daily_tokens_override: daily ? Number(daily) : null, note: $('user-note').value }) });
+    await Promise.all([loadSecondary(loadUsers,'users','Users','user-count'),loadSecondary(loadAudit,'audit-log','Audit log')]);
+    if (isCurrent()) await manageUser(wallet,updated);
+    notice('User policy updated.');
   } catch (error) { notice(error.message); }
+  finally { userSavePending = false; button.disabled = false; }
 };
 if (key) { $('admin-key').value = key; unlock(); }

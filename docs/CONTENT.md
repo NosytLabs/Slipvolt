@@ -1,6 +1,6 @@
 # Customer content and launch publication checklist
 
-Reviewed September 21, 2026. Canonical repository: NosytLabs/Slipvolt.
+Reviewed October 24, 2026. Canonical repository: NosytLabs/Slipvolt.
 
 ## Published with this content pass
 
@@ -8,7 +8,7 @@ Reviewed September 21, 2026. Canonical repository: NosytLabs/Slipvolt.
 |---|---|
 | `/developers/` | Customer-key quickstart, exact model IDs, OpenAI-style request examples, streaming/tool scope, errors and retry guidance. |
 | `/funding/` | Project-token, native-GNK and WGNK roles; official bridge constraints; OpenBroker deposit flow and creator-fee boundaries. |
-| `/help/` | Wallet-to-key setup, safe API configuration, supported API scope, quota reset, illustrative pricing, troubleshooting, key recovery and recent usage export. |
+| `/help/` | Wallet-to-key setup, safe API configuration, supported API scope, quota reset, funding boundaries, troubleshooting, key recovery and recent usage export. |
 | `/privacy/` | Technical disclosure of account/usage data, third-party processing, cookies, and unfinalized retention/deletion policies. |
 | `/terms/` | Draft service rules; separates existing holder access from unbuilt staking, payments, treasury redemption and automatic payouts. |
 | `/llms.txt` | Machine-readable API scope, including function tools, and links to customer guides. |
@@ -33,7 +33,7 @@ Do not use a green readiness/configuration indicator as a substitute for any of 
 
 Read the actual `ChatInput` schema, routes and gateway behavior before adding endpoint claims. `/v1/models` fails with 503 when the live catalog cannot be verified; `/api/models` can return a labelled snapshot. A 409 Idempotency-Key conflict is duplicate protection, not cached result replay. An incomplete stream can retain a hold. CSV export is the latest 100 records, not full history. Daily quotas reset at 00:00 UTC; unresolved holds survive the reset.
 
-Proposed prices are $0.075/M input and $0.30/M output by default. For 800M input plus 200M output, modeled revenue is $120, not $120,000. Do not book included holder usage as sales or label gross contribution as net profit. Compare model versions, cache treatment and service limits before making savings claims.
+Do not present configured rate-card fields as an enabled customer price or book included holder usage as sales. Compare exact model revisions, cache treatment, input/output mix and service limits before making any savings claim. Profitability examples belong in dated operator planning, not the customer help flow.
 
 ## Source checks
 

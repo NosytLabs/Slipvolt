@@ -68,7 +68,8 @@ def test_all_public_content_links_and_styles_resolve(path):
             assert u.fragment in {a.get('id') for _, a in Markup(target.read_text()).tags}, f'{path}: missing anchor {href}'
 
 
-@pytest.mark.parametrize('route', ('/help/', '/privacy/', '/terms/', '/content.css'))
+@pytest.mark.parametrize('route', ('/help/', '/privacy/', '/terms/', '/content.css',
+                                 '/assets/brand-mark.svg', '/assets/holdbyte-hero.webp', '/favicon.svg'))
 def test_guides_are_served_through_the_application(tmp_path, route):
     app = create_app(Settings(pepper='test-public-content-pepper-32-characters'), str(tmp_path/'content.db'),
                      httpx.MockTransport(lambda _: httpx.Response(503)))
@@ -79,11 +80,11 @@ def test_guides_are_served_through_the_application(tmp_path, route):
         assert "script-src 'self'" in r.headers['content-security-policy']
 
 
-def test_help_has_scope_pricing_reset_and_retry_explanations():
+def test_help_has_scope_funding_reset_and_retry_explanations():
     text = read_page('help/index.html')
     for term in ('00:00 UTC', 'latest 100', 'Idempotency-Key', '409', 'Retry-After',
-                 'X-Request-Id', 'not a replay', 'No checkout', 'not the same model revision',
-                 '1 billion', '$120', '$0.12', 'no rollover', 'Text-only'):
+                 'X-Request-Id', 'not a replay', 'No checkout', 'operator planning',
+                 'provider charge', 'no rollover', 'Text-only'):
         assert term.lower() in text.lower(), term
 
 
@@ -126,6 +127,8 @@ def test_llms_content_no_longer_contradicts_function_tools():
     assert 'Tools, multimodal input and non-schema fields are not supported.' not in text
     assert 'never executes' in text
     assert '/help/' in text and '/privacy/' in text and '/terms/' in text
+    assert 'operator planning inputs' in text
+    assert '$0.075' not in text and '$0.30' not in text
 
 
 def test_usage_export_still_requires_wallet_session(tmp_path):
@@ -139,7 +142,9 @@ def test_packaged_preview_inlines_every_stylesheet(tmp_path):
     from scripts.package_preview import build
     target = tmp_path/'preview.html'
     build(target)
-    assert not any(t == 'link' and a.get('rel') == 'stylesheet' for t, a in Markup(target.read_text()).tags)
+    tags = Markup(target.read_text()).tags
+    assert not any(t == 'link' and a.get('rel') == 'stylesheet' for t, a in tags)
+    assert all(a.get('src', '').startswith('data:image/') for t, a in tags if t == 'img')
 
 
 def test_homepage_links_new_developer_and_funding_guides():
@@ -157,13 +162,14 @@ def test_developer_guide_explains_real_openbroker_surface_without_master_key():
 
 def test_funding_guide_separates_project_token_native_gnk_and_wgnk():
     text = read_page('funding/index.html')
-    for term in ('native GNK', 'WGNK', '0x972a7a92d92796a98801a8818bcf91f1648f2f68', 'same key', 'OpenBroker deposit address'):
+    for term in ('native GNK', 'WGNK', 'same signing key', 'OpenBroker dashboard', 'local allowance ledger'):
         assert term.lower() in text.lower()
 
 
-def test_funding_guide_explains_direct_gnk_route_and_pump_reward_tradeoff():
+def test_funding_guide_keeps_operator_routes_and_revenue_out_of_customer_flow():
     text = read_page('funding/index.html').lower()
-    assert 'hot' in text and 'near intents' in text
-    assert 'third-party' in text
-    assert 'holder rewards' in text
-    assert 'creator fee' in text and 'holders' in text
+    for term in ('operator responsibility', 'not customer instructions', 'creator fees',
+                 'zero trading', 'no treasury signing key'):
+        assert term in text
+    assert '0.300%' not in text
+    assert 'hot exchange' not in text

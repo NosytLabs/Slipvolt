@@ -1,44 +1,49 @@
-# Slipvolt — treasury-funded Gonka access
+# Holdbyte — holder access to operator-funded AI
 
-Hold a configured Solana project token; authenticate with a signed message;
-create a revocable customer API key; use a capped daily AI input+output allowance.
-No on-chain key mint or second checkout. Coins stay in the wallet.
-Stage and limits: GET /api/status
-Source-labeled catalog: GET /api/models
-Live catalog: GET /v1/models (503 when verification unavailable)
-Authenticated allowance/usage: GET /api/membership
-Create customer key: POST /api/member-key (signed cookie + same-origin request)
-List/revoke keys: GET /api/keys, DELETE /api/keys/{id}
-Inference: POST /v1/chat/completions, Bearer sv_... (legacy grd_ recognized)
-Text-only Chat Completions; stream=true supports SSE with final usage.
-Function tool definitions and returned tool calls are supported; Slipvolt never executes tools.
-Multimodal inputs, embeddings, Responses, Assistants and non-schema fields are not supported.
-Exact schema: GET /openapi.json
+Display brand: Holdbyte.
+Repository and compatibility identifiers: Slipvolt, sv_ customer keys, legacy grd_ keys,
+SLIPVOLT_* environment variables, and gridraft_session cookie names remain valid.
 
-GET /api/network: sanitized cached aggregate OpenBroker statistics, NOT project activity.
-GET /api/treasury: optional native wallet balance and separately opt-in broker credit.
-Never combine those numbers as a verified user entitlement or redemption value.
-Never enter an obk- master key into the customer site or request a wallet seed.
-The service issues its own keys and keeps the provider credential server-side.
-New calls re-check finalized token holdings, available GNK, wallet allowance and
-shared global/pool limits. More keys do not multiply a wallet's allowance.
-Changing wallets can defeat per-wallet fairness; the global pool remains finite.
+Customer flow
+- Hold the configured Solana project token.
+- Sign a login-only wallet message.
+- Create a revocable customer API key.
+- Use a finite daily input-and-output token allowance.
+- No on-chain key mint, second checkout, or automatic overage charge.
 
-Duplicate Idempotency-Key returns 409. Do not retry uncertain requests blindly.
-Incomplete streams/uncertain billing retain a hold and require operator review.
-No real token mint, deployment, treasury swap, or funded inference is implied.
+Useful routes
+- Service stage and limits: GET /api/status
+- Live usable models: GET /v1/models (503 when live verification is unavailable)
+- Source-labelled model policy: GET /api/models
+- Wallet allowance and usage: GET /api/membership
+- Create a key: POST /api/member-key
+- List or revoke keys: GET /api/keys, DELETE /api/keys/{id}
+- Inference: POST /v1/chat/completions with Bearer sv_...
+- Exact request schema: GET /openapi.json
+- Recent usage export: GET /api/usage/export (wallet session; latest 100 records)
 
-Customer help: /help/ (setup, compatibility, limits, error recovery and safe support).
-Data handling: /privacy/ (prelaunch disclosure; not an end-to-end retention guarantee).
-Service rules: /terms/ (draft; not finalized paid-service or token-sale terms).
-Daily reset: 00:00 UTC; no rollover; unresolved reservations survive the reset.
-Recent usage CSV: GET /api/usage/export (wallet cookie required; latest 100 records only).
-Revoke all API keys: POST /api/keys/revoke-all (wallet cookie + same origin).
-Sign out all sessions: POST /api/auth/logout-all (separate from key revocation).
-Planned metered pricing is not enabled checkout or automatic overage billing.
-At the proposed $0.075 input / $0.30 output per-million rates, an 80/20 mix costs
-$0.12 per million total tokens; 1 billion represents $120 hypothetical revenue.
-Holder usage is funded allowance, not booked metered revenue.
+API scope
+Text-only Chat Completions supports SSE streaming, function definitions, and returned
+tool calls. Holdbyte never executes tools. Multimodal input, embeddings, Responses,
+Assistants, file endpoints, and non-schema fields are unsupported.
+More keys do not increase a wallet's allowance. The daily reset is 00:00 UTC with
+no rollover. Unresolved reservations remain held for operator review.
+Duplicate Idempotency-Key values return 409 and do not replay an earlier response.
+Do not retry an uncertain provider result blindly.
 
-Developer quickstart: /developers/ (customer key, live model IDs, request/error guidance).
-Funding explainer: /funding/ (project token vs native GNK vs WGNK and OpenBroker deposit flow).
+Funding and custody
+The Solana project token controls eligibility. Native GNK funds OpenBroker inference.
+WGNK, provider credit, self-custody GNK, and the local allowance ledger are separate.
+Do not enter an obk- provider credential or wallet seed in the customer site.
+GET /api/network is sanitized aggregate OpenBroker activity, not Holdbyte usage.
+Rate-card fields are operator planning inputs, not enabled checkout or customer prices.
+No token mint, treasury transaction, bridge, swap, or funded inference is implied by
+this repository. A launch link can appear only after an operator explicitly enables
+the verified configured mint; that flag does not prove liquidity or service readiness.
+
+Guides
+- /developers/ — first request, model discovery, streaming, tools, and errors
+- /help/ — setup, allowances, retries, account recovery, and safe support
+- /funding/ — token, GNK, WGNK, custody, and accounting boundaries
+- /privacy/ — records, processors, retention limits, and account controls
+- /terms/ — draft holder-access and service rules

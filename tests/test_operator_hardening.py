@@ -1,5 +1,6 @@
 import json
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from gridraft.app import Settings, create_app
@@ -203,3 +204,104 @@ def test_admin_overview_daily_series_is_exact_utc_window_with_zero_days(tmp_path
         assert len(d['business']['daily'])==7
         assert all(set(row)=={'day','requests','tokens','cost_ngonka'} for row in d['local']['daily'])
         assert all(row['requests']==0 and row['tokens']==0 for row in d['local']['daily'])
+
+
+def test_malformed_provider_health_is_not_reflected_publicly(tmp_path):
+    private_value='PRIVATE-UPSTREAM-DIAGNOSTIC'
+    def upstream(req):
+        if req.url.path=='/api/status':
+            return httpx.Response(200,json={'status':private_value,'updated_at':private_value,'models':[
+                {'model':MODEL,'status':'healthy','routable':True,'capacity_available_pct':private_value}]})
+        return member_handler(req)
+    app=create_app(settings(),str(tmp_path/'health-sanitize.db'),httpx.MockTransport(upstream))
+    with TestClient(app) as c:
+        response=c.get('/api/models')
+        assert response.status_code==200,response.text
+        assert private_value not in response.text
+        row=response.json()['data'][0]
+        assert row['availability']=='healthy'
+        assert row['routable'] is True
+        assert 'capacity_available_pct' not in row
+        overview=c.get('/api/admin/overview',headers=auth())
+        assert overview.status_code==200,overview.text
+        assert private_value not in overview.text
+
+
+@pytest.mark.parametrize('reverse',[False,True])
+def test_duplicate_provider_health_rows_fail_closed_without_outage_claim(tmp_path,reverse):
+    calls={'chat':0}
+    rows=[
+        {'model':MODEL,'status':'healthy','routable':True,'capacity_available_pct':90},
+        {'model':MODEL,'status':'unavailable','routable':False,'capacity_available_pct':0}]
+    if reverse:rows.reverse()
+    def upstream(req):
+        if req.url.path=='/api/status':
+            return httpx.Response(200,json={'status':'degraded','models':rows})
+        if req.url.path.endswith('/chat/completions'):calls['chat']+=1
+        return member_handler(req)
+    app=create_app(settings(),str(tmp_path/'duplicate-health.db'),httpx.MockTransport(upstream))
+    app.state.membership.allocate(10_000_000,'funded')
+    with TestClient(app) as c:
+        response=c.get('/api/models')
+        assert response.status_code==200,response.text
+        row=response.json()['data'][0]
+        assert row['availability']=='listed'
+        assert row['routable'] is False
+        assert 'capacity_available_pct' not in row
+        login(c);key=c.post('/api/member-key',headers=ORIGIN).json()['key']
+        chat=c.post('/v1/chat/completions',headers={'Authorization':'Bearer '+key},json={
+            'model':MODEL,'messages':[{'role':'user','content':'hi'}]})
+        assert chat.status_code==503,chat.text
+        assert calls['chat']==0
+
+
+def test_oversized_health_metric_does_not_discard_valid_fields(tmp_path):
+    enormous=10**4000
+    def upstream(req):
+        if req.url.path=='/api/status':
+            return httpx.Response(200,json={'status':'ok','models':[
+                {'model':MODEL,'status':'healthy','routable':True,'capacity_available_pct':enormous}]})
+        return member_handler(req)
+    app=create_app(settings(),str(tmp_path/'oversized-health.db'),httpx.MockTransport(upstream))
+    with TestClient(app) as c:
+        response=c.get('/api/models')
+        assert response.status_code==200,response.text
+        row=response.json()['data'][0]
+        assert row['availability']=='healthy'
+        assert row['routable'] is True
+        assert 'capacity_available_pct' not in row
+
+
+def test_admin_overview_reuses_provider_health_cache(tmp_path):
+    status_calls=[]
+    def upstream(req):
+        if req.url.path=='/api/status':
+            status_calls.append(1)
+            return httpx.Response(200,json={'status':'operational','models':[]})
+        return member_handler(req)
+    app=create_app(settings(),str(tmp_path/'overview-health-cache.db'),httpx.MockTransport(upstream))
+    with TestClient(app) as c:
+        first=c.get('/api/admin/overview',headers=auth())
+        assert first.status_code==200
+        assert first.json()['provider_status']['status']=='operational'
+        assert c.get('/api/admin/overview',headers=auth()).status_code==200
+    assert len(status_calls)==1
+
+
+def test_admin_overview_handles_incomplete_provider_token_split(tmp_path):
+    def upstream(req):
+        if req.url.path=='/v1/usage/summary':
+            return httpx.Response(200,json={'totals':{
+                'requests':1,'errors':0,'prompt_tokens':None,'completion_tokens':2,
+                'total_tokens':12,'cost_ngonka':180},'models':[],'days':[]})
+        return member_handler(req)
+    app=create_app(settings(),str(tmp_path/'incomplete-usage.db'),httpx.MockTransport(upstream))
+    app.state.store.set_operator_settings({'gnk_usd':'0.2'})
+    with TestClient(app) as c:
+        response=c.get('/api/admin/overview',headers=auth())
+        assert response.status_code==200,response.text
+        economics=response.json()['economics']
+        assert economics['metered_revenue_reference_usd'] is None
+        assert economics['provider_cost_usd']==pytest.approx(36e-9)
+        assert economics['compute_contribution_reference_usd'] is None
+        assert economics['compute_margin_reference_pct'] is None

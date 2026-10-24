@@ -127,7 +127,7 @@ def test_public_status_price_and_capabilities_are_not_hardcoded(tmp_path):
     app=create_app(Settings(origin='http://testserver',retail_nusd_per_token=120),str(tmp_path/'status.db'),httpx.MockTransport(provider))
     with TestClient(app) as c:
         d=c.get('/api/status').json()
-        assert d['brand']=='Slipvolt'
+        assert d['brand']=='Holdbyte'
         assert d['retail_per_million_usd']==0.12
         assert d['capabilities']['streaming'] is False
         assert d['capabilities']['usage_export'] is True

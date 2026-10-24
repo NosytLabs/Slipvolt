@@ -3,6 +3,7 @@
 Uses set_content and a read-only TestClient bridge; does not claim native browser
 navigation, TLS, cookie or CSP validation. Routes/headers are tested independently.
 """
+import base64
 import json
 import os
 import sys
@@ -29,6 +30,8 @@ def run():
             for name in ('styles.css','tools.css'):
                 html=html.replace(f'<link rel="stylesheet" href="../{name}">','<style>'+(ROOT/'public'/name).read_text()+'</style>')
             html=html.replace('<link rel="icon" href="../favicon.svg">','').replace('<script src="../chart.js" defer></script>','').replace('<script src="app.js" defer></script>','')
+            mark=base64.b64encode((ROOT/'public/assets/brand-mark.svg').read_bytes()).decode()
+            html=html.replace('src="../assets/brand-mark.svg"',f'src="data:image/svg+xml;base64,{mark}"')
             html=html.replace('</body>','<script>'+(ROOT/'public/chart.js').read_text()+'</script><script>'+(ROOT/'public/status/app.js').read_text()+'</script></body>')
             browser=p.chromium.launch(executable_path=os.getenv('CHROMIUM_PATH') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path),headless=True,args=['--no-sandbox'])
             for width in (320,390,768,1280,1920):
@@ -48,12 +51,13 @@ def run():
                 page.set_content(html.replace('<head>','<head><script>'+bridge+'</script>'))
                 expect(page.locator('#status-observed')).to_contain_text('Checked')
                 check(f'{width}: no horizontal overflow',page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+                check(f'{width}: brand images load',page.locator('img').evaluate_all('(images)=>images.length>0&&images.every(image=>image.complete&&image.naturalWidth>0)'))
                 check(f'{width}: setup is not a launch',page.locator('#service-state').inner_text()=='Setup incomplete')
                 check(f'{width}: catalog fallback is labelled','Snapshot only' in page.locator('#catalog-source').inner_text())
                 check(f'{width}: no provider balance invented',page.locator('#provider-value').inner_text()=='Not published')
                 check(f'{width}: all four actual app endpoints read',len(set(paths))==4)
                 check(f'{width}: measured provider chart rendered',page.locator('#network-chart svg').count()==1)
-                check(f'{width}: provider chart is explicitly not Slipvolt activity','not Slipvolt traffic or uptime' in page.locator('#network-chart').locator('xpath=..').inner_text())
+                check(f'{width}: provider chart is explicitly not Slipvolt activity','not this app’s traffic or uptime' in page.locator('#network-chart').locator('xpath=..').inner_text())
                 if width in (390,1280):page.screenshot(path=str(OUT/f'status-{width}.png'),full_page=True)
                 failing[0]=True;page.locator('#status-refresh').click()
                 expect(page.locator('#service-state')).to_have_text('Unavailable')

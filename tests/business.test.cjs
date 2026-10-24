@@ -37,8 +37,9 @@ for(const [name,patch] of [['customer fraction',{customers:1.5}],['share above 1
 }
 test('public disclosure preserves included holder access and no profit promises',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../public/index.html'),'utf8');
- assert.ok(html.includes('70% of distributable surplus'));
- assert.ok(html.includes('not 70% of token purchases'));
+ assert.ok(html.includes('after service costs, customer obligations and reserve replenishment'));
+ assert.ok(html.includes('percentages will be published before launch'));
+ assert.ok(!html.includes('70% of distributable surplus'));
  assert.ok(html.includes('A sign-in signature only.'));
  assert.ok(html.includes('No second payment step.'));
 });

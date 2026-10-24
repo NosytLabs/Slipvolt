@@ -16,6 +16,102 @@ audit={'data':[{'id':1,'action':'config_updated','target':'runtime','note':'fixt
 keys={'data':[{'id':'k1','prefix':'sv_fixture','name':'default','created':1789780000,'revoked':False}]}
 requests={'data':[{'id':'r1','wallet':'11111111111111111111111111111111','model':'MiniMaxAI/MiniMax-M2.7','tokens':100,'reserved_tokens':0,'cost_ngonka':1500,'reserved_ngonka':0,'state':'settled','created':1789780000}]}
 
+def check_response_ownership(page):
+    """Resolve real UI operations out of order without waiting on a live provider."""
+    results=page.evaluate('''async overview => {
+      const originalApi=api;
+      const results={};
+      try {
+        const pending=[];
+        api=(path,options)=>path.startsWith('/api/admin/overview')
+          ? new Promise(resolve=>pending.push(resolve)) : originalApi(path,options);
+        const older=load(), newer=load();
+        pending[1]({...overview,local:{...overview.local,requests:222}});
+        await newer;
+        pending[0]({...overview,local:{...overview.local,requests:111}});
+        await older;
+        results.latestOverview=document.getElementById('metrics').textContent.includes('222');
+
+        const keyReads=[];
+        api=(path,options)=>path.endsWith('/keys')
+          ? new Promise(resolve=>keyReads.push(resolve)) : originalApi(path,options);
+        const user={disabled:false,note:'',daily_tokens_override:null};
+        const a=manageUser('wallet-a',user), b=manageUser('wallet-b',user);
+        keyReads[1]({data:[{id:'b',prefix:'sv_wallet_b',name:'B',created:1789780000,revoked:false}]});
+        await b;
+        keyReads[0]({data:[{id:'a',prefix:'sv_wallet_a',name:'A',created:1789780000,revoked:false}]});
+        await a;
+        results.selectedWalletKeys=document.getElementById('user-keys').textContent.includes('sv_wallet_b')
+          && !document.getElementById('user-keys').textContent.includes('sv_wallet_a');
+
+        const closing=manageUser('wallet-closing',user);
+        document.getElementById('user-detail-close').click();
+        keyReads[2]({data:[{id:'closed',prefix:'sv_closed_wallet',created:1789780000,revoked:false}]});
+        await closing;
+        results.closedWalletCleared=document.getElementById('user-detail').hidden
+          && document.getElementById('user-keys').textContent==='';
+
+        api=originalApi;
+        await manageUser('wallet-a',{...user,note:'A original'});
+        let completeSave, savedPath, savedBody;
+        api=(path,options)=>{
+          if(options?.method==='PUT') {
+            savedPath=path; savedBody=JSON.parse(options.body);
+            return new Promise(resolve=>{completeSave=resolve;});
+          }
+          return originalApi(path,options);
+        };
+        document.getElementById('user-note').value='A saved';
+        const saving=document.getElementById('user-policy-form').onsubmit({preventDefault(){}});
+        await manageUser('wallet-b',{...user,note:'B original'});
+        completeSave({...user,note:'A saved'});
+        await saving;
+        results.policyResponseKeepsWallet=document.getElementById('user-detail-title').textContent==='wallet-b'
+          && document.getElementById('user-note').value==='B original';
+        results.policyWritesOriginalWallet=savedPath==='/api/admin/users/wallet-a' && savedBody.note==='A saved';
+
+        api=originalApi;
+        await manageUser('wallet-a',{...user,note:'A original'});
+        let completeRevoke, revokePath;
+        api=(path,options)=>{
+          if(options?.method==='DELETE') {
+            revokePath=path;
+            return new Promise(resolve=>{completeRevoke=resolve;});
+          }
+          return originalApi(path,options);
+        };
+        const revoking=document.querySelector('#user-keys .revoke-key').onclick();
+        await manageUser('wallet-b',{...user,note:'B original'});
+        completeRevoke({revoked:true});
+        await revoking;
+        results.revokeKeepsWallet=revokePath==='/api/admin/users/wallet-a/keys/k1'
+          && document.getElementById('user-detail-title').textContent==='wallet-b'
+          && document.getElementById('user-note').value==='B original';
+
+        api=(path,options)=>path==='/api/admin/requests'
+          ? Promise.resolve({data:[
+            {wallet:'zero-wallet',model:'provider/model',state:'settled',tokens:0,cost_ngonka:0,reserved_tokens:9000,reserved_ngonka:1000000000,created:1789780000},
+            {wallet:'pending-wallet',model:'provider/model',state:'needs_review',tokens:0,cost_ngonka:0,reserved_tokens:9000,reserved_ngonka:1000000000,created:1789780000}
+          ]}) : originalApi(path,options);
+        await loadRequests();
+        const rows=document.querySelectorAll('#requests tbody tr');
+        results.settledZeroPreserved=rows[0].children[4].textContent==='0' && rows[0].children[5].textContent==='0 GNK';
+        results.unresolvedReservationVisible=rows[1].children[4].textContent==='9K' && rows[1].children[5].textContent==='1 GNK';
+
+        api=originalApi;
+        render({...overview,provider_status:{status:'unknown',models:[{model:'provider/model'}]},economics:{metered_revenue_reference_usd:null,provider_cost_usd:3,compute_contribution_reference_usd:null,compute_margin_reference_pct:null}});
+        const metrics=Array.from(document.querySelectorAll('#business-summary .metric'));
+        results.unknownUsageValue=metrics.find(el=>el.textContent.includes('Configured-rate usage value')).textContent.includes('Unavailable');
+        results.unknownContribution=metrics.find(el=>el.textContent.includes('Modeled contribution')).textContent.includes('Unavailable');
+        results.realZeroPreserved=usd(0)==='$0.00' && gnk(0)==='0 GNK' && num(0)==='0';
+        const health=document.querySelector('#model-health tbody tr').children;
+        results.unknownHealthPreserved=health[2].textContent==='—' && health[3].textContent==='—' && health[4].textContent==='—';
+      } finally { api=originalApi; document.getElementById('user-detail-close').click(); }
+      return results;
+    }''',overview)
+    assert all(results.values()), results
+    return len(results)
+
 def run():
     passed=0
     with sync_playwright() as p:
@@ -115,6 +211,7 @@ def run():
                 page.evaluate('window.scrollTo(0,0)')
                 page.screenshot(path=f'/mnt/data/slipvolt-controls-admin-{width}.png',full_page=False)
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth');passed+=1
+            if width==1280:passed+=check_response_ownership(page)
             page.evaluate('(d)=>render(d)', {**overview,'provider_usage':None})
             assert 'Unavailable' in page.locator('#metrics .metric').filter(has_text='provider cost').inner_text();passed+=1
             fail_secondary['requests']=True
