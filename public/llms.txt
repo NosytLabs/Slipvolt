@@ -47,3 +47,11 @@ Guides
 - /funding/ — token, GNK, WGNK, custody, and accounting boundaries
 - /privacy/ — records, processors, retention limits, and account controls
 - /terms/ — draft holder-access and service rules
+
+Token mechanics and transparency (as of October 24, 2026)
+- The currently implemented product checks liquid wallet holdings and meters finite AI allowance per wallet. Transfers can reuse the same tokens across wallets within one day; protection is not implemented yet.
+- Staking/lock vaults, automated creator-fee collection, fee swaps, buybacks and supply burns are proposed only, not live services.
+- Project treasury revenue and users' refundable locked principal are separate. No unstated developer right to seize or spend user deposits is assumed.
+- Pump.fun Tokenized Agent is an optional third-party mechanism, not an automatically configured Holdbyte feature.
+- OpenBroker publishes current model IDs but does not publish a numeric hard context/output limit for the Holdbyte account; Holdbyte reports conservative local limits and labels operator overrides unverified.
+- See /terms/ and /funding/ for current service rules and funding risks; docs/TOKEN-DESIGN.md in GitHub is an unimplemented design.
