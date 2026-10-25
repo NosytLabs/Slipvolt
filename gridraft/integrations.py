@@ -3,9 +3,8 @@
 Only operator-configured endpoints are used. Diagnostics redact URLs and upstream
 errors because RPC/Metis credentials often live in URL paths.
 """
-from .http_boundary import isolated_stream
+from .http_boundary import isolated_stream, read_bounded_json
 import asyncio
-import json
 import re
 import time
 from decimal import Decimal
@@ -27,12 +26,8 @@ def validate_endpoint(value,scheme='https'):
 
 
 async def bounded_json(response,maximum=2_000_000):
-    response.raise_for_status();parts=[];size=0
-    async for chunk in response.aiter_bytes():
-        size+=len(chunk)
-        if size>maximum:raise ValueError('Response too large')
-        parts.append(chunk)
-    return json.loads(b''.join(parts))
+    """Compatibility adapter; all bounded JSON parsing uses http_boundary."""
+    return await read_bounded_json(response, maximum=maximum)
 
 
 class SolanaRPC:
