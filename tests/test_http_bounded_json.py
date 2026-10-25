@@ -3,11 +3,12 @@
 Fixtures exercise actual HTTPX streaming transports; no live RPC/provider calls.
 """
 import asyncio
+import json
 
 import httpx
 import pytest
 
-from gridraft.broker import BASE as BROKER_BASE, MODEL_METADATA_URL, Broker
+from gridraft.broker import MODEL_METADATA_URL, Broker
 from gridraft.gonka import GonkaRPC, RPCError
 from gridraft.integrations import SolanaRPC, bounded_json
 from gridraft.http_boundary import read_bounded_json
@@ -33,7 +34,7 @@ def test_bounded_reader_accepts_json_at_or_below_limit(payload, max_bytes):
     (httpx.Response(200, content=b'not-json'), 64, None),
 ])
 def test_bounded_reader_rejects_oversize_and_invalid_json(response, maximum, problem):
-    with pytest.raises(ValueError if problem else Exception) as caught:
+    with pytest.raises(ValueError if problem else json.JSONDecodeError) as caught:
         run(read_bounded_json(response, maximum=maximum))
     if problem:
         assert problem in str(caught.value)
@@ -105,12 +106,18 @@ def test_json_refactor_keeps_gonka_rpc_failure_codes():
     assert requests[0].url.query == b""
 
 
-def test_shared_reader_cannot_turn_a_solana_rpc_error_into_success():
-    def respond(_):
-        return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": "ok"})
+def test_shared_reader_preserves_solana_rpc_result_and_error_checks():
     async def exercise():
-        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        def respond_ok(_):
+            return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1, "result": "ok"})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond_ok)) as client:
             assert await SolanaRPC(client, "https://solana.invalid").call("getHealth") == "ok"
+        def respond_error(_):
+            return httpx.Response(200, json={"jsonrpc": "2.0", "id": 1,
+                                             "error": {"message": "PRIVATE PROVIDER DETAIL"}})
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond_error)) as client:
+            with pytest.raises(ValueError, match="RPC call did not return a result"):
+                await SolanaRPC(client, "https://solana.invalid").call("getHealth")
     run(exercise())
 
 
