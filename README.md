@@ -67,7 +67,7 @@ Native GNK in self-custody, OpenBroker spendable credit, and local reservations 
 
 Treasury tools discover accounts, prepare unsigned instructions and record completed burns. They do not sign, broadcast, execute swaps/buybacks, collect fees, accept staking deposits, or pay developers. Recorded gross burns are not complete history or proof of net deflation.
 
-Production needs persistent storage, backups, HTTPS, stable secrets and reviewed operating terms. Keep `TOKEN_LAUNCHED=false` until the configured mint's listing is verified; the flag only publishes a link. Follow the [launch runbook](docs/LAUNCH_RUNBOOK.md). Restrict `/admin/` at the reverse proxy or VPN as well as with its separate credential.
+Production needs persistent storage, [tested private backups and restore drills](docs/BACKUPS.md), HTTPS, stable secrets and reviewed operating terms. Keep `TOKEN_LAUNCHED=false` until the configured mint's listing is verified; the flag only publishes a link. Follow the [launch runbook](docs/LAUNCH_RUNBOOK.md). Restrict `/admin/` at the reverse proxy or VPN as well as with its separate credential.
 
 ## Verify
 
