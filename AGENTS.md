@@ -4,7 +4,7 @@ Work in `NosytLabs/Slipvolt`; do not overwrite the separate OMA-AI deployment or
 
 ## Repository map
 
-Start with `docs/README.md` for setup, operations and design references. Shared optional-route infrastructure belongs in `gridraft/route_support.py`; keep module-specific validation and RPC clients separate. Preserve published paths, rate-limit buckets and legacy API/database identifiers when cleaning up code.
+Start with `docs/README.md` for setup, operations and design references. Request-schema changes belong in `gridraft/schemas.py` and ASGI body-size/nesting checks in `gridraft/body_boundary.py`; both are re-exported from `gridraft.app` for compatibility. Shared optional-route infrastructure belongs in `gridraft/route_support.py`; keep module-specific validation and RPC clients separate. Preserve published paths, rate-limit buckets and legacy API/database identifiers when cleaning up code.
 
 ## Gonka and provider boundaries
 
