@@ -4,6 +4,7 @@ import json
 import os
 import re
 import secrets
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -48,6 +49,10 @@ def main(argv=None):
     credit=commands.add_parser('credit',help='Grant explicitly authorized operator-funded service credit, not a crypto transfer')
     credit.add_argument('--wallet',required=True);credit.add_argument('--usd',required=True)
     credit.add_argument('--reference',required=True,help='Unique verified receipt or operator grant reference')
+    backup=commands.add_parser('backup-db',help='Create an atomic, private SQLite online backup (no overwrite)')
+    backup.add_argument('--output',required=True,help='New file in an existing private directory; never inside public/')
+    verify=commands.add_parser('verify-db',help='Read-only integrity check of a Holdbyte backup')
+    verify.add_argument('--file',required=True,help='Existing backup database to verify')
     commands.add_parser('pending',help='List unresolved usage reservations')
     settle=commands.add_parser('reconcile',help='Finalize a verified reservation after upstream reconciliation')
     settle.add_argument('--request-id',required=True);settle.add_argument('--billed-usd',required=True)
@@ -79,6 +84,24 @@ def main(argv=None):
             fd=os.open(args.env_file,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
             with os.fdopen(fd,'w') as f: f.write(contents)
             print('Environment file created. Keep its pepper stable and private; add upstream credentials locally.')
+            return 0
+        if args.command in ('backup-db', 'verify-db'):
+            from .backup import create_backup, verify_database
+            try:
+                if args.command=='backup-db':
+                    load_env(args.env_file)
+                    result=create_backup(os.environ.get('DATABASE_PATH','data/gridraft.db'),args.output)
+                else:
+                    result=verify_database(args.file)
+            except (ValueError, OSError, sqlite3.Error):
+                # Paths, file names and SQLite exceptions may contain private
+                # operator configuration. Never echo these values.
+                print(json.dumps({'ok':False,'status':'failed',
+                    'notice':'Database backup or verification failed. Check the source, '
+                    'destination, permissions and SQLite integrity locally. '
+                    'No source database was modified.'}),file=sys.stderr)
+                return 2
+            print(json.dumps(result))
             return 0
         load_env(args.env_file)
         if len(os.environ.get('KEY_PEPPER',''))<32:

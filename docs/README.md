@@ -8,6 +8,7 @@ Start with the guide for the task. Proposed mechanics and historical research ar
 | --- | --- |
 | [Functional setup](FUNCTIONAL-SETUP.md) | Local configuration and first run |
 | [Deployment](DEPLOYMENT.md) | Hosting, storage and production setup |
+| [Database backups](BACKUPS.md) | Live SQLite snapshots, private storage and restore drills |
 | [Admin operations](ADMIN.md) | Service limits, funding, users and reconciliation |
 | [Verification](VERIFICATION.md) | Offline tests versus real-environment acceptance |
 | [Security](SECURITY.md) | Credentials, trust boundaries and deployment controls |

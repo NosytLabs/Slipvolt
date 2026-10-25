@@ -45,7 +45,7 @@ Automated fixtures do **not** establish:
 - a paid OpenBroker inference request, latency, capacity, or final settled cost;
 - current private Solana RPC/account behavior;
 - a token launch, creator-fee claim, native-GNK acquisition, WGNK bridge, or treasury transfer;
-- a production reverse proxy, TLS/CSP/cookie enforcement, backup restore, monitoring, or independent security audit.
+- a production reverse proxy, TLS/CSP/cookie enforcement, a successful isolated restore drill, monitoring, or independent security audit. The `backup-db` and `verify-db` commands provide consistent snapshots and integrity checks, not off-host storage or a tested disaster-recovery procedure; see [database backups](BACKUPS.md).
 
 No treasury signing key is stored by the application. The server remains a single-worker/single-instance SQLite service and requires persistent storage.
 
