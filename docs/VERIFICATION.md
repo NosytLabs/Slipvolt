@@ -54,6 +54,8 @@ Before production deployment:
 1. Run the GitHub verifier successfully on the exact release commit.
 2. Run the setup doctor and read-only provider/RPC diagnostics with private credentials.
 3. Perform a deliberately authorized small paid OpenBroker acceptance test, including streaming/tools if those surfaces will be advertised.
+
+   The `scripts/check_openbroker.py` command is **read-only by default**. A fixed 32-output-token smoke request is attempted once per selected model only when **both** `--allow-paid-inference` and `--acknowledge-cost` are supplied, with a private dedicated credential. Non-JSON provider failures retain the HTTP status and sanitized request ID without echoing the body. `ok: true` indicates one parseable response with consistent prompt/completion/total usage; it is not proof of the route's maximum output, final GNK charges, or capacity. If usage, response or post-probe balance cannot be verified, the diagnostic returns a nonzero exit status and requires manual provider-usage reconciliation before retrying. It never retries automatically.
 4. Test real wallet-extension sign-in and holder admission on the production origin.
 5. Verify backups, restore procedure, reverse-proxy limits, incident contact, privacy/retention policy, and the actual token/mint/threshold configuration.
 
