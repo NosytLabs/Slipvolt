@@ -1,7 +1,5 @@
-name: Slipvolt tests
-# Runs on every push and pull request. `scripts/verify.sh` performs no live
-# network calls, so there is nothing here worth rationing. Still available on
-# demand via workflow_dispatch.
+name: Holdbyte tests
+# Offline verification on main pushes, pull requests and manual dispatch.
 on:
   push:
     branches: [main]

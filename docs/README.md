@@ -1,0 +1,48 @@
+# Holdbyte documentation
+
+Start with the guide for the task. Existing file paths are retained so previously shared links keep working. Proposed mechanics and historical research are not descriptions of live services.
+
+## Setup and operation
+
+| Guide | Use it for |
+| --- | --- |
+| [Functional setup](FUNCTIONAL-SETUP.md) | Local configuration and first run |
+| [Deployment](DEPLOYMENT.md) | Hosting, storage and production setup |
+| [Admin operations](ADMIN.md) | Service limits, funding, users and reconciliation |
+| [Verification](VERIFICATION.md) | Offline tests versus real-environment acceptance |
+| [Security](SECURITY.md) | Credentials, trust boundaries and deployment controls |
+| [Solana / QuickNode](QUICKNODE.md) | Private RPC and quote-only integration |
+| [Gonka RPC](GONKA-RPC.md) | Keyless chain reads, separate from paid inference |
+| [API policy](API-POLICY.md) | Model IDs, local limits and provider evidence |
+| [Token evidence](TOKEN-AUDIT.md) | Supply reads and completed-burn verification |
+| [Treasury burns](TREASURY-BURNS.md) | Account discovery, unsigned preparation and receipt workflow |
+
+## Release and content
+
+| Guide | Use it for |
+| --- | --- |
+| [Launch runbook](LAUNCH_RUNBOOK.md) | Preconditions before activating a public service |
+| [Content checklist](CONTENT.md) | Customer-page facts and publication checks |
+| [Publishing](PUBLISHING.md) | Source and deployment handoff |
+| [Brand](BRAND.md) | Holdbyte identity and naming research; domain quotes are historical |
+| [Naming checklist](NAMING-CLEANUP.md) | Compatibility constraints and earlier migration checklist; unchecked tasks are not release status |
+| [Changelog](CHANGELOG.md) | Historical changes; CI and code establish current behavior |
+
+## Architecture and proposals
+
+| Guide | Scope |
+| --- | --- |
+| [Design](DESIGN.md) | Product and application architecture |
+| [Operating model](OPERATING-MODEL.md) | Allowance and accounting boundaries |
+| [Token design](TOKEN-DESIGN.md) | Proposed locking, fee allocation and custody; not a deployed vault |
+| [Launch and utility](LAUNCH-AND-UTILITY.md) | Launch research and utility design |
+| [Founder policy](FOUNDER-POLICY.md) | Proposed business controls, not an automated payout service |
+| [Research](RESEARCH.md) | Dated external findings, not guaranteed current prices or availability |
+
+Customer-facing guidance lives in [Developers](../public/developers/index.html), [Help](../public/help/index.html), [Funding](../public/funding/index.html), [Privacy](../public/privacy/index.html) and [Terms](../public/terms/index.html).
+
+## Code boundaries
+
+`gridraft/app.py` owns the main application. Optional token and treasury route modules use `gridraft/route_support.py` for authentication, throttling, client shutdown and API-before-static registration. Their validation, per-feature RPC clients and accounting rules stay separate. Keep rate-limit namespaces and existing endpoint paths stable when refactoring.
+
+`gridraft`, `gridraft_session`, database paths and existing `sv_` keys are compatibility identifiers, not abandoned branding. Avoid a global rename. New client examples prefer `HOLDBYTE_API_KEY`; supported legacy `SLIPVOLT_API_KEY` integrations remain valid.

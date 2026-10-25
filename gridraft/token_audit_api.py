@@ -1,18 +1,16 @@
 """Optional read-only token evidence routes for the production ASGI entry point."""
 import asyncio
-import secrets
 import sqlite3
 import time
-from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
-from starlette.routing import Mount
 
 from .integrations import SolanaRPC
-from .security import digest
+from .route_support import (api_error, authenticate_admin, close_client_with_app,
+                            register_api_routes, throttle_request)
 from .token_audit import BurnLedger, TokenAuditor
 
 
@@ -33,34 +31,15 @@ def install_token_audit_routes(app, settings, *, transport=None):
     auditor = TokenAuditor(rpc, settings.holder_mint, settings.holder_token_decimals) if settings.holder_mint else None
     cache = {'at': None, 'value': None}
     lock = asyncio.Lock()
-    previous_lifespan = app.router.lifespan_context
-
-    @asynccontextmanager
-    async def lifespan(application):
-        try:
-            async with previous_lifespan(application):
-                yield
-        finally:
-            await client.aclose()
-    app.router.lifespan_context = lifespan
+    close_client_with_app(app, client)
 
     def throttle(request, action, limit):
-        peer = request.client.host if request.client else 'unknown'
-        try:
-            store.throttle(digest('token-audit:' + action + ':' + peer, settings.pepper), limit)
-        except ValueError:
-            raise HTTPException(429, 'Token evidence rate limit reached', headers={'Retry-After': '60'}) from None
+        throttle_request(request, store, settings.pepper, bucket='token-audit:' + action,
+                         limit=limit, message='Token evidence rate limit reached')
 
     def require_admin(request):
         throttle(request, 'admin', 12)
-        if not settings.admin_key:
-            raise HTTPException(503, 'Admin API is not configured')
-        raw = request.headers.get('authorization', '')
-        key = raw[7:] if raw.startswith('Bearer ') else ''
-        if not key or not key.isascii() or len(key) > 512 or not secrets.compare_digest(key, settings.admin_key):
-            raise HTTPException(401, 'Invalid admin credential')
-        if request.headers.get('origin') != settings.origin:
-            raise HTTPException(403, 'Origin check failed')
+        authenticate_admin(request, settings)
 
     router = APIRouter()
 
@@ -96,20 +75,17 @@ def install_token_audit_routes(app, settings, *, transport=None):
     async def record_burn(body: BurnSubmission, request: Request):
         require_admin(request)
         if not auditor or not settings.solana_rpc:
-            raise HTTPException(503, 'Token mint and RPC must be configured')
+            raise api_error(503, 'Token mint and RPC must be configured')
         try:
             async with asyncio.timeout(35):
                 receipt = await auditor.verify(body.signature)
             recorded = ledger.record(receipt)
         except ValueError:
-            raise HTTPException(422, 'Could not verify a successful finalized burn of the configured mint. No receipt was recorded.') from None
+            raise api_error(422, 'Could not verify a successful finalized burn of the configured mint. No receipt was recorded.') from None
         except (httpx.HTTPError, TimeoutError, sqlite3.Error):
-            raise HTTPException(503, 'Token evidence is unavailable. No transaction was sent; check recorded receipts before retrying.') from None
+            raise api_error(503, 'Token evidence is unavailable. No transaction was sent; check recorded receipts before retrying.') from None
         cache['at'] = None
         return JSONResponse({'recorded': recorded, 'receipt': receipt,
             'transactions_sent': 0, 'credits_issued': 0}, headers={'Cache-Control': 'no-store'})
 
-    # create_app already mounts / at the end. New routes must precede that mount.
-    index = next((i for i, route in enumerate(app.router.routes)
-                  if isinstance(route, Mount) and route.path in ('', '/')), len(app.router.routes))
-    app.router.routes[index:index] = router.routes
+    register_api_routes(app, router)
