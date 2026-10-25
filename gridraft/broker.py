@@ -3,10 +3,9 @@
 The registry is used by OpenBroker's public stats UI, but is not a stable
 versioned API contract. An upstream change produces unavailable, never zero.
 """
-from .http_boundary import isolated_stream
+from .http_boundary import isolated_stream, read_bounded_json
 from copy import deepcopy
 import asyncio
-import json
 import re
 import time
 from urllib.parse import quote
@@ -37,34 +36,27 @@ class Broker:
         self._public_balance_lock=asyncio.Lock()
         self._public_balance=None;self._public_balance_attempt=None
 
+    async def _read_json(self, url, *, headers=None, max_bytes=2_000_000):
+        """Common bounded JSON read. Destination validation stays at entry points."""
+        async with asyncio.timeout(READ_TIMEOUT_SECONDS):
+            async with isolated_stream(self.client, 'GET', url, headers=headers,
+                                       timeout=READ_TIMEOUT_SECONDS) as response:
+                value = await read_bounded_json(response, maximum=max_bytes,
+                                                too_large_message='Upstream response too large')
+        if not isinstance(value, dict):
+            raise ValueError('Expected an object')
+        return value
+
     async def read(self,path,private=False,max_bytes=2_000_000):
         if not isinstance(path,str) or not path.startswith('/') or path.startswith('//') or any(x in path for x in ('\\','\r','\n','#')):
             raise ValueError('Unsupported provider route')
         headers={'Authorization':'Bearer '+self.key} if private else {}
         if private and not self.key:raise ValueError('OpenBroker key not configured')
-        async with asyncio.timeout(READ_TIMEOUT_SECONDS):
-            async with isolated_stream(self.client,'GET',BASE+path,headers=headers,timeout=READ_TIMEOUT_SECONDS) as r:
-                r.raise_for_status();chunks=[];length=0
-                async for chunk in r.aiter_bytes():
-                    length+=len(chunk)
-                    if length>max_bytes:raise ValueError('Upstream response too large')
-                    chunks.append(chunk)
-                value=json.loads(b''.join(chunks))
-                if not isinstance(value,dict):raise ValueError('Expected an object')
-                return value
+        return await self._read_json(BASE+path,headers=headers,max_bytes=max_bytes)
 
     async def read_url(self,url,max_bytes=2_000_000):
         if url!=MODEL_METADATA_URL:raise ValueError('Unsupported metadata URL')
-        async with asyncio.timeout(READ_TIMEOUT_SECONDS):
-            async with isolated_stream(self.client,'GET',url,timeout=READ_TIMEOUT_SECONDS) as r:
-                r.raise_for_status();chunks=[];length=0
-                async for chunk in r.aiter_bytes():
-                    length+=len(chunk)
-                    if length>max_bytes:raise ValueError('Upstream response too large')
-                    chunks.append(chunk)
-                value=json.loads(b''.join(chunks))
-                if not isinstance(value,dict):raise ValueError('Expected an object')
-                return value
+        return await self._read_json(url,max_bytes=max_bytes)
 
     async def model_metadata(self):
         d=await self.read_url(MODEL_METADATA_URL)
