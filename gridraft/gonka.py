@@ -4,12 +4,11 @@ Gateway reports are not light-client proofs. Native balances are display data,
 not spendable OpenBroker credit or permission to allocate customer compute.
 """
 import asyncio
-import json
 import re
 import time
 from datetime import datetime
 
-import httpx
+from .http_boundary import isolated_stream, read_bounded_json
 from .broker import quantity
 
 BASE = 'https://rpc.gonka.gg'
@@ -95,28 +94,21 @@ class GonkaRPC:
                 raise RPCError('unsupported_route')
         if type(max_bytes) is not int or not 1 <= max_bytes <= 2_000_000:
             raise RPCError('invalid_response_limit')
-        # Request (not build_request/stream) avoids merging client-level secrets,
-        # cookies or query parameters. Explicit auth=None also disables client auth.
-        request = httpx.Request('GET', BASE + path, params=params,
-            headers={'Accept': 'application/json'},
-            extensions={'timeout': dict(connect=8, read=8, write=8, pool=8)})
+        # The shared boundary constructs an isolated request (never merging
+        # client-level auth/cookies/query params) and always closes the stream.
         try:
             async with asyncio.timeout(8):
-                response = await self.client.send(request, stream=True, auth=None, follow_redirects=False)
-                try:
-                    response.raise_for_status()
-                    chunks, size = [], 0
-                    async for chunk in response.aiter_bytes():
-                        size += len(chunk)
-                        if size > max_bytes:
-                            raise RPCError('response_too_large')
-                        chunks.append(chunk)
-                    value = json.loads(b''.join(chunks))
-                    if not isinstance(value, dict):
-                        raise RPCError('invalid_response')
-                    return value
-                finally:
-                    await response.aclose()
+                async with isolated_stream(self.client, 'GET', BASE + path,
+                                           params=params, timeout=8) as response:
+                    try:
+                        value = await read_bounded_json(response, maximum=max_bytes)
+                    except ValueError as exc:
+                        if str(exc) == 'Response too large':
+                            raise RPCError('response_too_large') from None
+                        raise
+            if not isinstance(value, dict):
+                raise RPCError('invalid_response')
+            return value
         except RPCError:
             raise
         except Exception:

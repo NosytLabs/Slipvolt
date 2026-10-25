@@ -1,5 +1,10 @@
-"""Explicit requests prevent client defaults crossing service boundaries."""
+"""Explicit requests prevent client defaults crossing service boundaries.
+
+The bounded JSON reader is shared by read-only providers; callers retain
+their allowlisted destinations, deadlines and error handling.
+"""
 from contextlib import asynccontextmanager
+import json
 import httpx
 
 
@@ -17,3 +22,22 @@ async def isolated_stream(client, method, url, **kwargs):
         yield response
     finally:
         await response.aclose()
+
+
+async def read_bounded_json(response, maximum=2_000_000, *,
+                            too_large_message='Response too large'):
+    """Parse only a bounded HTTP response, without trusting Content-Length.
+
+    Caller must close the response (e.g. through isolated_stream) and validate
+    the expected JSON shape. This helper never follows redirects or opens URLs.
+    """
+    if type(maximum) is not int or maximum < 1:
+        raise ValueError('Invalid JSON response size limit')
+    response.raise_for_status()
+    chunks, size = [], 0
+    async for chunk in response.aiter_bytes():
+        size += len(chunk)
+        if size > maximum:
+            raise ValueError(too_large_message)
+        chunks.append(chunk)
+    return json.loads(b''.join(chunks))
