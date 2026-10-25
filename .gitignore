@@ -5,6 +5,8 @@ __pycache__/
 *.pyc
 data/
 *.db*
+*.sqlite*
+*.backup
 node_modules/
 artifacts/
 
