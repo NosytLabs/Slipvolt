@@ -11,7 +11,7 @@ The authority must be a system-owned, zero-data wallet or vault PDA. Native SPL 
 ## Operator flow
 
 1. Open **Treasury burns** from the operator console. Enter the separate admin API credential; it stays in memory in that tab, not web storage.
-2. Enter the source **token account** and a positive decimal amount in human token units. Confirm the tokens belong to the project, not users or refundable lock positions.
+2. Select **Load accounts** to inspect the configured treasury’s project-token accounts. Choose an eligible source, or paste a source **token account** manually. Enter a positive decimal amount and confirm the tokens belong to the project, not users or refundable lock positions. Discovery never selects an account or initiates a burn automatically.
 3. Review mint, source, authority, program, exact amount, finalized snapshot slot, and warnings. The server reads all three accounts in a single `getMultipleAccounts` finalized response. No plan is cached or treated as an actual burn.
 4. Download instruction JSON and review it in an external signing workflow. This JSON is not a serialized transaction, a generic multisig import format, an approval, or a signature. Construct the transaction with a current blockhash and a fee payer, verify the exact instruction/accounts, then simulate before obtaining the required approval and signatures. The application does not perform these steps.
 5. After an independently executed burn finalizes, submit its signature under **Record a completed burn**. This invokes the existing finalized receipt verifier. Existing receipts are not counted twice.
@@ -51,3 +51,17 @@ Primary references checked October 24, 2026:
 The existing model policy is unchanged: OpenBroker documents model IDs but not a numeric account-specific hard output ceiling; Gonka gateway default caps are configurable. Host documentation uses 180K context for MiniMax and 400K for DeepSeek/GLM. Native model capacity, host configuration, broker route limits and local allowance budgets are distinct. Paid boundary tests were not run. See API-POLICY.md and issue #17.
 
 The custom lock vault and cross-wallet allowance-reuse protection remain unimplemented. This feature does not make a token launch or custodial staking service production-ready.
+
+## Read-only source account discovery
+
+`GET /api/admin/treasury/accounts` uses the same separate operator credential and server-fixed mint/authority as burn preparation. It checks mainnet, reads a finalized `getTokenAccountsByOwner` listing, then reads the mint and authority at a context no older than that listing. The response reports both slots; it is not an atomic snapshot of all accounts. Burn preparation independently repeats the existing same-snapshot checks before producing an instruction.
+
+Amounts stay exact raw integer strings. Empty, frozen, delegated, wrapped-native, unrelated-close-authority and unsupported-extension accounts cannot be selected as eligible sources. A successful empty listing is distinct from an RPC/configuration failure. More than 128 accounts, duplicate addresses, inconsistent totals or malformed evidence cause discovery to fail without returning a partial success. No secret or caller-selected RPC/owner/mint is accepted.
+
+The UI clears old account observations on a failed refresh, invalidates the previous proposal when accounts or inputs change, and clears the admin key on `pagehide` as well as Lock. It also verifies the projected balance and supply arithmetic before export. This does not prove lawful custody or add signing, simulation, or broadcasting.
+
+RPC reference: https://solana.com/docs/rpc/http/gettokenaccountsbyowner
+
+## Customer model directory
+
+`/models/` reads `/api/models` without credentials. It supports local search, a listed-now filter, and copying exact model IDs. Local context/output/default policy and separate discovered metadata are shown distinctly. A fallback snapshot never appears as live availability; errors clear the prior catalog. No inference is requested. The homepage links to this directory and `/token/`.

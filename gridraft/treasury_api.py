@@ -12,6 +12,7 @@ from starlette.routing import Mount
 from .integrations import SolanaRPC
 from .security import decode_address, digest
 from .treasury_burn import prepare_burn_plan
+from .treasury_accounts import discover_treasury_accounts
 
 
 class BurnPlanInput(BaseModel):
@@ -71,6 +72,19 @@ def install_treasury_routes(app, settings, *, treasury_owner='', transport=None)
             'signing_enabled': False, 'execution_enabled': False,
             'notice': 'Server prepares unsigned instructions only. No treasury balance is a deposit invitation.'},
             headers={'Cache-Control': 'no-store'})
+
+    @router.get('/api/admin/treasury/accounts')
+    async def treasury_accounts(request: Request):
+        require_admin(request)
+        if not (treasury_owner and settings.holder_mint and settings.solana_rpc):
+            raise error(503, 'Configure the treasury authority, project mint and Solana RPC before loading accounts')
+        try:
+            async with asyncio.timeout(20):
+                result = await discover_treasury_accounts(rpc, mint=settings.holder_mint,
+                    treasury_owner=treasury_owner, decimals=settings.holder_token_decimals)
+        except (ValueError, httpx.HTTPError, TimeoutError):
+            raise error(503, 'Treasury account discovery is unavailable. Check RPC health, mint configuration and supported account layouts. No transaction was sent.') from None
+        return JSONResponse(result, headers={'Cache-Control': 'no-store'})
 
     @router.post('/api/admin/treasury/burn-plan')
     async def burn_plan(body: BurnPlanInput, request: Request):

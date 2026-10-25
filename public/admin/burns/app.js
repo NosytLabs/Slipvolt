@@ -2,7 +2,7 @@
 (function(){
   'use strict';
   function start(){
-    const $=id=>document.getElementById(id),S={serial:0,controller:null,busy:false,config:null,plan:null,timer:null};
+    const $=id=>document.getElementById(id),S={serial:0,controller:null,busy:false,config:null,plan:null,timer:null,accounts:null};
     const address=v=>typeof v==='string'&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v);
     const raw=(v,d)=>{
       if(typeof v!=='string'||!/^\d{1,20}(?:\.\d{1,18})?$/.test(v)||!Number.isInteger(d)||d<0||d>18)throw Error('Invalid token amount.');
@@ -12,13 +12,19 @@
     const format=(v,d)=>{if(typeof v!=='string'||!/^\d+$/.test(v))throw Error('Invalid amount in response.');const n=BigInt(v),scale=10n**BigInt(d),tail=(n%scale).toString().padStart(d,'0').replace(/0+$/,'');return (n/scale).toLocaleString('en')+(tail?'.'+tail:'');};
     function sync(){
       $('unlock').disabled=S.busy;
+      $('load-accounts').disabled=S.busy||S.config?.planning_enabled!==true;
+      $('account-select').disabled=S.busy||!S.accounts?.length;
       $('prepare').disabled=S.busy||S.config?.planning_enabled!==true;
       $('verify-receipt').disabled=S.busy||!S.config;
       $('download-plan').disabled=!S.plan||S.busy||Math.floor(Date.now()/1000)>=S.plan.local_review_expires_at;
     }
     function cancel(){S.serial++;S.controller?.abort();S.controller=null;S.busy=false;sync();}
     function clearPlan(){clearTimeout(S.timer);S.timer=null;S.plan=null;$('review').hidden=true;$('plan-json').textContent='';$('warnings').replaceChildren();for(const id of ['amount-review','balance-review','remaining-review','slot-review'])$(id).textContent='—';sync();}
-    function reset(){cancel();clearPlan();S.config=null;for(const id of ['source-account','burn-amount','signature'])$(id).value='';$('project-owned').checked=false;$('treasury-owner').textContent='Not loaded';$('project-mint').textContent='Not loaded';$('receipt-status').textContent='No receipt submitted.';$('plan-status').textContent='Load treasury configuration first.';sync();}
+    function clearAccounts(){
+      S.accounts=null;const option=document.createElement('option');option.value='';option.textContent='Load accounts to choose a source';
+      $('account-select').replaceChildren(option);$('accounts-status').textContent='Account lookup is read-only. No funds are moved.';sync();
+    }
+    function reset(){cancel();clearPlan();clearAccounts();S.config=null;for(const id of ['source-account','burn-amount','signature'])$(id).value='';$('project-owned').checked=false;$('treasury-owner').textContent='Not loaded';$('project-mint').textContent='Not loaded';$('receipt-status').textContent='No receipt submitted.';$('plan-status').textContent='Load treasury configuration first.';sync();}
     function key(){const v=$('operator-key').value.trim();if(!v||v.startsWith('obk-')||v.startsWith('sv_')||v.startsWith('grd_'))throw Error('Use the separate admin API key, not a provider or customer key.');return v;}
     async function run(path,body,output,done){
       let secret;try{secret=key();}catch(e){$(output).textContent=e.message;return;}
@@ -45,6 +51,31 @@
         $('plan-status').textContent=value.planning_enabled?'Enter a project-owned treasury token account and amount.':'Set SOLANA_TREASURY_OWNER, the project mint and RPC on the server.';
       });
     });
+    $('load-accounts').addEventListener('click',()=>{
+      if(!S.config?.planning_enabled)return;clearPlan();clearAccounts();
+      const config=S.config;
+      run('/api/admin/treasury/accounts',null,'accounts-status',value=>{
+        const result=globalThis.HoldbyteTreasuryAccounts.normalize(value,config);
+        const fragment=document.createDocumentFragment(),placeholder=document.createElement('option');
+        placeholder.value='';placeholder.textContent='Choose a source account';fragment.append(placeholder);
+        for(const row of result.accounts){
+          const option=document.createElement('option');option.value=row.address;option.disabled=!row.review_eligible;
+          option.textContent=globalThis.HoldbyteTreasuryAccounts.format(row.balance_raw,result.decimals)+' tokens · '+row.address+(row.reason?' · '+globalThis.HoldbyteTreasuryAccounts.reason(row.reason):'');fragment.append(option);
+        }
+        S.accounts=result.accounts;$('account-select').replaceChildren(fragment);
+        const usable=result.accounts.filter(row=>row.review_eligible).length;
+        $('accounts-status').textContent=result.accounts.length?
+          result.accounts.length+' account(s) · '+usable+' ready for review · observed at finalized slot '+result.listing_slot+'. Balances are rechecked when preparing.':
+          'No project-token accounts found for this treasury. Check the configured mint and authority.';
+      });
+    });
+    $('account-select').addEventListener('change',()=>{
+      const row=S.accounts?.find(row=>row.address===$('account-select').value&&row.review_eligible);
+      if(!row)return;cancel();clearPlan();$('source-account').value=row.address;$('project-owned').checked=false;
+      $('plan-status').textContent='Source selected. Enter an amount and confirm project ownership.';
+    });
+    $('source-account').addEventListener('input',()=>{$('account-select').value='';});
+    window.addEventListener('pagehide',()=>{reset();$('operator-key').value='';$('access-status').textContent='Locked. Reload treasury configuration to continue.';});
     for(const id of ['source-account','burn-amount','project-owned'])$(id).addEventListener('input',()=>{cancel();clearPlan();$('plan-status').textContent='Inputs changed. Prepare a fresh instruction before export.';});
     $('plan-form').addEventListener('submit',event=>{
       event.preventDefault();clearPlan();if(!S.config?.planning_enabled)return;
@@ -63,6 +94,9 @@
         const data=Uint8Array.from(atob(ix.data_base64),x=>x.charCodeAt(0));let n=BigInt(expected);
         if(data.length!==10||data[0]!==15||data[9]!==config.decimals)throw Error('Invalid burn instruction encoding.');
         for(let i=1;i<=8;i++){if(data[i]!==Number(n&255n))throw Error('Burn instruction amount mismatch.');n>>=8n;}
+        const exact=v=>{if(typeof v!=='string'||!/^(0|[1-9][0-9]{0,19})$/.test(v)||BigInt(v)>18446744073709551615n)throw Error('Burn proposal has inconsistent balances.');return BigInt(v);};
+        const used=exact(value.amount_raw),balance=exact(value.source_balance_raw),remaining=exact(value.expected_source_remaining_raw),supply=exact(value.observed_supply_raw),after=exact(value.expected_supply_after_burn_raw);
+        if(!Number.isSafeInteger(value.snapshot_slot)||value.snapshot_slot<1||balance<used||supply<balance||remaining!==balance-used||after!==supply-used)throw Error('Burn proposal has inconsistent balances or snapshot.');
         const rendered=[format(value.amount_raw,value.decimals),format(value.source_balance_raw,value.decimals),format(value.expected_source_remaining_raw,value.decimals)];
         S.plan=value;$('amount-review').textContent=rendered[0];$('balance-review').textContent=rendered[1];$('remaining-review').textContent=rendered[2];$('slot-review').textContent=String(value.snapshot_slot);
         for(const text of value.warnings){const li=document.createElement('li');li.textContent=text;$('warnings').append(li);}
