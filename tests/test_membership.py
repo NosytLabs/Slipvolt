@@ -85,7 +85,7 @@ def test_public_broker_statistics_never_expose_directory(members):
     r=c.get('/api/network')
     assert r.status_code==200,r.text
     d=r.json()
-    assert d['scope']=='OpenBroker network; not Slipvolt usage'
+    assert d['scope']=='OpenBroker network; not Holdbyte usage'
     assert d['totals']['tokens']==34
     assert 'never-expose' not in r.text and 'wallet_address' not in r.text
 

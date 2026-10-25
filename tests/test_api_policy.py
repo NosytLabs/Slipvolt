@@ -231,3 +231,30 @@ def test_null_optional_usage_settles_nonstream_and_stream_without_review(tmp_pat
         assert len(history)==2 and all(row['state']=='settled' for row in history)
         assert all(row['cached_input_tokens'] is None and row['reasoning_tokens'] is None for row in history)
         assert app.state.membership.pool()['reconciliation_required'] is False
+
+
+def test_live_model_directory_admits_conservatively_when_proxy_context_shrinks(tmp_path):
+    # A single truncated provider context must not invalidate the whole
+    # /models/ directory nor advertise a completion larger than the window.
+    def small_proxy(req):
+        if req.url.host == 'proxy.gonka.gg' and req.url.path == '/v1/models':
+            return httpx.Response(200, json={'data': [{
+                'id': MODEL, 'context_length': 3000,
+                'max_completion_tokens': 16384,
+            }]})
+        return transport(req)
+
+    app = create_app(holder_settings(), str(tmp_path/'small-proxy.db'),
+                     httpx.MockTransport(small_proxy))
+    with TestClient(app) as client:
+        response = client.get('/api/models')
+        assert response.status_code == 200, response.text
+        item = {row['id']: row for row in response.json()['data']}[MODEL]
+        assert item['context_length'] == 3000
+        assert item['max_completion_tokens'] == 2999
+        assert item['default_completion_tokens'] == 2999
+        assert item['completion_limit_source'] == 'context_window_cap'
+        assert item['openbroker_limits_verified'] is False
+        compatibility = client.get('/v1/models')
+        assert compatibility.status_code == 200
+        assert {row['id']: row for row in compatibility.json()['data']}[MODEL]['max_completion_tokens'] == 2999

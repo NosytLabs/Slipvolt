@@ -312,3 +312,35 @@ def test_provider_usage_rows_keep_reported_prompt_completion_and_cache_detail():
     assert result['models'][0]['cached_input_tokens'] == 80
     assert result['daily'][0]['completion_tokens'] == 30
     assert result['daily'][0]['reasoning_tokens'] == 12
+
+
+def test_discovery_context_cannot_advertise_more_output_than_it_can_hold():
+    # The model directory rejects contradictory metadata. The backend must
+    # intersect provider-advertised context with the reviewed output policy.
+    row = merge_upstream_metadata(MODEL, {
+        'context_length': 3_000,
+        'max_completion_tokens': 16_384,
+    })
+    assert row['context_length'] == 3_000
+    assert row['max_completion_tokens'] == 2_999
+    assert row['completion_limit_source'] == 'context_window_cap'
+    assert row['discovered_max_completion_tokens'] == 16_384
+    assert row['openbroker_limits_verified'] is False
+
+
+def test_discovery_one_token_context_disables_output_instead_of_publishing_impossible_cap():
+    row = merge_upstream_metadata(MODEL, {
+        'context_length': 1, 'max_completion_tokens': 16_384,
+    })
+    assert row['context_length'] == 1
+    assert row['max_completion_tokens'] is None
+    assert row['completion_limit_source'] == 'context_window_cap'
+    # Deliberate operator overrides are separate; discovery must not
+    # silently increase reviewed capacity or change an explicit override.
+    overridden = merge_upstream_metadata(MODEL, {
+        'context_length': 1, 'max_completion_tokens': 16_384,
+    }, operator_cap=32768, operator_override={
+        'context_length': 204_800, 'max_completion_tokens': 32768,
+    })
+    assert overridden['max_completion_tokens'] == 32768
+    assert overridden['completion_limit_source'] == 'operator_override_unverified'

@@ -22,6 +22,8 @@ The model-native configuration files declare larger positional capacities: [Mini
 
 `/api/models` publishes effective `context_length` / `max_completion_tokens`, nullable `discovered_context_length` / `discovered_max_completion_tokens`, a discovery status, and separate source labels. Discovery may tighten reviewed policy but cannot increase it or activate an unknown model. Missing metadata never becomes a fabricated discovered value. The upstream catalog cache is merged with current operator policy on every read.
 
+If separate proxy discovery reports a smaller context window, the local output cap is also reduced to remain **strictly below** that effective context. A one-token context has no usable output budget and is shown as unavailable, rather than publishing contradictory limits. The `completion_limit_source` value `context_window_cap` identifies this local safety intersection; it is not an OpenBroker account benchmark. Explicit operator overrides remain separately labelled unverified and are never silently lowered by unrelated proxy discovery.
+
 ### Explicit deployment overrides
 
 For a reviewed model, an operator may deliberately configure both limits in the server environment:
