@@ -1,8 +1,8 @@
-# Publishing Slipvolt
+# Publishing Holdbyte
 
 ## Canonical repository
 
-The canonical application is [NosytLabs/Slipvolt](https://github.com/NosytLabs/Slipvolt) on `main`. Work from the current repository rather than an archive, generated preview or unrelated deployment.
+The Holdbyte application is maintained in [NosytLabs/Slipvolt](https://github.com/NosytLabs/Slipvolt) on `main`. The repository name is a compatibility identifier; work from current shared history rather than an archive, generated preview or unrelated deployment.
 
 ```bash
 git clone https://github.com/NosytLabs/Slipvolt.git
@@ -32,6 +32,6 @@ See [deployment](DEPLOYMENT.md), [security](SECURITY.md), [verification](VERIFIC
 
 ## Repository boundaries
 
-The separate `NosytLabs/oma-ai` repository and its hosting configuration are not part of Slipvolt. Do not overwrite, rename or deploy into that project while publishing this one.
+The separate `NosytLabs/oma-ai` repository and its hosting configuration are not part of Holdbyte. Do not overwrite, rename or deploy into that project while publishing this one.
 
 Historical ZIP files, bundles and previews are recovery artifacts only. They must not replace current shared history or be treated as evidence that production matches the repository.
