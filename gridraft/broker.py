@@ -233,7 +233,7 @@ class Broker:
                     totals['requests']+=requests;totals['tokens']+=tokens;totals['cost_ngonka']+=cost
                     point=daily.setdefault(day,{'day':day,'requests':0,'tokens':0,'cost_ngonka':0})
                     point['requests']+=requests;point['tokens']+=tokens;point['cost_ngonka']+=cost
-                self._network={'scope':'OpenBroker network; not Slipvolt usage',
+                self._network={'scope':'OpenBroker network; not Holdbyte usage',
                     'source':BASE+'/api/registry/brokers','source_page':'https://openbroker.gonka.gg/stats',
                     'status':'available','observed_at':int(time.time()),'window_from':min(dates),'window_to':max(dates),
                     'active_brokers':sum(b.get('status')=='active' for b in brokers if isinstance(b,dict)),
@@ -256,5 +256,5 @@ class Broker:
 
     @staticmethod
     def unavailable():
-        return {'status':'unavailable','scope':'OpenBroker network; not Slipvolt usage',
+        return {'status':'unavailable','scope':'OpenBroker network; not Holdbyte usage',
             'source_page':'https://openbroker.gonka.gg/stats','totals':None,'observed_at':None,'stale':True}
