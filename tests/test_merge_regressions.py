@@ -297,8 +297,9 @@ def test_ci_uses_canonical_verifier_and_verifier_includes_operator_tests():
     verifier = (root/'scripts/verify.sh').read_text()
     assert 'sh scripts/verify.sh' in workflow
     assert 'node --test tests/*.test.cjs' in verifier
-    assert 'operator/profit-core.js' in verifier
-    assert 'operator/calculate.cjs' in verifier
+    assert 'find public operator' in verifier
+    assert "-name '*.js'" in verifier and "-name '*.cjs'" in verifier
+    assert 'node --check "$file"' in verifier
 
 
 def test_expiry_cleanup_uses_time_indexes():
