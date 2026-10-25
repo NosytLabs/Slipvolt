@@ -240,3 +240,15 @@ def test_readme_relative_markdown_links_resolve():
         if not path:
             continue
         assert (root / path).exists(), f'Broken README link: {target}'
+
+
+def test_verify_script_syntax_checks_all_shipped_javascript():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    script = (root / 'scripts' / 'verify.sh').read_text()
+    # Keep syntax coverage automatic so new browser/operator JS cannot be omitted
+    # when another file is added.
+    assert 'find public operator' in script
+    assert "-name '*.js'" in script
+    assert "-name '*.cjs'" in script
+    assert 'node --check "$file"' in script
