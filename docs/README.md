@@ -1,6 +1,6 @@
 # Holdbyte documentation
 
-Start with the guide for the task. Existing file paths are retained so previously shared links keep working. Proposed mechanics and historical research are not descriptions of live services.
+Start with the guide for the task. Proposed mechanics and historical research are not descriptions of live services.
 
 ## Setup and operation
 
@@ -24,8 +24,7 @@ Start with the guide for the task. Existing file paths are retained so previousl
 | [Launch runbook](LAUNCH_RUNBOOK.md) | Preconditions before activating a public service |
 | [Content checklist](CONTENT.md) | Customer-page facts and publication checks |
 | [Publishing](PUBLISHING.md) | Source and deployment handoff |
-| [Brand](BRAND.md) | Holdbyte identity and naming research; domain quotes are historical |
-| [Naming checklist](NAMING-CLEANUP.md) | Compatibility constraints and earlier migration checklist; unchecked tasks are not release status |
+| [Brand](BRAND.md) | Current Holdbyte naming/compatibility rules and historical domain research |
 | [Changelog](CHANGELOG.md) | Historical changes; CI and code establish current behavior |
 
 ## Architecture and proposals
