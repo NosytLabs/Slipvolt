@@ -47,3 +47,17 @@ test('rejects inherited-property names as unknown inputs',()=>assert.throws(()=>
 test('zero customers create no payment-processing expense',()=>assert.equal(run({customers:0}).paymentFeesUsd,0));
 test('refunds reduce surplus before allocation',()=>assert.equal(run({refundsUsd:100}).developerUsd,1934.38));
 test('higher developer percentage does not invent company profit',()=>{const a=run(),b=run({developerSharePct:100});assert.equal(a.distributableUsd,b.distributableUsd);assert.equal(b.developerUsd,b.distributableUsd);});
+
+
+test('operator planner uses Holdbyte branding without stale Slipvolt globals',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'../operator/profit-planner.html'),'utf8');
+ const coreText=fs.readFileSync(path.join(__dirname,'../operator/profit-core.js'),'utf8');
+ assert.match(html,/<title>Holdbyte — Founder income planner<\/title>/);
+ assert.ok(html.includes('ϟ holdbyte'));
+ assert.ok(html.includes('HoldbyteBusiness.defaults'));
+ assert.ok(html.includes('HoldbyteBusiness.project'));
+ assert.ok(!html.includes('SlipvoltBusiness'));
+ assert.ok(coreText.includes('root.HoldbyteBusiness = api'));
+ assert.ok(!coreText.includes('root.SlipvoltBusiness = api'));
+ assert.ok(html.includes("holdbyte-business-scenario.json"));
+});
