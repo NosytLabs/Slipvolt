@@ -96,6 +96,13 @@ def merge_upstream_metadata(model_id, metadata, operator_cap=REVIEWED_OUTPUT_TOK
         if discovered_output and discovered_output < effective:
             effective = discovered_output
             source = 'discovery_tighter_than_reviewed_policy'
-        row['max_completion_tokens'] = effective
+        # A discovered smaller context can make the reviewed output budget
+        # impossible. Leave at least one token for input; request admission
+        # applies the stricter serialized UTF-8 estimate later.
+        context = row.get('context_length')
+        if context is not None and effective >= context:
+            effective = context - 1
+            source = 'context_window_cap'
+        row['max_completion_tokens'] = effective if effective > 0 else None
         row['completion_limit_source'] = source
     return row
