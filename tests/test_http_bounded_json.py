@@ -18,20 +18,27 @@ def run(coro):
     return asyncio.run(coro)
 
 
+def attached_response(**kwargs):
+    # Real HTTPX transport responses always have the request that
+    # raise_for_status uses; construct unit responses with one too.
+    return httpx.Response(200, request=httpx.Request('GET', 'https://fixture.invalid/json'),
+                          **kwargs)
+
+
 @pytest.mark.parametrize("payload,max_bytes", [
     (b'{"ok":true}', 11),
     (b'{"ok":true}', 12),
     (b'{}', 2),
 ])
 def test_bounded_reader_accepts_json_at_or_below_limit(payload, max_bytes):
-    response = httpx.Response(200, content=payload)
+    response = attached_response(content=payload)
     assert run(read_bounded_json(response, maximum=max_bytes)) == (
         {"ok": True} if payload != b'{}' else {})
 
 
 @pytest.mark.parametrize("response,maximum,problem", [
-    (httpx.Response(200, content=b'{"ok":true}'), 10, "Response too large"),
-    (httpx.Response(200, content=b'not-json'), 64, None),
+    (attached_response(content=b'{"ok":true}'), 10, "Response too large"),
+    (attached_response(content=b'not-json'), 64, None),
 ])
 def test_bounded_reader_rejects_oversize_and_invalid_json(response, maximum, problem):
     with pytest.raises(ValueError if problem else json.JSONDecodeError) as caught:
@@ -41,9 +48,9 @@ def test_bounded_reader_rejects_oversize_and_invalid_json(response, maximum, pro
 
 
 def test_existing_solana_reader_keeps_bounded_json_signature():
-    assert run(bounded_json(httpx.Response(200, json={"result": 1}), maximum=20)) == {"result": 1}
+    assert run(bounded_json(attached_response(json={"result": 1}), maximum=20)) == {"result": 1}
     with pytest.raises(ValueError, match="Response too large"):
-        run(bounded_json(httpx.Response(200, json={"result": 1}), maximum=2))
+        run(bounded_json(attached_response(json={"result": 1}), maximum=2))
 
 
 @pytest.mark.parametrize("destination,private", [
