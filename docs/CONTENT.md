@@ -1,8 +1,8 @@
 # Customer content and launch publication checklist
 
-Reviewed October 24, 2026. Canonical repository: NosytLabs/Slipvolt.
+Reviewed October 24, 2026. Canonical repository: NosytLabs/Slipvolt. Public brand: Holdbyte.
 
-## Published with this content pass
+## Published customer pages
 
 | Page | Purpose |
 |---|---|
@@ -13,9 +13,9 @@ Reviewed October 24, 2026. Canonical repository: NosytLabs/Slipvolt.
 | `/terms/` | Draft service rules; separates existing holder access from unbuilt staking, payments, treasury redemption and automatic payouts. |
 | `/llms.txt` | Machine-readable API scope, including function tools, and links to customer guides. |
 
-Pages are static, require no JavaScript, and are available through the existing FastAPI static mount. Their Slipvolt product documentation name remains canonical; a deployment using another display brand should review the editorial/legal identity too. No framework or analytics dependency was introduced.
+Pages are static and available through the existing FastAPI static mount. Holdbyte is the customer-facing product name; `NosytLabs/Slipvolt`, `gridraft`, existing `sv_` keys and supported `SLIPVOLT_*` names remain compatibility identifiers. No framework or analytics dependency is required for these pages.
 
-The homepage remains the primary connect → key → prompt flow. Detailed operating explanations belong in help rather than new marketing panels. The recent-usage CSV link uses the existing wallet-cookie endpoint and does not bypass authentication.
+The homepage remains the primary connect → key → prompt flow. Detailed operating explanations belong in Help rather than new marketing panels. The recent-usage CSV link uses the existing wallet-cookie endpoint and does not bypass authentication.
 
 ## Launch facts still needed — do not invent them
 
@@ -37,7 +37,7 @@ Do not present configured rate-card fields as an enabled customer price or book 
 
 ## Source checks
 
-- OpenBroker docs: https://openbroker.gonka.gg/docs — rechecked September 21, 2026. Its upstream account/key is separate from a Slipvolt customer key; use the API host for upstream requests. The documented model IDs match the current repository snapshot. Public documentation is not a funded account benchmark.
+- OpenBroker docs: https://openbroker.gonka.gg/docs — public documentation is not a funded-account benchmark. The upstream account/key is separate from a Holdbyte customer key.
 - Local implementation: `gridraft/app.py`, `request_policy.py`, `member_gateway.py`, `membership.py`, `store.py`, and the customer frontend.
 - Existing operator detail: `API-POLICY.md`, `SECURITY.md`, `FOUNDER-POLICY.md`, `LAUNCH-AND-UTILITY.md` and `QUICKNODE.md`.
 
