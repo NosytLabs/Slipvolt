@@ -10,7 +10,9 @@ The service never invents a mint, purchase URL, holder count or usage figure. Th
 
 ## Boundaries
 
-- `gridraft/app.py` — FastAPI surface, auth, admin API, current policy/config. The internal package name is retained for database/import compatibility.
+- `gridraft/app.py` — FastAPI routes, authentication flow, runtime configuration and policy wiring. It re-exports the existing request schema/middleware names for import compatibility.
+- `gridraft/schemas.py` — strict wallet, chat, admin and swap-quote request models and validators.
+- `gridraft/body_boundary.py` — ASGI body-size and nesting guard, independent of route setup.
 - `gridraft/membership.py` — wallet/global RPM, concurrency and token allowance admission.
 - `gridraft/member_gateway.py` — pre-dispatch reservation, OpenBroker forwarding, settlement and uncertain-request reconciliation.
 - `gridraft/broker.py` — OpenBroker catalog, balance, usage and public health reads.
@@ -18,7 +20,7 @@ The service never invents a mint, purchase URL, holder count or usage figure. Th
 - `gridraft/model_policy.py` — reviewed local limits, discovered metadata/provenance, explicit operator overrides and direct-price reference metadata.
 - `public/` — customer app; `public/admin/` — operator-only control plane.
 
-No module stores a treasury signing key or executes swaps. GNK allocation in the admin console only mirrors already verified operating funds into Slipvolt's local allowance ledger.
+No module stores a treasury signing key or executes swaps. GNK allocation in the admin console only mirrors already verified operating funds into Holdbyte's local allowance ledger.
 
 ## Capacity policy
 
