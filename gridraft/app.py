@@ -1,4 +1,4 @@
-"""Slipvolt API: wallet login, isolated keys, holder-funded and metered text inference.
+"""Holdbyte API: wallet login, isolated keys, holder-funded and metered text inference.
 
 Intentionally does not sign transactions, accept customer deposits, launch a
 coin, expose an upstream credential, or promise unlimited holder benefits.
@@ -20,6 +20,7 @@ from typing import Literal
 from urllib.parse import urlparse
 
 from .http_boundary import isolated_request
+from .route_support import authenticate_admin
 import httpx
 from fastapi import FastAPI, HTTPException, Request, Query
 from fastapi.exceptions import RequestValidationError
@@ -420,6 +421,10 @@ def validate_settings(settings):
                 not 1<=output<context<=MODEL_LIMIT_CEILING or output>settings.max_output_tokens):
             raise ValueError('Invalid model limit override configuration')
     if type(settings.max_request_bytes) is not int or not 131072<=settings.max_request_bytes<=MAX_BODY_BYTES: raise ValueError('Invalid request body limit')
+    if not isinstance(settings.admin_key, str) or (settings.admin_key and (
+            len(settings.admin_key) > 512 or not settings.admin_key.isascii()
+            or not settings.admin_key.isprintable())):
+        raise ValueError('ADMIN_API_KEY must be printable ASCII and at most 512 characters')
     if settings.production and settings.admin_key and len(settings.admin_key)<32: raise ValueError('ADMIN_API_KEY must be at least 32 characters in production')
     for cap in (settings.daily_budget_nusd, settings.wallet_daily_budget_nusd):
         if type(cap) is not int or not 1<=cap<=10**15: raise ValueError('Invalid daily budget')
@@ -535,9 +540,10 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     def admin_auth(request):
         if not settings.admin_key:error('Admin API is not configured',503)
         throttle(request,'admin-auth',120)
-        raw=request.headers.get('authorization','')
-        provided=raw[7:] if raw.startswith('Bearer ') else ''
-        if not provided or not secrets.compare_digest(provided,settings.admin_key):error('Invalid admin credential',401)
+        # The shared helper also protects optional treasury/token admin routes
+        # against oversized and non-ASCII credential headers.
+        # Main write routes retain the middleware's exact-Origin requirement.
+        authenticate_admin(request, settings, require_origin=False)
         return True
 
     def user_policy(wallet):
