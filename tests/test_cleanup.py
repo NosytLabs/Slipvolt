@@ -252,3 +252,14 @@ def test_verify_script_syntax_checks_all_shipped_javascript():
     assert "-name '*.js'" in script
     assert "-name '*.cjs'" in script
     assert 'node --check "$file"' in script
+
+
+def test_openbroker_network_scope_uses_current_product_brand():
+    from gridraft.broker import Broker
+    expected = 'OpenBroker network; not Holdbyte usage'
+    assert Broker.unavailable()['scope'] == expected
+    async def run():
+        b = Broker(None)
+        b.read = AsyncMock(return_value=registry())
+        return await b.network()
+    assert asyncio.run(run())['scope'] == expected
