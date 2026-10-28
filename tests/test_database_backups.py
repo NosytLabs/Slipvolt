@@ -67,6 +67,49 @@ def test_existing_backup_is_not_overwritten_or_modified(live_store, tmp_path):
     assert not list(tmp_path.glob('.holdbyte-backup-*'))
 
 
+def test_verify_rejects_active_wal_instead_of_hashing_only_the_main_file(live_store, tmp_path):
+    from gridraft.backup import create_backup, verify_database
+    source, store = live_store
+    wal = Path(str(source) + '-wal')
+    assert wal.is_file() and wal.stat().st_size > 0
+    with pytest.raises(ValueError, match='standalone'):
+        verify_database(source)
+    assert store.db.execute("SELECT balance_nusd FROM accounts WHERE wallet='wallet'").fetchone()[0] == 123456789
+    snapshot = tmp_path / 'snapshot.db'
+    create_backup(source, snapshot)
+    assert verify_database(snapshot)['sha256'] == hashlib.sha256(snapshot.read_bytes()).hexdigest()
+
+
+def test_verify_rejects_rollback_journal(tmp_path, live_store):
+    from gridraft.backup import create_backup, verify_database
+    source, _ = live_store
+    snapshot = tmp_path / 'snapshot.db'
+    create_backup(source, snapshot)
+    journal = Path(str(snapshot) + '-journal')
+    journal.write_bytes(b'nonempty journal')
+    with pytest.raises(ValueError, match='standalone'):
+        verify_database(snapshot)
+    assert journal.read_bytes() == b'nonempty journal'
+
+
+def test_verify_rejects_a_snapshot_modified_during_verification(tmp_path, live_store, monkeypatch):
+    import gridraft.backup as backup
+    source, _ = live_store
+    snapshot = tmp_path / 'snapshot.db'
+    backup.create_backup(source, snapshot)
+    original_report = backup._report
+
+    def changing_report(path, status):
+        result = original_report(path, status)
+        with path.open('ab') as stream:
+            stream.write(b'changed')
+        return result
+
+    monkeypatch.setattr(backup, '_report', changing_report)
+    with pytest.raises(ValueError, match='changed during verification'):
+        backup.verify_database(snapshot)
+
+
 def test_missing_source_is_not_created(live_store, tmp_path):
     from gridraft.backup import create_backup, verify_database
     target = tmp_path / 'backup.db'
