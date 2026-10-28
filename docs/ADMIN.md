@@ -51,6 +51,8 @@ Do not count the same GNK twice.
 
 Business entries are manual, auditable records. Positive amounts are revenue/cash inflow; negative amounts are costs/outflows. The console never infers token market cap as revenue and never treats unclaimed creator fees as collected cash.
 
+Recorded [Pump creator-vault claims](TREASURY-BURNS.md#record-an-existing-creator-vault-claim) are separate evidence, not automatic business entries. Creator-vault receipts can aggregate multiple coins or other funds; independently verify project attribution and actual cash value before recording any manual business entry.
+
 The dashboard is operational accounting, **not formal bookkeeping or tax accounting**.
 
 
