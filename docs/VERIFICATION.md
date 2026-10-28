@@ -68,3 +68,9 @@ sh scripts/verify.sh
 ```
 
 `CHROMIUM_PATH` may point to an existing Chromium executable. The verifier does not intentionally spend provider funds. Live provider diagnostics are separate commands and paid inference requires explicit opt-in.
+
+## Offline preview and generated files
+
+`python scripts/package_preview.py` writes `slipvolt-preview.html`. The homepage's stylesheet, deferred classic-script, icon and image declarations are the source of its dependencies; keep script order in `public/index.html`. The packager embeds those local files and runs the scripts after the page markup. Missing files, paths outside `public/`, remote assets and unsupported script types fail before replacing an existing preview. It makes no network requests.
+
+Browser reports and screenshots go to `evidence-current/`. These outputs, previews, caches and release archives are excluded from Git and the Docker build context. They are disposable verification artifacts; use the PR and Actions record for revision-specific results.
