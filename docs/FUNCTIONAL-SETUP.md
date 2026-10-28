@@ -20,6 +20,16 @@ python scripts/check_openbroker.py --env-file .env
 
 The Gonka check reads keyless public chain state. The connection check validates configured RPC identities and capabilities. The OpenBroker check reads the public catalog and, when a private server key is configured, account balance. None launches a token, moves assets or runs paid inference by default. Consult each command's `--help` before deliberately enabling a paid smoke check.
 
+To inspect provider-reported request costs and epoch adjustments for a particular UTC window, explicitly run the bounded read-only usage report (replace the example dates):
+
+```sh
+python scripts/reconcile_openbroker.py --env-file .env --from 2026-10-01 --to 2026-10-07
+```
+
+The command reads the private OpenBroker usage list, makes no inference request, and changes no local ledger or funds. It separates provider-reported settled requests, estimates, epoch adjustments, unbilled fallback and other sources. Amounts are decimal strings in ngonka to preserve integer precision. The default limit is five pages of 200 records; `--max-pages` accepts 1–25. A result exceeding that bound or with incomplete, duplicate or inconsistent pages fails rather than returning partial totals. Shorten the date window or deliberately raise the limit when necessary.
+
+Pages can change during collection, and even a complete list is not an independently verified statement or final account settlement. Reconcile with actual provider account movements before treating any amount as a cost or spendable balance. The documented [usage list and cost sources](https://openbroker.gonka.gg/docs/usage) differ from the usage summary, which excludes synthetic epoch accounting lines.
+
 Keep provider keys and private RPC URLs in the server environment or secret store. Do not paste them into the customer site, issue tracker or support report.
 
 ## Customer: check before sending
