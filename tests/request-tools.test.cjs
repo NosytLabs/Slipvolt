@@ -5,7 +5,8 @@ test('connection kit contains no key or upstream URL', () => {
   assert.ok(tools, 'request-tools implementation is missing');
   const kit = tools.connectionKit('https://service.example', 'MiniMaxAI/MiniMax-M2.7');
   assert.equal(kit.base_url, 'https://service.example/v1');
-  assert.equal(kit.api_key_environment, 'SLIPVOLT_API_KEY');
+  assert.equal(kit.api_key_environment, 'HOLDBYTE_API_KEY');
+  assert.equal(kit.legacy_api_key_environment, 'SLIPVOLT_API_KEY');
   assert.ok(!JSON.stringify(kit).includes('obk-'));
 });
 test('connection kit rejects credential-bearing or query origins', () => {
