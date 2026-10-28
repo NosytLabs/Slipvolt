@@ -1,7 +1,7 @@
 """Local configuration inspection. No network, database connection or secret output."""
 import os
 from pathlib import Path
-from .app import Settings, validate_settings
+from .settings import Settings, validate_settings
 
 
 def _report(checks):

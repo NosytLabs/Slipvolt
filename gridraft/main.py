@@ -1,7 +1,8 @@
 """ASGI entry point. Persistent storage is mandatory outside local evaluation."""
 import os
 from pathlib import Path
-from .app import Settings, create_app
+from .app import create_app
+from .settings import Settings
 from .token_audit_api import install_token_audit_routes
 from .treasury_api import install_treasury_routes
 path=os.getenv('DATABASE_PATH','data/gridraft.db')
