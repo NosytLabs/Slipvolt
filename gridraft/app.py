@@ -89,6 +89,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     rpc=SolanaRPC(client,settings.solana_rpc,settings.rpc_rps,settings.rpc_concurrency)
     quotes=MetisQuotes(client,settings.metis_url,settings.holder_mint,settings.holder_token_decimals)
     membership=Membership(store)
+    store.snapshot_startup_reservations()
     broker=Broker(client,settings.upstream_key)
     native_treasury=NativeTreasury(client,settings.gonka_treasury_address)
     member_gateway=MemberGateway(settings,client,broker,membership,runtime)
