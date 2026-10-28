@@ -17,8 +17,10 @@ def test_treasury_operator_review_and_reset_flows(tmp_path):
     html = path.read_text()
     html = html.replace('<link rel="stylesheet" href="styles.css">',
         '<style>'+(path.parent/'styles.css').read_text()+'</style>')
-    html = html.replace('<script src="app.js" defer></script>',
-        '<script>'+(path.parent/'app.js').read_text()+'</script>')
+    # Inline every script dependency in the same order as the real page.
+    for name in ('account-view.js', 'app.js'):
+        html = html.replace(f'<script src="{name}" defer></script>',
+            '<script>'+(path.parent/name).read_text()+'</script>')
     with sync_playwright() as p:
         browser = p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH') or
             ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path),
