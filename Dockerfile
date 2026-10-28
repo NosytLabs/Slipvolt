@@ -5,7 +5,8 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt && useradd --uid 10001 --create-home gridraft
 COPY gridraft ./gridraft
 COPY public ./public
-COPY scripts/check_openbroker.py scripts/check_connections.py scripts/check_gonka.py ./scripts/
+COPY scripts/check_openbroker.py scripts/check_connections.py scripts/check_gonka.py \
+     scripts/reconcile_openbroker.py scripts/check_lock_mint.py ./scripts/
 RUN mkdir -p /app/data && chown -R gridraft:gridraft /app/data
 USER gridraft
 EXPOSE 8000

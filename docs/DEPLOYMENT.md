@@ -13,6 +13,8 @@ docker compose exec gridraft python -m gridraft.cli allocate-gnk \
 
 Read-only check: `docker compose exec gridraft python scripts/check_openbroker.py` requires the scripts directory copied into the image (included here). The operator console is served at `/admin/` and requires the separate `ADMIN_API_KEY`; additionally restrict `/admin/` at your reverse proxy/VPN where practical. Restrict shell access, snapshot backups consistently, and monitor account availability and review holds. Bound IP rate limiting/ingress independently at the proxy; arbitrary X-Forwarded-For is not trusted.
 
+The image also includes `scripts/reconcile_openbroker.py` for bounded provider usage reports and `scripts/check_lock_mint.py` for preliminary mint screening. Run these explicitly inside the service after configuring the private credentials or RPC, using the options in the [setup guide](FUNCTIONAL-SETUP.md) and [token design](TOKEN-DESIGN.md). They are read-only and do not settle the ledger, move funds, or approve a vault.
+
 Private broker balance is not published unless `PUBLIC_BROKER_BALANCE=true`. A configured self-custody GNK address is public by design. The two balances have distinct scopes. Neither dashboard display authorizes a financial operation.
 
 GitHub CI is included in `.github/workflows/test.yml`. Run the same `./scripts/verify.sh` gate before publishing or deploying.

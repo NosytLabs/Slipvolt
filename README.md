@@ -67,6 +67,8 @@ Native GNK in self-custody, OpenBroker spendable credit, and local reservations 
 
 Unsuccessful dispatched requests and unresolved reservations can pause new inference until an operator checks provider billing and reconciles the hold. See [admin operations](docs/ADMIN.md) for the pending and reconciliation commands. This protects accounting but may interrupt service after an ordinary provider error.
 
+The production image includes the read-only provider-usage and mint-screening diagnostics described in the [deployment guide](docs/DEPLOYMENT.md). They do not settle accounts or approve a vault.
+
 Treasury tools discover accounts, prepare unsigned instructions and record completed burns. The optional Pump creator-claim check records unattributed evidence, not verified project revenue. These tools do not sign, broadcast, execute swaps/buybacks, collect fees, accept staking deposits, or pay developers. Recorded gross burns and claims are not complete history or proof of net deflation.
 
 Production needs persistent storage, [tested private backups and restore drills](docs/BACKUPS.md), HTTPS, stable secrets and reviewed operating terms. Keep `TOKEN_LAUNCHED=false` until the configured mint's listing is verified; the flag only publishes a link. Follow the [launch runbook](docs/LAUNCH_RUNBOOK.md). Restrict `/admin/` at the reverse proxy or VPN as well as with its separate credential.
