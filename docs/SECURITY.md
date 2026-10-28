@@ -11,6 +11,8 @@ The holder flow proves control of a Solana address with an exact-origin, expirin
 
 Every new holder inference rechecks a finalized balance from the configured RPC. The key's wallet must meet the exact mint threshold. RPC or catalog uncertainty denies dispatch. Already-dispatched calls may finish after holdings change. RPC providers are trusted infrastructure; one valid balance is not proof of a real human or an untransferred membership position.
 
+Holder eligibility requires distinct, valid token-account addresses, bounded raw balances, and a valid finalized context slot. Repeated account entries fail closed instead of being counted twice. These response checks do not prevent the same liquid tokens from qualifying different wallets at different times.
+
 Wallet quotas are shared across keys. Atomic local GNK reservations limit a finite operator allocation, plus global/day and per-wallet/day limits. All unresolved holds count, even from earlier dates. Reusing a funding reference cannot allocate it twice. An operator can still make a mistaken allocation under another reference; the command is not a deposit verifier.
 
 `available_ngonka` is checked immediately before dispatch and local outstanding holds are conservatively deducted. This does not make a locally modeled 25-ngonka/token ceiling a hard provider billing limit. Provider redundancy, charges that arrive later, model overhead and epoch allocations may exceed assumptions. Use a dedicated broker account, meaningful reserve, low pilot concurrency, and reconcile the actual balance. Local budgets do not prove treasury solvency.

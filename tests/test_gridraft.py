@@ -34,7 +34,7 @@ def provider(req):
     if req.url.path.endswith('/models'):
         return httpx.Response(200,json={'data':[{'id':MODEL,'object':'model'}]})
     if req.url.host=='example.invalid':
-        return httpx.Response(200,json={'result':{'context':{'slot':123},'value':[{'account':{'owner':'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA','data':{'parsed':{'info':{'mint':MINT,'owner':WALLET,'state':'initialized','tokenAmount':{'amount':'1000','decimals':6}}}}}}]}})
+        return httpx.Response(200,json={'result':{'context':{'slot':123},'value':[{'pubkey':'BGocb4GEpbTFm8UFV2VsDSaBXHELPfAXrvd4vtt8QWrA','account':{'owner':'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA','data':{'parsed':{'info':{'mint':MINT,'owner':WALLET,'state':'initialized','tokenAmount':{'amount':'1000','decimals':6}}}}}}]}})
     assert req.headers['authorization']=='Bearer obk-test-upstream'
     return httpx.Response(200,json={'id':'up-1','object':'chat.completion','choices':[{'index':0,'message':{'role':'assistant','content':'Hello back'},'finish_reason':'stop'}],'usage':{'prompt_tokens':12,'completion_tokens':3,'total_tokens':15}})
 

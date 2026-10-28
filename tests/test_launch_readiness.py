@@ -86,7 +86,7 @@ def test_mint_program_identity_and_decimals_are_not_assumed(tmp_path):
     def responder(req):
         if req.url.host=='example.invalid':
             return httpx.Response(200,json={'result':{'context':{'slot':500},'value':[
-                {'account':{'owner':'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA','data':{'parsed':{'info':{
+                {'pubkey':'BGocb4GEpbTFm8UFV2VsDSaBXHELPfAXrvd4vtt8QWrA','account':{'owner':'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA','data':{'parsed':{'info':{
                     'owner':WALLET,'mint':MINT,'state':'initialized','tokenAmount':{'amount':'1000000','decimals':9}
                 }}}}}
             ]}})
