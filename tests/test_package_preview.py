@@ -36,18 +36,18 @@ def test_preview_follows_declared_styles_and_script_order(source):
     assert '<script src=' not in output and '<link ' not in output
 
 
-@pytest.mark.parametrize('asset, error', [
-    ('missing.js', FileNotFoundError),
-    ('../private.js', ValueError),
-    ('%2e%2e/private.js', ValueError),
-    ('https://example.test/remote.js', ValueError),
+@pytest.mark.parametrize('markup, error', [
+    ('<script src="missing.js" defer></script>', FileNotFoundError),
+    ('<link rel="stylesheet" href="missing.css">', FileNotFoundError),
+    ('<script src="../private.js" defer></script>', ValueError),
+    ('<script src="%2e%2e/private.js" defer></script>', ValueError),
+    ('<script src="https://example.test/remote.js" defer></script>', ValueError),
 ])
-def test_preview_rejects_missing_or_nonlocal_scripts_without_overwriting(source, asset, error):
+def test_preview_rejects_missing_or_nonlocal_assets_without_overwriting(source, markup, error):
     (source.parent / 'private.js').write_text('private fixture')
     target = source.parent / 'preview.html'
     target.write_text('previous-good-preview')
-    (source / 'index.html').write_text(
-        f'<html lang="en"><body><script src="{asset}" defer></script></body></html>')
+    (source / 'index.html').write_text(f'<html lang="en"><body>{markup}</body></html>')
     with pytest.raises(error):
         package_preview.build(target)
     assert target.read_text() == 'previous-good-preview'
