@@ -3,10 +3,11 @@
 Tries native localhost navigation first. If the browser runner blocks navigation,
 uses a local HTTP adapter, recording that native browser transport was NOT tested.
 """
-import json, os, socket, sys, tempfile, threading, time
+import json, socket, sys, tempfile, threading, time
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT),str(ROOT/'tests'),str(ROOT/'scripts')]
+from scripts.browser_support import launch_chromium
 import httpx, uvicorn
 from playwright.sync_api import sync_playwright, expect
 from gridraft.app import create_app
@@ -26,7 +27,7 @@ def check(name,value):
 def run():
     with tempfile.TemporaryDirectory() as temp, sync_playwright() as p:
         tmp=Path(temp);preview=tmp/'preview.html';build(preview);markup=preview.read_text()
-        browser=p.chromium.launch(executable_path=os.getenv('CHROMIUM_PATH') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path),headless=True,args=['--no-sandbox'])
+        browser=launch_chromium(p)
         for width in [320,360,390,768,900,1280,1440,1920]:
             page=browser.new_page(viewport={'width':width,'height':980});errors=[];requests=[]
             page.on('pageerror',lambda e:errors.append(str(e)));page.on('request',lambda r:requests.append(r.url))

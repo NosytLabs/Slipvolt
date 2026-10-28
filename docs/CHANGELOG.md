@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — 2026-10-28
+
+- Fixed initial API examples retaining an old output budget when the catalog arrives before the deferred account-controls script. Browser regressions cover both arrival orders without inference calls.
+- Consolidated nine copies of Chromium launch setup into shared verification support, preserving browser selection, launch options and all browser assertions.
+- Removed unused imports and an unread browser-fixture variable. Marked the request-model compatibility re-exports explicitly so unused-import cleanup retains them.
+- Updated current operator/setup guidance to the Holdbyte name, removed superseded naming alternatives and documented the shared browser setup. Historical release names and legacy API/database identifiers remain intact.
+
 ## Unreleased — 2026-10-24
 
 - Reduced the reviewed local output default to 4,096 after tracing Gonka's configurable gateway defaults in the official source. Corrected the FAQ's implication of a universal 4K ceiling; kept 180K/400K context policies and deliberate, unverified operator overrides. No paid account boundary was claimed.

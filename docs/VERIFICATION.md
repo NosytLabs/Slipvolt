@@ -6,7 +6,7 @@ Holdbyte (the Slipvolt repository) uses one canonical verification command:
 sh scripts/verify.sh
 ```
 
-The verifier is intentionally local/offline by default. It runs the backend and JavaScript regression suites, syntax/compile checks, and the holder, admin, status, and customer-documentation browser checks. The GitHub Actions workflow runs on pushes to `main`, pull requests, and manual dispatch. It installs the pinned development dependencies and Chromium, then runs this same command.
+The verifier is intentionally local/offline by default. It runs the backend and JavaScript regression suites, syntax/compile checks, and the holder, admin, status, customer-documentation and operator-economics browser checks. The GitHub Actions workflow runs on pushes to `main`, pull requests, and manual dispatch. It installs the pinned development dependencies and Chromium, then runs this same command.
 
 ## What a green verifier establishes
 
@@ -67,4 +67,6 @@ python -m playwright install --with-deps chromium
 sh scripts/verify.sh
 ```
 
-`CHROMIUM_PATH` may point to an existing Chromium executable. The verifier does not intentionally spend provider funds. Live provider diagnostics are separate commands and paid inference requires explicit opt-in.
+All browser suites share [scripts/browser_support.py](../scripts/browser_support.py) for launch configuration. They use `CHROMIUM_PATH` when set, otherwise `/usr/bin/chromium` when present, otherwise Playwright's installed Chromium. A missing or unusable browser fails verification; browser checks are not skipped. Fixture routing and browser cleanup remain in each suite.
+
+The verifier does not intentionally spend provider funds. Live provider diagnostics are separate commands and paid inference requires explicit opt-in.

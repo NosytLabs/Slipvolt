@@ -16,7 +16,7 @@ The recommended control model has three deliberately separate parts:
 
 Developer management of the operating treasury is reasonable when it is stated plainly. The public disclosure should identify the treasury address, signer policy, upgrade authority, fee recipient, and all powers to move project-owned funds. Do not describe an account as decentralized, immutable, non-custodial, or community controlled while a developer key can change or move it. A transparent custodian is acceptable; concealed custody is not.
 
-The working brand candidate is **Holdbyte AI / HBYTE**. It expresses holder access without implying equity, yield, or compute ownership. **Slipvolt / SVLT** preserves current product continuity, and **MintRelay / MRELAY** is a more neutral alternative. These are uncleared working names: no trademark, domain, social handle, mint, or ticker availability is claimed. Avoid VoltPass, MintLane, and Voltmint because current public uses already create unnecessary confusion.
+The product name is **Holdbyte**; **HBYTE** remains a proposed ticker. See the [current naming rules](BRAND.md) for display branding and preserved repository/API identifiers. The name expresses holder access without implying equity, yield, or compute ownership. No trademark, domain, social handle, mint, or ticker clearance is claimed.
 
 ## What each token action means
 
