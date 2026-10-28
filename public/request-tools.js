@@ -19,7 +19,7 @@
     if(!['https:','http:'].includes(u.protocol)||u.username||u.password||u.search||u.hash||u.pathname!=='/'||!u.hostname)throw Error('Use the service origin only.');
     if(u.protocol==='http:'&&!['localhost','127.0.0.1','[::1]'].includes(u.hostname))throw Error('HTTPS required outside localhost.');
     if(typeof model!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_./:+-]{0,149}$/.test(model))throw Error('Select a model.');
-    return {base_url:u.origin+'/v1',model,api_key_environment:'SLIPVOLT_API_KEY',api_style:'chat.completions',automatic_retries:0};
+    return {base_url:u.origin+'/v1',model,api_key_environment:'HOLDBYTE_API_KEY',legacy_api_key_environment:'SLIPVOLT_API_KEY',api_style:'chat.completions',automatic_retries:0};
   }
   function supportReport(input={}){
     return {schema:'slipvolt.support.v1',created_at:new Date().toISOString(),
