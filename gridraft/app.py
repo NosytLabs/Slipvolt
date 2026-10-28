@@ -797,6 +797,8 @@ def create_app(settings=None, db_path=':memory:', transport=None):
             message=str(exc);error(message,{'invalid_key':401,'duplicate_request':409,'rate_limit':429,'daily_budget':429,'wallet_daily_budget':429,'billing_review_required':503}.get(message,402))
         try:
             upstream=await client.send(isolated_request('POST',UPSTREAM+'/chat/completions',headers={'Authorization':'Bearer '+settings.upstream_key},json=payload,timeout=settings.timeout),auth=None,follow_redirects=False)
+        except asyncio.CancelledError:
+            store.review(rid);raise
         except Exception:
             store.review(rid);error('Upstream result uncertain; reservation retained for operator reconciliation. Do not blindly retry',502)
         if not upstream.is_success:
