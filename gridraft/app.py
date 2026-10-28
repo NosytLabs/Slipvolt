@@ -199,8 +199,13 @@ def create_app(settings=None, db_path=':memory:', transport=None):
                 wallet,{'mint':settings.holder_mint},{'encoding':'jsonParsed','commitment':'finalized'}])
             if not isinstance(result,dict) or not isinstance(result.get('value'),list) or len(result['value'])>10000:
                 raise ValueError('Unexpected token accounts response')
-            total=0
+            slot=result['context']['slot']
+            if type(slot) is not int or not 1<=slot<=2**64-1:raise ValueError('Invalid finalized slot')
+            total=0;seen=set()
             for item in result['value']:
+                address=item['pubkey'];decode_address(address)
+                if address in seen:raise ValueError('Duplicate token account')
+                seen.add(address)
                 account=item['account']
                 if account['owner'] not in ('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA','TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'):
                     raise ValueError('Unexpected token program')
@@ -209,11 +214,15 @@ def create_app(settings=None, db_path=':memory:', transport=None):
                 amount=info['tokenAmount']['amount']
                 if type(info['tokenAmount'].get('decimals')) is not int or info['tokenAmount']['decimals']!=settings.holder_token_decimals:
                     raise ValueError('Configured mint decimals do not match the chain')
-                if not isinstance(amount,str) or not amount.isdigit(): raise ValueError('Invalid raw balance')
-                if info.get('state')=='initialized': total+=int(amount)
+                if not isinstance(amount,str) or not re.fullmatch(r'(?:0|[1-9][0-9]{0,19})',amount): raise ValueError('Invalid raw balance')
+                raw=int(amount)
+                if raw>2**64-1:raise ValueError('Invalid raw balance')
+                if info.get('state')=='initialized':
+                    total+=raw
+                    if total>2**64-1:raise ValueError('Invalid total balance')
             return {'eligible':total>=settings.min_holding_raw,'mode':settings.access_mode,'holding_raw':str(total),
                 'threshold_raw':str(settings.min_holding_raw),'mint':settings.holder_mint,
-                'slot':result['context']['slot'],'commitment':'finalized','requires_funded_credit':settings.access_mode!='holder_allowance'}
+                'slot':slot,'commitment':'finalized','requires_funded_credit':settings.access_mode!='holder_allowance'}
         except Exception:
             error('Cannot verify finalized holder balance; access is closed until RPC recovers',503)
 
