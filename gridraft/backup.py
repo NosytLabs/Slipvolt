@@ -25,8 +25,16 @@ def _source_file(path):
     return source
 
 
-def _connect_read_only(path):
-    return sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=30)
+def _connect_read_only(path, *, immutable=False):
+    options = '?mode=ro&immutable=1' if immutable else '?mode=ro'
+    return sqlite3.connect(path.as_uri() + options, uri=True, timeout=30)
+
+
+def _require_standalone(path):
+    for suffix in ('-wal', '-journal'):
+        sidecar = Path(str(path) + suffix)
+        if sidecar.is_symlink() or (sidecar.exists() and sidecar.stat().st_size):
+            raise ValueError('Verify a standalone snapshot without SQLite journal files')
 
 
 def _integrity_check(connection):
@@ -56,11 +64,19 @@ def _report(path, status):
 
 
 def verify_database(path):
-    """Verify a database without creating, changing or exposing its records."""
+    """Verify a stable standalone backup without reading SQLite sidecars."""
     source = _source_file(path)
-    with closing(_connect_read_only(source)) as connection:
+    _require_standalone(source)
+    before = source.stat()
+    with closing(_connect_read_only(source, immutable=True)) as connection:
         _integrity_check(connection)
-    return _report(source, 'verified')
+    report = _report(source, 'verified')
+    _require_standalone(source)
+    after = source.stat()
+    if any(getattr(before, field) != getattr(after, field) for field in
+           ('st_dev', 'st_ino', 'st_size', 'st_mtime_ns', 'st_ctime_ns')):
+        raise ValueError('Database changed during verification')
+    return report
 
 
 def create_backup(source_path, destination_path):

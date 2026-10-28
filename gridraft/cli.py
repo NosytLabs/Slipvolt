@@ -98,7 +98,7 @@ def main(argv=None):
                 # operator configuration. Never echo these values.
                 print(json.dumps({'ok':False,'status':'failed',
                     'notice':'Database backup or verification failed. Check the source, '
-                    'destination, permissions and SQLite integrity locally. '
+                    'destination, permissions and SQLite integrity locally; verify a standalone snapshot without a WAL or journal. '
                     'No source database was modified.'}),file=sys.stderr)
                 return 2
             print(json.dumps(result))

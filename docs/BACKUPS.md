@@ -20,6 +20,8 @@ The command **refuses to overwrite or follow an existing destination**, fails if
 
 Successful output reports only status, byte count and SHA-256 digest. It does not dump paths, wallet records, session values or database content. The CLI never sends a token, request to OpenBroker or Solana transaction. A backup captures committed database state at a point in time; it does not freeze the application's activity.
 
+Verify a stable, standalone snapshot, not a live database. `verify-db` refuses files with a nonempty SQLite WAL or rollback journal: those files may contain state that the main database file's checksum does not cover. Use `backup-db` to capture a live database first, and keep the snapshot unchanged while verifying or transferring it.
+
 **An integrity pass is not a full restoration drill.** It also does not mean the file is encrypted, safe to publish, or current after a subsequent service write.
 
 ## Docker Compose
