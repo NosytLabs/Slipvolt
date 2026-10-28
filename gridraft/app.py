@@ -35,8 +35,8 @@ from .broker import Broker
 from .member_gateway import MemberGateway
 from .gonka import NativeTreasury
 from .model_policy import MODEL_POLICIES, REVIEWED_OUTPUT_TOKENS, MODEL_LIMIT_CEILING, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
-from .schemas import (StrictBody, ChallengeInput, VerifyInput, KeyInput,
-                      Message, ChatInput, AdminConfigInput, AdminUserInput,
+from .schemas import (StrictBody as StrictBody, ChallengeInput, VerifyInput, KeyInput,
+                      Message as Message, ChatInput, AdminConfigInput, AdminUserInput,
                       AdminFundInput, AdminBusinessInput, SwapQuoteInput)
 from .body_boundary import BodyLimitMiddleware
 from .settings import (Settings, validate_settings,

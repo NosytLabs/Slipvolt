@@ -1,11 +1,8 @@
 """Browser workflow fixtures, not wallet signing or a live-chain test."""
 import json
-import os
 from pathlib import Path
-
-import pytest
-
-from test_treasury_burn import MINT, OWNER, SOURCE, fixture, plan
+from scripts.browser_support import launch_chromium
+from test_treasury_burn import MINT, OWNER, SOURCE, plan
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,16 +14,15 @@ def test_treasury_operator_review_and_reset_flows(tmp_path):
     html = path.read_text()
     html = html.replace('<link rel="stylesheet" href="styles.css">',
         '<style>'+(path.parent/'styles.css').read_text()+'</style>')
-    html = html.replace('<script src="app.js" defer></script>',
-        '<script>'+(path.parent/'app.js').read_text()+'</script>')
+    # Inline every script dependency in the same order as the real page.
+    for name in ('account-view.js', 'app.js'):
+        html = html.replace(f'<script src="{name}" defer></script>',
+            '<script>'+(path.parent/name).read_text()+'</script>')
     with sync_playwright() as p:
-        browser = p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH') or
-            ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path),
-            headless=True, args=['--no-sandbox'])
+        browser = launch_chromium(p)
         for width in (320, 390, 768, 1280):
             page = browser.new_page(viewport={'width':width,'height':960}, accept_downloads=True)
             errors=[]; page.on('pageerror', lambda e:errors.append(str(e)))
-            page.add_init_script('window.__unused=true')
             page.set_content(html, wait_until='load')
             page.evaluate("""([mint, owner, template]) => {
                 window.fixtureCalls=[]; window.fixtureDeferred=null;

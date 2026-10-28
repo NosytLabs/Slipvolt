@@ -1,6 +1,6 @@
 """Inlined UI fixtures only: discovery and authentication boundaries, no signing."""
-import os
 from pathlib import Path
+from scripts.browser_support import launch_chromium
 
 from test_treasury_burn import MINT, OWNER, SOURCE, plan
 from test_treasury_accounts import parse
@@ -17,9 +17,7 @@ def test_treasury_account_picker_and_navigation_clear_secrets(tmp_path):
     for name in ('account-view.js', 'app.js'):
         html = html.replace(f'<script src="{name}" defer></script>', '<script>'+(directory/name).read_text()+'</script>')
     with sync_playwright() as p:
-        browser = p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH') or
-            ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path),
-            headless=True, args=['--no-sandbox'])
+        browser = launch_chromium(p)
         for width in (320, 390, 768, 1280):
             page = browser.new_page(viewport={'width':width,'height':960})
             errors=[];page.on('pageerror',lambda e: errors.append(str(e)))

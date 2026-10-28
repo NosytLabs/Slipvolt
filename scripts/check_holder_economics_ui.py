@@ -1,21 +1,19 @@
 """Exercise the offline holder-economics planner; no live APIs or wallet calls."""
 import json
-import os
 from pathlib import Path
+import sys
 
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from scripts.browser_support import launch_chromium
 
 
 def run():
     checked = 0
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(
-            executable_path=os.getenv('CHROMIUM_PATH') or (
-                '/usr/bin/chromium' if Path('/usr/bin/chromium').exists()
-                else playwright.chromium.executable_path),
-            headless=True, args=['--no-sandbox'])
+        browser = launch_chromium(playwright)
         for width in (320, 390, 1280):
             page = browser.new_page(viewport={'width': width, 'height': 960})
             errors, unexpected = [], []

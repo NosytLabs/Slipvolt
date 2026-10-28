@@ -46,3 +46,5 @@ Customer-facing guidance lives in [Developers](../public/developers/index.html),
 The [architecture map](DESIGN.md#boundaries) describes module responsibilities and shared infrastructure. Configuration, request schemas and body enforcement have dedicated modules; `gridraft.app` retains their existing import names. Keep rate-limit namespaces and endpoint paths stable when refactoring.
 
 `gridraft`, `gridraft_session`, database paths and existing `sv_` keys are compatibility identifiers, not abandoned branding. Avoid a global rename. New client examples prefer `HOLDBYTE_API_KEY`; supported legacy `SLIPVOLT_API_KEY` integrations remain valid.
+
+Browser verification support belongs in `scripts/browser_support.py`, shared by the standalone checks and browser tests in `tests/`. It is separate from the application package. Run `sh scripts/verify.sh` to exercise every suite with the same browser-selection policy.

@@ -3,13 +3,9 @@
   'use strict';
   function start(){
     const $=id=>document.getElementById(id),S={serial:0,controller:null,busy:false,config:null,plan:null,timer:null,accounts:null};
+    // This helper is loaded before app.js by the treasury page.
+    const A=globalThis.HoldbyteTreasuryAccounts;
     const address=v=>typeof v==='string'&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v);
-    const raw=(v,d)=>{
-      if(typeof v!=='string'||!/^\d{1,20}(?:\.\d{1,18})?$/.test(v)||!Number.isInteger(d)||d<0||d>18)throw Error('Invalid token amount.');
-      const [whole,fraction='']=v.split('.');if(fraction.length>d)throw Error('Amount exceeds token precision.');
-      const n=BigInt(whole)*10n**BigInt(d)+BigInt(fraction.padEnd(d,'0')||'0');if(n<=0n||n>18446744073709551615n)throw Error('Amount is outside the token range.');return n.toString();
-    };
-    const format=(v,d)=>{if(typeof v!=='string'||!/^\d+$/.test(v))throw Error('Invalid amount in response.');const n=BigInt(v),scale=10n**BigInt(d),tail=(n%scale).toString().padStart(d,'0').replace(/0+$/,'');return (n/scale).toLocaleString('en')+(tail?'.'+tail:'');};
     function sync(){
       $('unlock').disabled=S.busy;
       $('load-accounts').disabled=S.busy||S.config?.planning_enabled!==true;
@@ -81,7 +77,7 @@
       event.preventDefault();clearPlan();if(!S.config?.planning_enabled)return;
       const source=$('source-account').value.trim(),amount=$('burn-amount').value,config=S.config;
       if(!address(source)||!$('project-owned').checked){$('plan-status').textContent='Enter a token account and confirm project ownership.';return;}
-      let expected;try{expected=raw(amount,config.decimals);}catch(e){$('plan-status').textContent=e.message;return;}
+      let expected;try{expected=A.parseUnits(amount,config.decimals);}catch(e){$('plan-status').textContent=e.message;return;}
       run('/api/admin/treasury/burn-plan',{source_account:source,amount,confirm_project_owned:true},'plan-status',value=>{
         const now=Math.floor(Date.now()/1000),ix=value?.instruction;
         if(!value||value.schema!=='holdbyte.burn-instruction.v1'||value.unsigned!==true||value.transactions_sent!==0||value.simulation_performed!==false||
@@ -94,10 +90,9 @@
         const data=Uint8Array.from(atob(ix.data_base64),x=>x.charCodeAt(0));let n=BigInt(expected);
         if(data.length!==10||data[0]!==15||data[9]!==config.decimals)throw Error('Invalid burn instruction encoding.');
         for(let i=1;i<=8;i++){if(data[i]!==Number(n&255n))throw Error('Burn instruction amount mismatch.');n>>=8n;}
-        const exact=v=>{if(typeof v!=='string'||!/^(0|[1-9][0-9]{0,19})$/.test(v)||BigInt(v)>18446744073709551615n)throw Error('Burn proposal has inconsistent balances.');return BigInt(v);};
-        const used=exact(value.amount_raw),balance=exact(value.source_balance_raw),remaining=exact(value.expected_source_remaining_raw),supply=exact(value.observed_supply_raw),after=exact(value.expected_supply_after_burn_raw);
+        const used=A.parseRaw(value.amount_raw),balance=A.parseRaw(value.source_balance_raw),remaining=A.parseRaw(value.expected_source_remaining_raw),supply=A.parseRaw(value.observed_supply_raw),after=A.parseRaw(value.expected_supply_after_burn_raw);
         if(!Number.isSafeInteger(value.snapshot_slot)||value.snapshot_slot<1||balance<used||supply<balance||remaining!==balance-used||after!==supply-used)throw Error('Burn proposal has inconsistent balances or snapshot.');
-        const rendered=[format(value.amount_raw,value.decimals),format(value.source_balance_raw,value.decimals),format(value.expected_source_remaining_raw,value.decimals)];
+        const rendered=[A.format(value.amount_raw,value.decimals),A.format(value.source_balance_raw,value.decimals),A.format(value.expected_source_remaining_raw,value.decimals)];
         S.plan=value;$('amount-review').textContent=rendered[0];$('balance-review').textContent=rendered[1];$('remaining-review').textContent=rendered[2];$('slot-review').textContent=String(value.snapshot_slot);
         for(const text of value.warnings){const li=document.createElement('li');li.textContent=text;$('warnings').append(li);}
         $('plan-json').textContent=JSON.stringify(value,null,2);$('review').hidden=false;$('plan-status').textContent='Unsigned instruction ready for review. Nothing was signed or sent.';

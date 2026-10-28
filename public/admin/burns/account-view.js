@@ -4,6 +4,17 @@
   const reasons=Object.freeze({frozen:'Frozen',native:'Wrapped native asset',delegated:'Delegate authority present',empty:'Empty',close_authority:'Different close authority',unsupported_extension:'Unsupported extension or layout'});
   const address=v=>typeof v==='string'&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v);
   const quantity=v=>{if(typeof v!=='string'||!/^(0|[1-9][0-9]{0,19})$/.test(v)||BigInt(v)>18446744073709551615n)throw Error('Invalid account amount.');return BigInt(v);};
+  // Shared exact arithmetic for both read-only account discovery and unsigned
+  // burn review. Match the server's plain decimal/u64 acceptance rules.
+  function parseUnits(value,decimals){
+    if(typeof value!=='string'||!/^(?:0|[1-9][0-9]{0,19})(?:\.[0-9]{1,18})?$/.test(value)||
+      !Number.isInteger(decimals)||decimals<0||decimals>18)throw Error('Invalid token amount.');
+    const [whole,fraction='']=value.split('.');
+    if(fraction.length>decimals)throw Error('Amount exceeds token precision.');
+    const result=BigInt(whole)*10n**BigInt(decimals)+BigInt(fraction.padEnd(decimals,'0')||'0');
+    if(result<=0n||result>18446744073709551615n)throw Error('Amount is outside the token range.');
+    return result.toString();
+  }
   function reason(value){if(!Object.hasOwn(reasons,value))throw Error('Unknown account restriction.');return reasons[value];}
   function format(value,decimals){
     const n=quantity(value);if(!Number.isInteger(decimals)||decimals<0||decimals>18)throw Error('Invalid token precision.');
@@ -29,6 +40,6 @@
     if(quantity(value.total_raw)!==total)throw Error('Inconsistent account total.');
     return {accounts,decimals:value.decimals,listing_slot:value.listing_slot,reference_slot:value.reference_slot,total_raw:value.total_raw};
   }
-  const api=Object.freeze({normalize,format,reason});root.HoldbyteTreasuryAccounts=api;
+  const api=Object.freeze({normalize,format,reason,parseRaw:quantity,parseUnits});root.HoldbyteTreasuryAccounts=api;
   if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof globalThis==='object'?globalThis:this);
