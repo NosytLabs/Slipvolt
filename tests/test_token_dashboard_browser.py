@@ -8,6 +8,7 @@ from pathlib import Path
 import threading
 
 from playwright.sync_api import sync_playwright, expect
+from scripts.browser_support import launch_chromium
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -27,8 +28,7 @@ def test_token_dashboard_layout_empty_error_and_exact_fixture_values(tmp_path):
             {'signature': '1' * 64, 'slot': 100, 'burned_raw': '9007199254740993'}]}}
     try:
         with sync_playwright() as p:
-            executable = os.getenv('CHROMIUM_PATH') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path)
-            browser = p.chromium.launch(executable_path=executable, headless=True, args=['--no-sandbox'])
+            browser = launch_chromium(p)
             offline = False
             for width in (320, 390, 768, 1280):
                 page = browser.new_page(viewport={'width': width, 'height': 1000})

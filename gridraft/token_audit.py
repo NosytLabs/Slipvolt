@@ -6,7 +6,6 @@ net supply change, treasury revenue, user deposits, or investment returns.
 """
 import json
 import re
-import sqlite3
 import time
 
 from .integrations import MAINNET_GENESIS

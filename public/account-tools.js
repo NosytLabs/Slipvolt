@@ -65,3 +65,4 @@ $('logout-everywhere').addEventListener('click', async () => {
 });
 $('example-language').addEventListener('change', renderCode);
 refreshRequestControls();
+renderCode();

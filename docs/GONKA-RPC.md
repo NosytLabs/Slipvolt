@@ -1,6 +1,6 @@
 # Gonka RPC integration
 
-Slipvolt uses a bounded, read-only `GonkaRPC` adapter for public chain health, an optional configured native-wallet balance and operator model discovery. These reads are separate from authenticated OpenBroker inference and never receive an `obk-` key, Solana credential, customer cookie or treasury secret.
+Holdbyte uses a bounded, read-only `GonkaRPC` adapter for public chain health, an optional configured native-wallet balance and operator model discovery. These reads are separate from authenticated OpenBroker inference and never receive an `obk-` key, Solana credential, customer cookie or treasury secret.
 
 ## Connected reads
 
@@ -51,7 +51,7 @@ The status block height and a separately returned bank balance are not an atomic
 
 ## Model metadata boundary
 
-A public Gonka gateway may return zero or missing context/output fields. Slipvolt treats those values as unknown, never unlimited. The separate proxy metadata used by model policy is also capability discovery rather than verified OpenBroker account behavior.
+A public Gonka gateway may return zero or missing context/output fields. Holdbyte treats those values as unknown, never unlimited. The separate proxy metadata used by model policy is also capability discovery rather than verified OpenBroker account behavior.
 
 The live OpenBroker catalog determines which model IDs are eligible for routing. Reviewed local policy determines whether a listed ID has usable admission limits. Discovery may tighten those limits but cannot raise them or activate an unknown model. Explicit operator overrides are labelled unverified and still require deployment-specific evidence.
 
