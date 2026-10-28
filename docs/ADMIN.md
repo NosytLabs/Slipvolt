@@ -29,6 +29,8 @@ The overview uses only recorded data from the selected 7/30/90-day window:
 
 The top scorecard shows OpenBroker spendable GNK, local funded AI-token capacity, settled local tokens/requests, active wallets, unresolved reviews, provider cost and approximate runway. Missing upstream data renders as unavailable rather than zero.
 
+The readiness checklist marks cross-wallet allowance reuse as a **launch blocker** while holder-allowance mode is enabled. This is a read-only warning: it does not enforce lock-based eligibility or suspend existing requests. Do not launch recurring grants until the protection described in the [launch runbook](LAUNCH_RUNBOOK.md) is implemented and reviewed.
+
 Settings are grouped by traffic, allowance/funding, generation and reference economics. Editing a field marks the form **Unsaved changes**; **Discard** restores the last server-confirmed configuration. Browser validation catches obvious conflicts (default output <= global output cap, shared daily allowance >= wallet allowance, global concurrency >= wallet concurrency) before the server performs authoritative validation.
 
 Refresh failures are scoped: a failed overview clears the old overview and disables settings until a current snapshot loads; failures in users, requests or the audit log clear only that panel so stale rows are not left looking current.
