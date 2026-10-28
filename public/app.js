@@ -188,7 +188,7 @@ function costSourceLabel(source){
   if(source.startsWith('devshard_'))return 'Provider record';
   if(source==='conservative_budget_estimate'||source==='budget_estimate')return 'Budget estimate';
   if(source==='operator_verified'||source==='operator')return 'Operator verified';
-  if(source==='provider_rejected')return 'Provider rejected · no charge';
+  if(source==='provider_rejected')return 'Provider rejected · cost unverified';
   return 'Recorded allocation';
 }
 

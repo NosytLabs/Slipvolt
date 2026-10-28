@@ -66,6 +66,8 @@ Mirrors current Gonka Chat Completions safeguards where practical:
 
 The gateway fails closed when the live model catalog or spendable OpenBroker balance cannot be verified.
 
+Once a request has been sent upstream, an unsuccessful HTTP response is not evidence of zero billing. The reservation is retained and new inference on that ledger pauses until an operator reconciles it. Provider 429 responses do not advertise an automatic retry time because reconciliation may take longer. Local validation and rate-limit failures before dispatch do not create a reservation. This policy can pause service after ordinary upstream rejections.
+
 The local GNK reservation is an admission estimate, not a provider-enforced maximum charge. Confirmed settlement can exceed a request's estimate or the locally allocated pool; concurrent requests amplify that exposure. Spendable allowance then shrinks, but this cannot undo provider cost already incurred. Keep provider working capital and acquisition costs reconciled, leave headroom for redundancy/epoch charges, and use a provider-side spending cap if one is actually available. The application does not claim that such an upstream cap has been configured.
 
 ## Initial rate limits

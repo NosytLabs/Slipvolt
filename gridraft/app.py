@@ -32,7 +32,7 @@ from .request_policy import input_budget
 from .readiness import readiness_report
 from .integrations import SolanaRPC, MetisQuotes
 from .broker import Broker
-from .member_gateway import MemberGateway
+from .member_gateway import MemberGateway, provider_dispatch_error
 from .gonka import NativeTreasury
 from .model_policy import MODEL_POLICIES, REVIEWED_OUTPUT_TOKENS, MODEL_LIMIT_CEILING, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
 from .schemas import (StrictBody as StrictBody, ChallengeInput, VerifyInput, KeyInput,
@@ -113,7 +113,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     @app.exception_handler(HTTPException)
     async def handle_error(request,exc):
         headers=dict(exc.headers or {})
-        if exc.status_code==429 and 'Retry-After' not in headers:headers['Retry-After']='60'
+        if exc.status_code==429 and 'Retry-After' not in headers and not getattr(request.state,'provider_cost_uncertain',False):headers['Retry-After']='60'
         rid=getattr(request.state,'request_id',None)
         if rid: headers['X-Request-Id']=rid
         return JSONResponse({'error':{'message':str(exc.detail),'type':'slipvolt_error','code':exc.status_code,'request_id':rid}},status_code=exc.status_code,headers=headers)
@@ -801,17 +801,9 @@ def create_app(settings=None, db_path=':memory:', transport=None):
             store.review(rid);error('Upstream result uncertain; reservation retained for operator reconciliation. Do not blindly retry',502)
         if not upstream.is_success:
             status=upstream.status_code
-            if status in (400,401,403,404,413,422,429):
-                store.settle(rid,0,state='upstream_error')
-                if status==429:
-                    retry=upstream.headers.get('Retry-After','5')
-                    retry=retry if retry.isdigit() and 1<=int(retry)<=3600 else '5'
-                    raise HTTPException(429,'OpenBroker capacity is temporarily rate limited; retry shortly.',headers={'Retry-After':retry})
-                if status in (401,403):error('Operator provider authorization is unavailable; no local credit was charged',503)
-                if status==404:error('Selected model is temporarily unavailable at OpenBroker; no local credit was charged',503)
-                error('Provider rejected the request; local reservation released',status if status in (400,413,422) else 400)
             store.review(rid,upstream.headers.get('X-Request-Id','')[:200] or None)
-            error('Upstream result uncertain; reservation retained and inference paused for reconciliation',502)
+            request.state.provider_cost_uncertain=True
+            raise provider_dispatch_error(status)
         try:
             data=upstream.json();usage=data['usage'];choices=data.get('choices')
             if not isinstance(choices,list) or not 1<=len(choices)<=body.n:raise ValueError('Invalid completion shape')

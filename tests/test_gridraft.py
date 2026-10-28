@@ -176,16 +176,6 @@ def test_key_limit_enforced(env):
     app.state.store.db.execute('UPDATE api_keys SET limit_nusd=1 WHERE id=?',(r['id'],))
     assert c.post('/v1/chat/completions',json=BODY,headers=h).status_code==402
 
-def test_known_rejected_provider_refunds_reservation(tmp_path):
-    def fail(req):
-        if req.url.path.endswith('/chat/completions'): return httpx.Response(400,json={'error':'invalid request'})
-        return provider(req)
-    app=create_app(Settings(origin='http://testserver',solana_rpc='https://example.invalid',upstream_key='obk-test-upstream'),str(tmp_path/'f.db'),httpx.MockTransport(fail))
-    with TestClient(app) as c:
-        _,h=funded((app,c)); before=app.state.store.account(WALLET)['balance_nusd']
-        assert c.post('/v1/chat/completions',json=BODY,headers=h).status_code==400
-        assert app.state.store.account(WALLET)['balance_nusd']==before
-
 def test_missing_usage_holds_reservation_for_reconciliation(tmp_path):
     def missing(req):
         if req.url.path.endswith('/chat/completions'): return httpx.Response(200,json={'id':'missing-1','choices':[]})
