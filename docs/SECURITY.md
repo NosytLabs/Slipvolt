@@ -9,6 +9,8 @@ The September 21, 2026 dependency review pins FastAPI 0.141.1, Starlette 1.6.0, 
 
 The holder flow proves control of a Solana address with an exact-origin, expiring one-time Ed25519 challenge. Sessions remain HttpOnly/SameSite and keys are stored hashed. Provider credentials are server-only. No wallet seed, private key, approval transaction or treasury signing key is requested.
 
+Legacy prepaid requests marked for billing review can only be settled through operator reconciliation with a nonblank printable evidence reference. A reference records the operator's basis for reconciliation; it does not independently verify the provider statement.
+
 Every new holder inference rechecks a finalized balance from the configured RPC. The key's wallet must meet the exact mint threshold. RPC or catalog uncertainty denies dispatch. Already-dispatched calls may finish after holdings change. RPC providers are trusted infrastructure; one valid balance is not proof of a real human or an untransferred membership position.
 
 Wallet quotas are shared across keys. Atomic local GNK reservations limit a finite operator allocation, plus global/day and per-wallet/day limits. All unresolved holds count, even from earlier dates. Reusing a funding reference cannot allocate it twice. An operator can still make a mistaken allocation under another reference; the command is not a deposit verifier.

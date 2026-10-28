@@ -320,10 +320,14 @@ class Store:
 
     def settle(self, request_id, billed, state='settled', prompt=None, completion=None, upstream_id=None, evidence=None):
         if type(billed) is not int or not 0<=billed<=10**15: raise ValueError('Invalid settlement')
-        if state=='operator_settled' and (not evidence or len(evidence)>200): raise ValueError('An evidence reference of 1–200 characters is required')
+        if state=='operator_settled' or evidence is not None:
+            if not isinstance(evidence,str) or not evidence.strip() or len(evidence)>200 or not evidence.isprintable():
+                raise ValueError('A printable evidence reference of 1–200 characters is required')
         with self.transaction():
             row=self.db.execute('SELECT * FROM usage WHERE id=?',(request_id,)).fetchone()
             if not row or row['state'] not in ('reserved','needs_review'): return False
+            if row['state']=='needs_review' and state!='operator_settled':
+                raise ValueError('Operator reconciliation evidence required')
             difference=row['reserved_nusd']-billed
             self.db.execute('UPDATE accounts SET balance_nusd=balance_nusd+? WHERE wallet=?',(difference,row['wallet']))
             self.db.execute('UPDATE api_keys SET spent_nusd=spent_nusd-? WHERE id=?',(difference,row['key_id']))
