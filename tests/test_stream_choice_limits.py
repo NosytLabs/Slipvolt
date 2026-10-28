@@ -117,6 +117,30 @@ def test_stream_rejects_output_after_terminal_usage_frame():
     assert upstream.closed is True
 
 
+def test_stream_accepts_repeated_identical_usage():
+    output, upstream, ledger = consume([
+        frame(choice(0)), frame(usage=USAGE), frame(usage=USAGE), '[DONE]',
+    ], requested_choices=1)
+    assert output.endswith('data: [DONE]\n\n')
+    assert len(ledger.settled) == 1
+    assert ledger.settled[0][0][1] == 20
+    assert ledger.reviewed == []
+    assert upstream.closed is True
+
+
+def test_stream_rejects_conflicting_details_even_when_total_matches():
+    output, upstream, ledger = consume([
+        frame(usage=USAGE),
+        frame(usage={'prompt_tokens': 10, 'completion_tokens': 10, 'total_tokens': 20}),
+        '[DONE]',
+    ], requested_choices=1)
+    assert '[DONE]' not in output
+    assert 'retained for review' in output
+    assert ledger.settled == []
+    assert ledger.reviewed == [('local-1', 'up-1')]
+    assert upstream.closed is True
+
+
 def test_stream_rejects_duplicate_choice_indexes_within_one_frame():
     output, upstream, ledger = consume([
         frame(choice(0, 'a'), choice(0, 'b')),

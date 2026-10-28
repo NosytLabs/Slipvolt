@@ -62,7 +62,7 @@ Mirrors current Gonka Chat Completions safeguards where practical:
 - Live provider health is checked before dispatch; an explicitly unroutable/unavailable model returns 503 without spending holder allowance.
 - Standard function tools/tool calls are passed through; Holdbyte does **not execute tools**.
 - Compatible Gonka parameters include `logit_bias`, `logprobs`, `structured_outputs`, reasoning/thinking hints, `min_tokens`, `bad_words`, `stop_token_ids`, `skip_special_tokens`, `detokenize`, and bounded chat-template kwargs. Unknown top-level fields remain rejected.
-- Streaming uses SSE and requires usage in the terminal stream so allowance settlement can be reconciled.
+- Streaming uses SSE and requires usage in the terminal stream so allowance settlement can be reconciled. Conflicting repeated usage reports leave the reservation held for operator review; identical repeats are accepted.
 
 The gateway fails closed when the live model catalog or spendable OpenBroker balance cannot be verified.
 

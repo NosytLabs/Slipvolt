@@ -184,7 +184,9 @@ class MemberGateway:
                         delta=choice.get('delta',{})
                         if not isinstance(delta,dict):raise ValueError('Invalid delta')
                     if d.get('usage') is not None:
-                        usage=parse_usage(d['usage'])
+                        reported_usage=parse_usage(d['usage'])
+                        if usage is not None and reported_usage!=usage:raise ValueError('Conflicting stream usage')
+                        usage=reported_usage
                         # The first usage report may share the model's last choice
                         # frame. Once observed, later frames must not add output.
                         terminal_usage=True

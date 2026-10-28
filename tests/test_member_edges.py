@@ -52,6 +52,29 @@ def test_stream_settles_reported_usage_and_cost(tmp_path):
         assert 'prompt_tokens,completion_tokens,cached_input_tokens,reasoning_tokens,usage_status' in export.text
 
 
+def test_conflicting_stream_usage_retains_hold_instead_of_undercharging(tmp_path):
+    def upstream(r):
+        if r.url.path.endswith('/chat/completions'):
+            first = {'id': 'up-1', 'model': MODEL, 'choices': [], 'usage': {
+                'prompt_tokens': 12, 'completion_tokens': 3, 'total_tokens': 15}}
+            second = {'id': 'up-1', 'model': MODEL, 'choices': [], 'usage': {
+                'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}}
+            return httpx.Response(200, text=''.join(
+                'data: ' + json.dumps(row) + '\n\n' for row in (first, second)) + 'data: [DONE]\n\n')
+        return handler(r)
+
+    app, c = open_client(tmp_path, upstream)
+    with c:
+        login(c)
+        response = c.post('/v1/chat/completions', headers=make_key(c), json={**BODY, 'stream': True})
+        assert '[DONE]' not in response.text
+        assert 'retained for review' in response.text
+        pool = app.state.membership.pool()
+        assert pool['reconciliation_required'] is True
+        assert pool['reserved_ngonka'] > 0
+        assert pool['budget_spent_ngonka'] == 0
+
+
 @pytest.mark.parametrize('options',[{'usage':False},{'done':False},{'second_id':True}])
 def test_bad_stream_retains_hold_and_pauses(tmp_path,options):
     def upstream(r):
