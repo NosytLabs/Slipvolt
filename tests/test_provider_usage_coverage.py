@@ -2,6 +2,7 @@
 import asyncio
 
 import httpx
+import pytest
 
 from gridraft.broker import Broker
 
@@ -38,3 +39,29 @@ def test_provider_daily_details_require_coverage_of_every_model_row():
     assert row['cached_input_tokens_reported_rows'] == 1
     assert row['completion_tokens_reported_rows'] == 2
     assert row['reasoning_tokens_reported_rows'] == 0
+
+
+@pytest.mark.parametrize('field', ['requests', 'errors', 'total_tokens', 'cost_ngonka'])
+@pytest.mark.parametrize('missing', [None, 'absent'])
+def test_provider_core_usage_never_treats_missing_as_zero(field, missing):
+    first = {'date': '2026-10-24', 'model': 'a', 'requests': 0,
+             'errors': 0, 'total_tokens': 0, 'cost_ngonka': 0}
+    second = {'date': '2026-10-24', 'model': 'b', 'requests': 1,
+              'errors': 0, 'total_tokens': 20, 'cost_ngonka': 500}
+    if missing == 'absent':
+        del second[field]
+    else:
+        second[field] = None
+
+    async def run():
+        response = {'totals': {field: None}, 'models': [second], 'days': [first, second]}
+        async with httpx.AsyncClient(transport=httpx.MockTransport(
+                lambda _: httpx.Response(200, json=response))) as client:
+            return await Broker(client, 'obk-fixture').usage_summary(1)
+
+    result = asyncio.run(run())
+    assert result['totals'][field] is None
+    assert result['models'][0][field] is None
+    assert result['days'][0][field] == 0
+    assert result['days'][1][field] is None
+    assert result['daily'][0][field] is None

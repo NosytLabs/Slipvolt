@@ -28,6 +28,19 @@ def test_admin_requires_separate_operator_key(tmp_path):
         assert c.get('/api/admin/overview',headers=auth()).status_code==200
         assert ADMIN not in c.get('/api/admin/overview',headers=auth()).text
 
+
+def test_admin_runway_is_unknown_when_provider_balance_is_unavailable(tmp_path):
+    def upstream(req):
+        if req.url.path == '/v1/balance':
+            return httpx.Response(503)
+        return handler(req)
+    app = create_app(settings(), str(tmp_path/'missing-balance.db'), httpx.MockTransport(upstream))
+    with TestClient(app) as client:
+        overview = client.get('/api/admin/overview', headers=auth()).json()
+    assert overview['provider_usage']['totals']['cost_ngonka'] == 22500
+    assert overview['provider_balance'] is None
+    assert overview['runway_days_at_recent_provider_spend'] is None
+
 def test_admin_can_persist_runtime_limits_and_pricing(tmp_path):
     app=create_app(settings(),str(tmp_path/'cfg.db'),httpx.MockTransport(handler))
     with TestClient(app) as c:
