@@ -23,9 +23,9 @@ Run the server and open `/admin/`. The console uses a dedicated `ADMIN_API_KEY`;
 
 The overview uses only recorded data from the selected 7/30/90-day window:
 
-- **Local usage** is settled Slipvolt holder traffic from the local native-GNK usage ledger, with explicit zero-usage UTC days.
+- **Local usage** is settled Holdbyte holder traffic from the local native-GNK usage ledger, with explicit zero-usage UTC days.
 - **Business cash flow** is realized entries from the manual business ledger; market cap, unclaimed creator fees and projected token volume are excluded.
-- The public `/status/` chart uses sanitized OpenBroker public-registry requests and is labelled provider-wide, not Slipvolt traffic or uptime.
+- The public `/status/` chart uses sanitized OpenBroker public-registry requests and is labelled provider-wide, not Holdbyte traffic or uptime.
 
 The top scorecard shows OpenBroker spendable GNK, local funded AI-token capacity, settled local tokens/requests, active wallets, unresolved reviews, provider cost and approximate runway. Missing upstream data renders as unavailable rather than zero.
 
@@ -41,7 +41,7 @@ Keep three things separate:
 
 1. self-custody native GNK treasury,
 2. spendable native-GNK balance inside the dedicated OpenBroker account,
-3. local allowance accounting available to Slipvolt holders.
+3. local allowance accounting available to Holdbyte holders.
 
 Do not count the same GNK twice.
 
