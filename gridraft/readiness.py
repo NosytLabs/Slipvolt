@@ -35,8 +35,10 @@ def readiness_report(settings, config, pool):
         'A model context ceiling is not a funded allowance. Requests also need enough remaining wallet and global tokens.')
     add('live_inference', 'Real provider acceptance', 'review',
         'Run explicitly authorized paid tests, including streaming, tools and long output. No live test is inferred from configuration.')
-    add('holder_farming', 'Membership abuse controls', 'review',
-        'Wallets can transfer tokens to farm multiple allowances. A reviewed cooldown or verified non-transferable lock is not implemented.')
+    allowance_mode = settings.access_mode == 'holder_allowance'
+    add('holder_farming', 'Membership abuse controls', 'blocked' if allowance_mode else 'disabled',
+        'Launch blocker: the same liquid tokens can qualify multiple wallets in one allowance period. Lock-only period eligibility is not implemented.'
+        if allowance_mode else 'Recurring holder allowance mode is not enabled.')
     add('payments', 'Payments and staking', 'disabled',
         'Quotes do not mint credits. Staking, payment settlement and treasury execution remain disabled.')
     return {

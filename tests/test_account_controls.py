@@ -1,5 +1,4 @@
 """Non-spending launch checks and wallet-scoped emergency controls."""
-import json
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -50,9 +49,19 @@ def test_readiness_never_infers_live_proof_from_configuration(tmp_path):
         assert d['status'] != 'ready'
         checks={x['id']:x for x in d['checks']}
         assert checks['live_inference']['status']=='review'
-        assert checks['holder_farming']['status']=='review'
+        assert checks['holder_farming']['status']=='blocked'
+        assert d['status']=='blocked'
         assert checks['context_vs_allowance']['status']=='review'
         assert '7' not in str(d.get('staking_days',''))
+
+
+def test_prepaid_mode_does_not_claim_a_recurring_holder_allowance_blocker(tmp_path):
+    _, client = client_for(tmp_path, access_mode='prepaid')
+    with client:
+        report = client.get('/api/admin/readiness', headers=AH).json()
+    check = next(item for item in report['checks'] if item['id'] == 'holder_farming')
+    assert check['status'] == 'disabled'
+    assert 'holder allowance' in check['detail'].lower()
 
 
 def test_revoke_all_is_wallet_scoped_and_does_not_erase_usage(tmp_path):
