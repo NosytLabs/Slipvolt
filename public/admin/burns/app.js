@@ -12,6 +12,8 @@
       $('account-select').disabled=S.busy||!S.accounts?.length;
       $('prepare').disabled=S.busy||S.config?.planning_enabled!==true;
       $('verify-receipt').disabled=S.busy||!S.config;
+      $('verify-creator-claim').disabled=S.busy||!S.config?.treasury_owner;
+      $('load-creator-claims').disabled=S.busy||!S.config?.treasury_owner;
       $('download-plan').disabled=!S.plan||S.busy||Math.floor(Date.now()/1000)>=S.plan.local_review_expires_at;
     }
     function cancel(){S.serial++;S.controller?.abort();S.controller=null;S.busy=false;sync();}
@@ -20,7 +22,12 @@
       S.accounts=null;const option=document.createElement('option');option.value='';option.textContent='Load accounts to choose a source';
       $('account-select').replaceChildren(option);$('accounts-status').textContent='Account lookup is read-only. No funds are moved.';sync();
     }
-    function reset(){cancel();clearPlan();clearAccounts();S.config=null;for(const id of ['source-account','burn-amount','signature'])$(id).value='';$('project-owned').checked=false;$('treasury-owner').textContent='Not loaded';$('project-mint').textContent='Not loaded';$('receipt-status').textContent='No receipt submitted.';$('plan-status').textContent='Load treasury configuration first.';sync();}
+    function reset(){cancel();clearPlan();clearAccounts();S.config=null;for(const id of ['source-account','burn-amount','signature','claim-signature'])$(id).value='';$('project-owned').checked=false;$('treasury-owner').textContent='Not loaded';$('project-mint').textContent='Not loaded';$('receipt-status').textContent='No receipt submitted.';$('claim-status').textContent='No creator claim submitted.';$('claim-summary').textContent='Recorded claims have not been loaded.';$('plan-status').textContent='Load treasury configuration first.';sync();}
+    function solAmount(raw){
+      if(typeof raw!=='string'||!/^(0|[1-9][0-9]{0,39})$/.test(raw))throw Error('Invalid claim total.');
+      const value=BigInt(raw),tail=(value%1000000000n).toString().padStart(9,'0').replace(/0+$/,'');
+      return (value/1000000000n).toLocaleString('en')+(tail?'.'+tail:'');
+    }
     function key(){const v=$('operator-key').value.trim();if(!v||v.startsWith('obk-')||v.startsWith('sv_')||v.startsWith('grd_'))throw Error('Use the separate admin API key, not a provider or customer key.');return v;}
     async function run(path,body,output,done){
       let secret;try{secret=key();}catch(e){$(output).textContent=e.message;return;}
@@ -113,6 +120,29 @@
       });
     });
     $('signature').addEventListener('input',()=>{cancel();$('receipt-status').textContent='No receipt submitted for this signature.';});
+    $('creator-claim-form').addEventListener('submit',event=>{
+      event.preventDefault();const signature=$('claim-signature').value.trim(),creator=S.config?.treasury_owner;
+      if(!creator)return;
+      if(!/^[1-9A-HJ-NP-Za-km-z]{64,88}$/.test(signature)){$('claim-status').textContent='Enter an existing Solana transaction signature.';return;}
+      run('/api/admin/treasury/creator-claims',{signature},'claim-status',value=>{
+        const receipt=value?.receipt;
+        if(typeof value?.recorded!=='boolean'||value.transactions_sent!==0||value.credits_issued!==0||
+          receipt?.schema!=='holdbyte.creator-claim.v1'||receipt.signature!==signature||receipt.creator!==creator||
+          receipt.asset!=='SOL'||receipt.project_attribution!=='unverified'||receipt.recognized_revenue!==false||
+          A.parseRaw(receipt.amount_lamports)<=0n)throw Error('Unexpected claim evidence. Check recorded claims.');
+        $('claim-status').textContent=(value.recorded?'Claim recorded: ':'Already recorded: ')+solAmount(receipt.amount_lamports)+' SOL. Attribution unverified; not project revenue.';
+        $('claim-summary').textContent='Refresh recorded claims to see the current total.';
+      });
+    });
+    $('claim-signature').addEventListener('input',()=>{cancel();$('claim-status').textContent='Signature changed. If a prior check was running, refresh recorded claims before retrying.';});
+    $('load-creator-claims').addEventListener('click',()=>{
+      const creator=S.config?.treasury_owner;if(!creator)return;
+      run('/api/admin/treasury/creator-claims',null,'claim-summary',value=>{
+        if(value?.creator!==creator||!Number.isSafeInteger(value.count)||value.count<0||value.complete_history!==false||
+          value.project_attribution!=='unverified'||value.recognized_revenue!==false)throw Error('Unexpected claim report.');
+        $('claim-summary').textContent=value.count+' recorded claim(s) · '+solAmount(value.total_lamports)+' SOL. Incomplete history; not project revenue.';
+      });
+    });
     sync();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();

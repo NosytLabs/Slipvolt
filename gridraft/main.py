@@ -5,9 +5,11 @@ from .app import create_app
 from .settings import Settings
 from .token_audit_api import install_token_audit_routes
 from .treasury_api import install_treasury_routes
+from .creator_claims_api import install_creator_claim_routes
 path=os.getenv('DATABASE_PATH','data/gridraft.db')
 Path(path).parent.mkdir(parents=True,exist_ok=True)
 settings=Settings.from_env()
 app=create_app(settings,path)
 install_token_audit_routes(app,settings)
 install_treasury_routes(app,settings,treasury_owner=os.getenv('SOLANA_TREASURY_OWNER',''))
+install_creator_claim_routes(app,settings,treasury_owner=os.getenv('SOLANA_TREASURY_OWNER',''))

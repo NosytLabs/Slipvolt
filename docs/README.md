@@ -16,7 +16,7 @@ Start with the guide for the task. Proposed mechanics and historical research ar
 | [Gonka RPC](GONKA-RPC.md) | Keyless chain reads, separate from paid inference |
 | [API policy](API-POLICY.md) | Model IDs, local limits and provider evidence |
 | [Token evidence](TOKEN-AUDIT.md) | Supply reads and completed-burn verification |
-| [Treasury burns](TREASURY-BURNS.md) | Account discovery, unsigned preparation and receipt workflow |
+| [Treasury burns and claims](TREASURY-BURNS.md) | Account discovery, unsigned burn preparation, burn receipts and unattributed creator-claim evidence |
 
 ## Release and content
 

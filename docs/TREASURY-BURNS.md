@@ -52,6 +52,18 @@ The existing model policy is unchanged: OpenBroker documents model IDs but not a
 
 The custom lock vault and cross-wallet allowance-reuse protection remain unimplemented. This feature does not make a token launch or custodial staking service production-ready.
 
+## Record an existing creator-vault claim
+
+The treasury workspace can also verify and record an **existing** Pump bonding-curve creator claim. Configure the public `SOLANA_TREASURY_OWNER`, a private `SOLANA_RPC_URL`, and the separate admin credential. After an independently executed transaction finalizes, load the treasury workspace, enter its signature under **Creator claim evidence**, and choose **Verify and record claim**. **Show recorded claims** reads stored evidence without another RPC call. The application never collects the fees, signs, broadcasts, or issues credit.
+
+This first verifier deliberately accepts only a direct, single-creator Pump `collect_creator_fee_v2` SOL claim, with optional compute-budget instructions and no unrelated top-level instructions. It checks mainnet identity, successful finality, matching signature and slot, Pump's program and instruction, canonical creator/vault/associated/event addresses, and exact SOL balance changes including the transaction fee. It rejects missing or inconsistent metadata, additional balance movements, unsupported transaction formats, AMM claims, fee-sharing distributions, non-SOL quotes and other claim types. Some legitimate complex claims will therefore be rejected; do not work around the check by entering an estimated amount.
+
+The operator-authenticated `POST /api/admin/treasury/creator-claims` accepts only `{"signature":"..."}` and requires the exact configured Origin. `GET /api/admin/treasury/creator-claims` returns recorded evidence for the configured owner. Duplicate signatures do not increase totals; conflicting evidence is rejected. Amounts are exact decimal strings in lamports. Records live in the same persistent database and are covered by its backup process.
+
+**A verified creator-vault claim is not verified project revenue.** Pump's vault is keyed to a creator, not an individual mint, and can include fees from multiple coins or other funds. The app cannot establish project attribution, source provenance, legal ownership, an exchange value, or complete history from this evidence. It records the claim separately and never automatically adds it to the business cash ledger or allowance pool. The RPC operator is trusted; this is not an independent validator or a substitute for reviewing on-chain configuration and transaction history.
+
+The supported instruction and account layout follow the [Pump creator-fee documentation](https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/COLLECT_CREATOR_FEE.md) and [published Pump IDL](https://github.com/pump-fun/pump-public-docs/blob/main/idl/pump.json). Recheck program versions and actual launch configuration before production use.
+
 ## Read-only source account discovery
 
 `GET /api/admin/treasury/accounts` uses the same separate operator credential and server-fixed mint/authority as burn preparation. It checks mainnet, reads a finalized `getTokenAccountsByOwner` listing, then reads the mint and authority at a context no older than that listing. The response reports both slots; it is not an atomic snapshot of all accounts. Burn preparation independently repeats the existing same-snapshot checks before producing an instruction.
