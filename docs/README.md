@@ -27,6 +27,8 @@ Start with the guide for the task. Proposed mechanics and historical research ar
 | [Publishing](PUBLISHING.md) | Source and deployment handoff |
 | [Brand](BRAND.md) | Current Holdbyte naming/compatibility rules and historical domain research |
 | [Changelog](CHANGELOG.md) | Historical changes; CI and code establish current behavior |
+| [Revamp plan](REVAMP-PLAN.md) | Scope and acceptance for the October 2026 workspace refresh |
+| [Revamp review](REVAMP-REVIEW.md) | Current implementation, research, endpoint checks and launch handoff |
 
 ## Architecture and proposals
 

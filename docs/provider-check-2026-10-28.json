@@ -1,0 +1,79 @@
+{
+  "observed_at": "2026-10-28T18:49:07.729034+00:00",
+  "mode": "public unauthenticated read-only; no inference",
+  "checks": [
+    {
+      "check": "catalog",
+      "url": "https://api.openbroker.gonka.gg/v1/models",
+      "http_status": 200,
+      "models": [
+        {
+          "id": "MiniMaxAI/MiniMax-M2.7"
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-V4-Flash-0731"
+        },
+        {
+          "id": "zai-org/GLM-5.3-Flash"
+        }
+      ]
+    },
+    {
+      "check": "provider_status",
+      "url": "https://api.openbroker.gonka.gg/api/status",
+      "http_status": 200,
+      "status": "operational",
+      "updated_at": "2026-10-28T18:49:05Z",
+      "models": [
+        {
+          "model": "MiniMaxAI/MiniMax-M2.7",
+          "status": "healthy",
+          "routable": true,
+          "load_pct": 0.7,
+          "effective_max_concurrency": 11690
+        },
+        {
+          "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
+          "status": "healthy",
+          "routable": true,
+          "load_pct": 5.3,
+          "effective_max_concurrency": 2786
+        },
+        {
+          "model": "zai-org/GLM-5.3-Flash",
+          "status": "healthy",
+          "routable": true,
+          "load_pct": 78.7,
+          "effective_max_concurrency": 934
+        }
+      ]
+    },
+    {
+      "check": "metadata",
+      "url": "https://proxy.gonka.gg/v1/models",
+      "http_status": 200,
+      "models": [
+        {
+          "id": "zai-org/GLM-5.3-Flash",
+          "context_length": 400000,
+          "max_tokens": 16384
+        },
+        {
+          "id": "MiniMaxAI/MiniMax-M2.7",
+          "context_length": 180000,
+          "max_tokens": 16384
+        },
+        {
+          "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+          "context_length": 400000,
+          "max_tokens": 16384
+        },
+        {
+          "id": "jev",
+          "context_length": 32000,
+          "max_tokens": 32000
+        }
+      ]
+    }
+  ]
+}
