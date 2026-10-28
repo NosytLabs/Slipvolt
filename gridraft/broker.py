@@ -127,10 +127,11 @@ class Broker:
         totals=d.get('totals')
         if not isinstance(totals,dict):raise ValueError('Invalid usage summary')
         clean={}
+        core_fields=('requests','errors','total_tokens','cost_ngonka')
         detail_fields=('prompt_tokens','completion_tokens','cached_input_tokens','reasoning_tokens')
-        for key in ('requests','errors','prompt_tokens','completion_tokens','total_tokens','cached_input_tokens','reasoning_tokens','cost_ngonka'):
+        for key in (*core_fields,*detail_fields):
             if key in totals:
-                clean[key]=None if key in detail_fields and totals[key] is None else quantity(totals[key])
+                clean[key]=None if totals[key] is None else quantity(totals[key])
         def clean_row(row, date_key=False):
             if not isinstance(row,dict):raise ValueError('Invalid usage row')
             model=row.get('model')
@@ -140,8 +141,8 @@ class Broker:
                 day=row.get('date')
                 if not isinstance(day,str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}',day):raise ValueError('Invalid usage date')
                 date.fromisoformat(day);out={'date':day,**out}
-            for key in ('requests','errors','total_tokens','cost_ngonka'):
-                out[key]=quantity(row.get(key,0))
+            for key in core_fields:
+                out[key]=None if row.get(key) is None else quantity(row[key])
             for key in detail_fields:
                 if row.get(key) is not None:out[key]=quantity(row[key])
             return out
@@ -155,7 +156,9 @@ class Broker:
         for row in rows:
             aggregate=daily_map.setdefault(row['date'],{'date':row['date'],'requests':0,'errors':0,'total_tokens':0,'cost_ngonka':0,'detail_model_rows':0})
             aggregate['detail_model_rows']+=1
-            for key in ('requests','errors','total_tokens','cost_ngonka'):aggregate[key]+=row[key]
+            for key in core_fields:
+                aggregate[key]=(aggregate[key]+row[key]
+                    if aggregate[key] is not None and row[key] is not None else None)
             for key in detail_fields:
                 coverage=key+'_reported_rows'
                 aggregate[coverage]=aggregate.get(coverage,0)+(1 if key in row else 0)

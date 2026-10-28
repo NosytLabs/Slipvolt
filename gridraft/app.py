@@ -670,8 +670,8 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         provider_cost=totals.get('cost_ngonka')
         provider_cost_known=type(provider_cost) is int
         avg_daily_cost=provider_cost/days if provider_cost_known else 0
-        available=(provider_balance or {}).get('available_ngonka',0)
-        runway_days=(available/avg_daily_cost) if avg_daily_cost>0 else None
+        available=(provider_balance or {}).get('available_ngonka')
+        runway_days=(available/avg_daily_cost) if type(available) is int and avg_daily_cost>0 else None
         prompt_tokens=totals.get('prompt_tokens');completion_tokens=totals.get('completion_tokens')
         detail_known=type(prompt_tokens) is int and type(completion_tokens) is int
         metered_nusd=(prompt_tokens*cfg['retail_input_nusd_per_token']+completion_tokens*cfg['retail_output_nusd_per_token']) if detail_known else None
