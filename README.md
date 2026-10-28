@@ -78,4 +78,4 @@ python -m playwright install chromium
 sh scripts/verify.sh
 ```
 
-Verification requires Node.js 22 and Playwright Chromium in addition to the development requirements. On Linux, Chromium may also need system packages; see [verification](docs/VERIFICATION.md). This is the canonical offline test command. Live read-only diagnostics and explicitly opted-in paid probes are separate. Fixtures do not establish real-wallet interoperability, paid provider acceptance, profitability, an audited contract, or a production deployment. Publishing code does not deploy the service.
+Verification requires Node.js and Playwright Chromium in addition to the development requirements; CI uses Node.js 22. On Linux, Chromium may also need system packages; see [verification](docs/VERIFICATION.md). This is the canonical offline test command. Live read-only diagnostics and explicitly opted-in paid probes are separate. Fixtures do not establish real-wallet interoperability, paid provider acceptance, profitability, an audited contract, or a production deployment. Publishing code does not deploy the service.

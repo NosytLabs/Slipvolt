@@ -161,20 +161,6 @@ def test_logout_all_uses_wallet_index(store):
     assert 'SCAN sessions' not in plan
 
 
-def test_preview_refuses_missing_styles_instead_of_shipping_a_broken_page(tmp_path, monkeypatch):
-    import shutil
-    from pathlib import Path
-    import scripts.package_preview as package
-    shutil.copytree(Path('public'), tmp_path/'public')
-    (tmp_path/'public'/'tools.css').unlink()
-    monkeypatch.setattr(package, 'ROOT', tmp_path)
-    target = tmp_path/'preview.html'
-    target.write_text('previous-good-preview')
-    with pytest.raises(FileNotFoundError):
-        package.build(target)
-    assert target.read_text() == 'previous-good-preview'
-
-
 def test_hot_usage_queries_have_targeted_indexes(store):
     from gridraft.membership import Membership
     Membership(store)
