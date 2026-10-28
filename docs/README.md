@@ -43,7 +43,7 @@ Customer-facing guidance lives in [Developers](../public/developers/index.html),
 
 ## Code boundaries
 
-`gridraft/app.py` owns route construction and configuration, `gridraft/schemas.py` owns strict request models, and `gridraft/body_boundary.py` owns ASGI body-size/nesting enforcement. `gridraft.app` re-exports the old class names so existing imports remain compatible. Optional token and treasury route modules use `gridraft/route_support.py` for authentication, throttling, client shutdown and API-before-static registration. Their validation, per-feature RPC clients and accounting rules stay separate. Keep rate-limit namespaces and existing endpoint paths stable when refactoring.
+The [architecture map](DESIGN.md#boundaries) describes module responsibilities and shared infrastructure. Configuration, request schemas and body enforcement have dedicated modules; `gridraft.app` retains their existing import names. Keep rate-limit namespaces and endpoint paths stable when refactoring.
 
 `gridraft`, `gridraft_session`, database paths and existing `sv_` keys are compatibility identifiers, not abandoned branding. Avoid a global rename. New client examples prefer `HOLDBYTE_API_KEY`; supported legacy `SLIPVOLT_API_KEY` integrations remain valid.
 
