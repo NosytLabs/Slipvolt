@@ -91,17 +91,23 @@ def test_bad_stream_retains_hold_and_pauses(tmp_path,options):
         assert c.post('/v1/chat/completions',headers=h,json=BODY).status_code==503
 
 
-@pytest.mark.parametrize('status,expected,review',[(400,400,False),(401,503,False),(429,429,False),(500,502,True),(408,502,True)])
-def test_rejected_vs_uncertain_dispatch(tmp_path,status,expected,review):
+@pytest.mark.parametrize('status,expected',[(400,400),(401,503),(403,503),(404,503),(413,413),(422,422),(429,429),(500,502),(408,502)])
+def test_unsuccessful_dispatch_retains_hold_until_review(tmp_path,status,expected):
     def upstream(r):
         return httpx.Response(status,headers={'x-request-id':'err-id'}) if r.url.path.endswith('/chat/completions') else handler(r)
     app,c=open_client(tmp_path,upstream)
     with c:
-        login(c);r=c.post('/v1/chat/completions',headers=make_key(c),json=BODY)
+        login(c);h=make_key(c);r=c.post('/v1/chat/completions',headers=h,json=BODY)
         assert r.status_code==expected
+        assert 'Retry-After' not in r.headers
         p=app.state.membership.pool()
-        assert p['reconciliation_required'] is review
-        assert (p['reserved_ngonka']>0) is review
+        assert p['reconciliation_required'] is True
+        assert p['reserved_ngonka']>0
+        pending=app.state.membership.pending()[0]
+        assert pending['state']=='needs_review' and pending['upstream_id']=='err-id'
+        assert c.post('/v1/chat/completions',headers=h,json=BODY).status_code==503
+        assert app.state.membership.settle(pending['id'],0,0,'operator_verified',evidence='account checked')
+        assert app.state.membership.pool()['reserved_ngonka']==0
 
 
 def test_actual_holder_sale_blocks_key_and_no_upstream_dispatch(tmp_path):

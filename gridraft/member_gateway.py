@@ -9,7 +9,10 @@ from fastapi import HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from .membership import integer
 
-REJECTIONS={400,401,403,404,413,422,429}
+def provider_dispatch_error(status):
+    """A status alone does not establish whether the provider charged."""
+    code = status if status in (400, 413, 422, 429) else 503 if status in (401, 403, 404) else 502
+    return HTTPException(code, 'Provider request did not succeed; reservation retained for operator billing review. Do not retry blindly.')
 
 
 def parse_usage(usage):
@@ -96,19 +99,13 @@ class MemberGateway:
             self.ledger.review(rid);raise HTTPException(502,'Provider result uncertain; allowance is held for review. Do not retry blindly.')
         if not upstream.is_success:
             status=upstream.status_code
-            retry=upstream.headers.get('retry-after','')
-            await upstream.aclose()
-            if status in REJECTIONS:
-                self.ledger.settle(rid,0,0,'provider_rejected',upstream_id)
-                if status==429:
-                    retry=retry if retry.isdigit() and 1<=int(retry)<=3600 else '5'
-                    raise HTTPException(429,'OpenBroker capacity is temporarily rate limited; retry shortly.',headers={'Retry-After':retry})
-                if status in (401,403):raise HTTPException(503,'Operator provider authorization is unavailable; no allowance was charged.')
-                if status==404:raise HTTPException(503,'Selected model is temporarily unavailable at OpenBroker; no allowance was charged.')
-                code=status if status in (400,413,422) else 400
-                raise HTTPException(code,'Provider rejected the request; your local allowance hold was released.')
             self.ledger.review(rid,upstream_id)
-            raise HTTPException(502,'Provider result uncertain; allowance is held for review.')
+            try:
+                await upstream.aclose()
+            except Exception:
+                pass  # The review hold is already durable even if cleanup fails.
+            request.state.provider_cost_uncertain=True
+            raise provider_dispatch_error(status)
         if body.stream:
             return StreamingResponse(self.stream(upstream,rid,body.model,upstream_id,
                 cfg.get('ngonka_per_token_budget',s.allowance_ngonka_per_token),body.n),media_type='text/event-stream',

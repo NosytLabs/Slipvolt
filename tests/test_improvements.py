@@ -1,4 +1,5 @@
 """Regression tests for the Slipvolt improvement pass. No real provider traffic."""
+import asyncio
 import csv
 import io
 import json
@@ -30,13 +31,25 @@ def test_ambiguous_http_status_retains_reservation_and_request_id(tmp_path, code
         assert 'private provider detail' not in r.text
 
 @pytest.mark.parametrize('code,expected', [(400,400),(401,503),(403,503),(404,503),(413,413),(422,422),(429,429)])
-def test_explicit_upstream_rejection_releases_local_reservation(tmp_path, code, expected):
+def test_upstream_rejection_holds_prepaid_reservation_until_review(tmp_path, code, expected):
+    calls=[]
     def rejected(req):
-        return httpx.Response(code,json={'error':'no execution'}) if req.url.path.endswith('/chat/completions') else provider(req)
+        if req.url.path.endswith('/chat/completions'):
+            calls.append(1)
+            return httpx.Response(code,headers={'X-Request-Id':'provider-ref'},json={'error':'no execution'})
+        return provider(req)
     app=create_app(Settings(origin='http://testserver',upstream_key='obk-test-upstream'),str(tmp_path/'rej.db'),httpx.MockTransport(rejected))
     with TestClient(app) as c:
         _,h=funded((app,c)); before=app.state.store.account(WALLET)['balance_nusd']
-        assert c.post('/v1/chat/completions',json=BODY,headers=h).status_code==expected
+        response=c.post('/v1/chat/completions',json=BODY,headers=h)
+        assert response.status_code==expected
+        assert 'Retry-After' not in response.headers
+        assert app.state.store.account(WALLET)['balance_nusd']<before
+        row=app.state.store.pending()[0]
+        assert row['state']=='needs_review' and row['upstream_id']=='provider-ref'
+        assert c.post('/v1/chat/completions',json=BODY,headers=h).status_code==503
+        assert len(calls)==1
+        app.state.store.settle(row['id'],0,state='operator_settled',evidence='provider account reviewed')
         assert app.state.store.account(WALLET)['balance_nusd']==before
 
 
@@ -57,6 +70,33 @@ def test_review_blocks_further_dispatch_until_reconciled(tmp_path):
         rid=app.state.store.pending()[0]['id']
         app.state.store.settle(rid,0,state='operator_settled',evidence='operator checked provider')
         assert c.get('/api/status').json()['billing_review_required'] is False
+
+
+def test_cancelled_prepaid_dispatch_requires_reconciliation(tmp_path):
+    calls=[]
+    def upstream(req):
+        if req.url.path.endswith('/chat/completions'):
+            calls.append(1)
+            raise asyncio.CancelledError()
+        return provider(req)
+
+    app=create_app(Settings(origin='http://testserver',upstream_key='obk-test-upstream'),str(tmp_path/'cancel.db'),httpx.MockTransport(upstream))
+    with TestClient(app) as c:
+        _,h=funded((app,c))
+        before=app.state.store.account(WALLET)['balance_nusd']
+        async def send_cancelled():
+            async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app),base_url='http://testserver') as client:
+                await client.post('/v1/chat/completions',json=BODY,headers=h)
+        # Starlette translates the cancelled route task into an absent response.
+        with pytest.raises(RuntimeError, match='No response returned'):
+            asyncio.run(send_cancelled())
+        row=app.state.store.pending()[0]
+        assert row['state']=='needs_review'
+        assert app.state.store.account(WALLET)['balance_nusd']<before
+        assert c.post('/v1/chat/completions',json=BODY,headers=h).status_code==503
+        assert len(calls)==1
+        app.state.store.settle(row['id'],0,state='operator_settled',evidence='provider account reviewed')
+        assert app.state.store.account(WALLET)['balance_nusd']==before
 
 
 def test_daily_budget_is_reserved_atomically(tmp_path):

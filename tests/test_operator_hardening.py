@@ -48,7 +48,7 @@ def test_chat_accepts_documented_gonka_compat_fields(tmp_path):
             if k not in ('model','messages'): assert k in seen
 
 
-def test_upstream_429_stays_429_and_releases_allowance(tmp_path):
+def test_upstream_429_stays_429_and_holds_allowance_for_review(tmp_path):
     def upstream(req):
         if req.url.path.endswith('/chat/completions'):
             return httpx.Response(429,headers={'Retry-After':'7'})
@@ -60,9 +60,9 @@ def test_upstream_429_stays_429_and_releases_allowance(tmp_path):
         before=app.state.membership.pool()['available_budget_ngonka']
         r=c.post('/v1/chat/completions',headers={'Authorization':'Bearer '+key},json={'model':MODEL,'messages':[{'role':'user','content':'hi'}]})
         assert r.status_code==429,r.text
-        assert r.headers['retry-after']=='7'
-        assert app.state.membership.pool()['available_budget_ngonka']==before
-        assert app.state.membership.pool()['reconciliation_required'] is False
+        assert 'retry-after' not in r.headers
+        assert app.state.membership.pool()['available_budget_ngonka']<before
+        assert app.state.membership.pool()['reconciliation_required'] is True
 
 
 def test_public_models_include_live_health_without_hiding_catalog(tmp_path):
