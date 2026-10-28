@@ -86,3 +86,5 @@ OpenBroker documents 10 ngonka per token **per attempt** and usually 10–25 eff
 Configurable input/output rate-card fields are operator planning and reporting inputs. They do not charge a holder, create revenue or enable checkout. Before paid usage is offered, publish final prices, included amounts, payment settlement, taxes, expiration, refunds and dispute handling.
 
 Holder allowance is funded separately in native GNK. Profitability analysis must include actual volume, GNK acquisition cost, provider retries and epoch adjustments, hosting, RPC, support, refunds, taxes and treasury operations. Do not make savings claims without matching the exact model revision, cache treatment, input/output mix and service limits.
+
+The optional [read-only usage reconciliation](FUNCTIONAL-SETUP.md#operator-inspect-configuration-without-spending) separates provider-reported request costs, estimates and epoch adjustments without changing the local allowance ledger. It is not a substitute for reconciling the actual provider account movements.
