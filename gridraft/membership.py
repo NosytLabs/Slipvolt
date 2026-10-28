@@ -67,7 +67,7 @@ class Membership:
             total, spent, held = row['allocated_ngonka'], row['spent_ngonka'], row['reserved_ngonka']
             return {'allocated_ngonka':total,'budget_spent_ngonka':spent,
                 'reserved_ngonka':held,'available_budget_ngonka':max(0,total-spent-held),
-                'reconciliation_required':bool(row['review_count']),
+                'reconciliation_required':bool(row['review_count']) or self.store.startup_reservations_pending('holder'),
                 'accounting':'Allocation budget; may include conservative cost estimates. Not a wallet balance.'}
 
     def totals(self, wallet=None):

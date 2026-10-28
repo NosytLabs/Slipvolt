@@ -24,6 +24,7 @@ class Store:
         self.db.row_factory = sqlite3.Row
         self.db.execute('PRAGMA journal_mode=WAL')
         self.db.execute('PRAGMA foreign_keys=ON')
+        self.db.execute('CREATE TEMP TABLE startup_reservations (ledger TEXT NOT NULL, id TEXT NOT NULL, PRIMARY KEY(ledger,id))')
         self.db.executescript('''
         CREATE TABLE IF NOT EXISTS accounts(wallet TEXT PRIMARY KEY,balance_nusd INTEGER NOT NULL DEFAULT 0);
         CREATE TABLE IF NOT EXISTS credits(reference TEXT PRIMARY KEY,wallet TEXT NOT NULL,amount_nusd INTEGER NOT NULL,created REAL NOT NULL);
@@ -67,6 +68,18 @@ class Store:
 
     def close(self):
         with self.lock: self.db.close()
+
+    def snapshot_startup_reservations(self):
+        """Track preexisting holds without changing potentially live requests."""
+        with self.transaction():
+            self.db.execute("INSERT INTO startup_reservations SELECT 'prepaid',id FROM usage WHERE state='reserved'")
+            self.db.execute("INSERT INTO startup_reservations SELECT 'holder',id FROM member_usage WHERE state='reserved'")
+
+    def startup_reservations_pending(self, ledger):
+        table = {'prepaid':'usage', 'holder':'member_usage'}[ledger]
+        with self.lock:
+            return bool(self.db.execute(f"""SELECT 1 FROM startup_reservations s
+                JOIN {table} u ON u.id=s.id WHERE s.ledger=? AND u.state='reserved' LIMIT 1""", (ledger,)).fetchone())
 
     def throttle(self, bucket, limit, seconds=60):
         now = time.time()
@@ -290,7 +303,7 @@ class Store:
             global_count=self.db.execute('SELECT COUNT(*) FROM usage WHERE created>?',(now-60,)).fetchone()[0]
             active=self.db.execute("SELECT COUNT(*) FROM usage WHERE wallet=? AND state='reserved'",(wallet,)).fetchone()[0]
             if count>=rate_limit or global_count>=300 or active>=3: raise ValueError('rate_limit')
-            if self.db.execute("SELECT 1 FROM usage WHERE state='needs_review' LIMIT 1").fetchone():
+            if self.needs_review():
                 raise ValueError('billing_review_required')
             if daily_budget_nusd is not None and self.budget_usage()+amount>daily_budget_nusd:
                 raise ValueError('daily_budget')
@@ -335,7 +348,8 @@ class Store:
     def needs_review(self):
         """A conservative global circuit breaker until uncertain charges are reconciled."""
         with self.lock:
-            return bool(self.db.execute("SELECT 1 FROM usage WHERE state='needs_review' LIMIT 1").fetchone())
+            return (bool(self.db.execute("SELECT 1 FROM usage WHERE state='needs_review' LIMIT 1").fetchone())
+                    or self.startup_reservations_pending('prepaid'))
 
     def budget_usage(self, wallet=None):
         """UTC-day retail spend plus active reservations, not an upstream-cost estimate."""
