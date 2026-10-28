@@ -10,9 +10,12 @@ The service never invents a mint, purchase URL, holder count or usage figure. Th
 
 ## Boundaries
 
-- `gridraft/app.py` — FastAPI routes, authentication flow, runtime configuration and policy wiring. It re-exports the existing request schema/middleware names for import compatibility.
+- `gridraft/app.py` — FastAPI routes, authentication flow, runtime operator overrides and policy wiring. Catalog cache hits and refreshes share the same current-policy projection. It re-exports existing settings, request schema and middleware names for import compatibility.
+- `gridraft/settings.py` — environment loading, configuration defaults and validation, shared by the API and the offline setup doctor. Importing the module does not read the environment or initialize a database.
+- `gridraft/doctor.py` — local setup inspection and redacted diagnostics; imports settings without loading the application routes.
 - `gridraft/schemas.py` — strict wallet, chat, admin and swap-quote request models and validators.
 - `gridraft/body_boundary.py` — ASGI body-size and nesting guard, independent of route setup.
+- `gridraft/route_support.py` — optional token/treasury route authentication, throttling, client shutdown and API-before-static registration. Feature validation, RPC clients, accounting rules and rate-limit namespaces remain separate.
 - `gridraft/membership.py` — wallet/global RPM, concurrency and token allowance admission.
 - `gridraft/member_gateway.py` — pre-dispatch reservation, OpenBroker forwarding, settlement and uncertain-request reconciliation.
 - `gridraft/broker.py` — OpenBroker catalog, balance, usage and public health reads.

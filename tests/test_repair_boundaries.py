@@ -70,5 +70,28 @@ def test_network_caller_cannot_mutate_cached_totals():
             assert (await b.network())['totals']['requests']==3
     asyncio.run(run())
 
+@pytest.mark.parametrize('live', [True, False])
+def test_cached_catalog_reapplies_current_operator_policy_without_refetch(tmp_path, live):
+    calls = []
+    def provider(request):
+        calls.append(request)
+        return handler(request) if live else httpx.Response(503)
+    app = create_app(member_settings(), str(tmp_path/'catalog.db'), httpx.MockTransport(provider))
+    with TestClient(app) as client:
+        first = client.get('/api/models').json()
+        assert first['live'] is live
+        assert any(row['id'] == MODEL for row in first['data'])
+        read_count = len(calls)
+        app.state.store.set_operator_settings({'max_output_tokens': 512})
+        capped = client.get('/api/models').json()
+        assert capped['live'] is live
+        assert next(row for row in capped['data'] if row['id'] == MODEL)['max_completion_tokens'] == 512
+        app.state.store.set_operator_settings({'disabled_models': [MODEL]})
+        assert all(row['id'] != MODEL for row in client.get('/api/models').json()['data'])
+        app.state.store.set_operator_settings({'disabled_models': []})
+        restored = client.get('/api/models').json()
+        assert next(row for row in restored['data'] if row['id'] == MODEL)['max_completion_tokens'] == 512
+        assert len(calls) == read_count
+
 def test_docker_contains_gonka_diagnostic():
     assert 'scripts/check_gonka.py' in Path('Dockerfile').read_text()
