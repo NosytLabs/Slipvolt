@@ -1,7 +1,6 @@
 """Browser checks for the operator console using intercepted HTTP fixtures.
 No real provider, wallet, money, or admin secret is used.
 """
-import os
 from pathlib import Path
 import sys
 from playwright.sync_api import sync_playwright
@@ -210,9 +209,6 @@ def run():
             assert 'four complete allowances' in page.locator('#readiness-list').inner_text();passed+=1
             assert 'Epoch adjustments' in page.locator('#readiness-accounting').inner_text();passed+=1
             assert page.locator('#admin-key').input_value()=='';passed+=1
-            if os.getenv('CAPTURE_CONTROLS') and width in (390,1280):
-                page.evaluate('window.scrollTo(0,0)')
-                page.screenshot(path=f'/mnt/data/slipvolt-controls-admin-{width}.png',full_page=False)
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth');passed+=1
             if width==1280:passed+=check_response_ownership(page)
             page.evaluate('(d)=>render(d)', {**overview,'provider_usage':None})

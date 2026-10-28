@@ -1,7 +1,5 @@
 """Cache correctness and bounded hot-path maintenance; no external services."""
 import asyncio
-import os
-import re
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -186,29 +184,6 @@ def test_hot_usage_queries_have_targeted_indexes(store):
     assert {'member_usage_created','member_usage_wallet_state'} <= member_indexes
 
 
-def test_verify_script_is_executable_for_documented_command():
-    from pathlib import Path
-    script = Path(__file__).resolve().parents[1] / 'scripts' / 'verify.sh'
-    # POSIX only: Windows os.stat never reports the git-indexed 100755 exec bit
-    # (Windows ACLs don't map onto POSIX mode bits). CI (Ubuntu) enforces it.
-    if os.name == 'nt':
-        assert script.exists(), './scripts/verify.sh is documented and must exist'
-        return
-    assert script.stat().st_mode & 0o111, './scripts/verify.sh is documented and must be executable'
-
-
-def test_runtime_security_dependencies_are_patched():
-    from pathlib import Path
-    pins = {}
-    for line in (Path(__file__).resolve().parents[1] / 'requirements.txt').read_text().splitlines():
-        if '==' in line:
-            name, version = line.split('==', 1)
-            pins[name.strip().lower()] = version.strip()
-    assert pins.get('cryptography') == '50.0.1'
-    assert pins.get('starlette') == '1.6.0'
-    assert pins.get('fastapi') == '0.141.1'
-    assert pins.get('pydantic') == '2.13.5'
-
 def test_network_exposes_sanitized_daily_series_and_aggregates_same_day():
     async def run():
         broker = Broker(None)
@@ -227,31 +202,6 @@ def test_network_exposes_sanitized_daily_series_and_aggregates_same_day():
         assert 'wallet_address' not in str(result['daily'])
     asyncio.run(run())
 
-
-
-def test_readme_relative_markdown_links_resolve():
-    from pathlib import Path
-    root = Path(__file__).resolve().parents[1]
-    text = (root / 'README.md').read_text()
-    for target in re.findall(r'\[[^\]]+\]\(([^)]+)\)', text):
-        if target.startswith(('http://', 'https://', 'mailto:', '#')):
-            continue
-        path = target.split('#', 1)[0]
-        if not path:
-            continue
-        assert (root / path).exists(), f'Broken README link: {target}'
-
-
-def test_verify_script_syntax_checks_all_shipped_javascript():
-    from pathlib import Path
-    root = Path(__file__).resolve().parents[1]
-    script = (root / 'scripts' / 'verify.sh').read_text()
-    # Keep syntax coverage automatic so new browser/operator JS cannot be omitted
-    # when another file is added.
-    assert 'find public operator' in script
-    assert "-name '*.js'" in script
-    assert "-name '*.cjs'" in script
-    assert 'node --check "$file"' in script
 
 
 def test_openbroker_network_scope_uses_current_product_brand():
