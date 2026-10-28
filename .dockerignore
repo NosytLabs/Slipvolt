@@ -2,9 +2,20 @@
 .env
 .venv
 data
-__pycache__
+**/__pycache__
 .pytest_cache
+.ruff_cache
+**/.DS_Store
+**/*.pyc
 *.db*
 *.sqlite*
 *.backup
 artifacts
+node_modules
+# Generated verification/release artifacts (also excluded from Git)
+evidence-current
+evidence
+verification
+slipvolt-preview.html
+*.bundle
+*.zip
