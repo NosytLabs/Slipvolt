@@ -23,6 +23,7 @@ function refreshRequestControls() {
 function requestedOutput() {
   const value = Number($('output-tokens').value);
   const maximum = Number($('output-tokens').max);
+  if (!Number.isInteger(maximum) || maximum < 1) throw new Error('Output service limit is unavailable. Select an available model or try again later.');
   if (!Number.isInteger(value) || value < 1 || value > maximum) throw new Error(`Choose an output budget between 1 and ${maximum.toLocaleString()}.`);
   return value;
 }
@@ -66,3 +67,10 @@ $('logout-everywhere').addEventListener('click', async () => {
 $('example-language').addEventListener('change', renderCode);
 refreshRequestControls();
 renderCode();
+
+const endpointAddress = OFFLINE ? 'https://YOUR_HOST/v1/chat/completions' : location.origin + '/v1/chat/completions';
+if ($('endpoint-address')) $('endpoint-address').textContent = endpointAddress;
+$('copy-endpoint')?.addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(endpointAddress); toast(OFFLINE ? 'Example endpoint copied. Replace YOUR_HOST with your service host.' : 'Endpoint copied.'); }
+  catch { toast('Clipboard unavailable. Copy the endpoint from this page.'); }
+});

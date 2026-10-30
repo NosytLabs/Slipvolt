@@ -43,7 +43,7 @@ function renderConversationContext(note=''){
   if($('download-chat'))$('download-chat').disabled=stats.turns===0;
 }
 function resetConversation({clearDraft=true,note=''}={}){
-  S.requestSerial++;const controller=S.controller;S.controller=null;controller?.abort();S.busy=false;S.conversation=[];S.conversationFull=false;
+  document.querySelector('.result-wrap')?.classList.remove('is-thinking');S.requestSerial++;const controller=S.controller;S.controller=null;controller?.abort();S.busy=false;S.conversation=[];S.conversationFull=false;
   if(clearDraft)$('prompt').value='';clearVisibleResponse();$('stop-request').hidden=true;$('send').textContent='Send prompt ↑';
   document.dispatchEvent(new Event('slipvolt:conversation-reset'));renderConversationContext(note);syncRequestActions();
 }
@@ -380,7 +380,7 @@ $('send').addEventListener('click',async()=>{
   if(!prompt)return toast('Write a prompt first.');
   if(OFFLINE)return toast('Offline preview. No model request was sent.');
   const messages=conversationMessages(prompt);
-  S.busy=true;$('stop-request').hidden=false;clearVisibleResponse();const epoch=S.epoch,request=++S.requestSerial,controller=new AbortController();S.controller=controller;syncRequestActions();$('send').textContent='Generating…';$('result').textContent='Connecting to your model…';
+  S.busy=true;document.querySelector('.result-wrap')?.classList.add('is-thinking');$('stop-request').hidden=false;clearVisibleResponse();const epoch=S.epoch,request=++S.requestSerial,controller=new AbortController();S.controller=controller;syncRequestActions();$('send').textContent='Generating…';$('result').textContent='Connecting to your model…';
   const current=()=>epoch===S.epoch&&request===S.requestSerial;
   try{
     const response=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key,'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({model,messages,max_tokens:outputBudget,stream:!!S.status?.capabilities?.streaming}),signal:controller.signal});
@@ -396,7 +396,7 @@ $('send').addEventListener('click',async()=>{
       $('request-note').textContent='Complete. Measured usage was deducted from your allowance.';if(S.wallet)await refreshMember();
     }
   }catch(error){if(current()){$('result').classList.remove('has-output','partial-output');if($('download-response'))$('download-response').disabled=true;$('result').textContent=error.name==='AbortError'?'Request stopped. Check your allowance before retrying.':error.message;$('request-note').textContent='No automatic retry. Check usage before resubmitting.';}}
-  finally{if(current()){$('stop-request').hidden=true;S.busy=false;S.controller=null;$('send').textContent='Send prompt ↑';syncRequestActions();}}
+  finally{if(current()){document.querySelector('.result-wrap')?.classList.remove('is-thinking');$('stop-request').hidden=true;S.busy=false;S.controller=null;$('send').textContent='Send prompt ↑';syncRequestActions();}}
 });
 
 async function init(){

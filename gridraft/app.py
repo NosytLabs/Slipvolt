@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 
-from .http_boundary import isolated_request
+from .http_boundary import isolated_request, read_bounded_json, close_response
 from .route_support import authenticate_admin
 import httpx
 from fastapi import FastAPI, HTTPException, Request, Query
@@ -32,7 +32,7 @@ from .request_policy import input_budget
 from .readiness import readiness_report
 from .integrations import SolanaRPC, MetisQuotes
 from .broker import Broker
-from .member_gateway import MemberGateway, provider_dispatch_error
+from .member_gateway import MemberGateway, provider_dispatch_error, parse_usage
 from .gonka import NativeTreasury
 from .model_policy import MODEL_POLICIES, REVIEWED_OUTPUT_TOKENS, MODEL_LIMIT_CEILING, MAX_MESSAGES, MAX_CHOICES, merge_upstream_metadata
 from .schemas import (StrictBody as StrictBody, ChallengeInput, VerifyInput, KeyInput,
@@ -806,7 +806,8 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         except ValueError as exc:
             message=str(exc);error(message,{'invalid_key':401,'duplicate_request':409,'rate_limit':429,'daily_budget':429,'wallet_daily_budget':429,'billing_review_required':503}.get(message,402))
         try:
-            upstream=await client.send(isolated_request('POST',UPSTREAM+'/chat/completions',headers={'Authorization':'Bearer '+settings.upstream_key},json=payload,timeout=settings.timeout),auth=None,follow_redirects=False)
+            async with asyncio.timeout(settings.timeout):
+                upstream=await client.send(isolated_request('POST',UPSTREAM+'/chat/completions',headers={'Authorization':'Bearer '+settings.upstream_key},json=payload,timeout=settings.timeout),stream=True,auth=None,follow_redirects=False)
         except asyncio.CancelledError:
             store.review(rid);raise
         except Exception:
@@ -814,10 +815,13 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         if not upstream.is_success:
             status=upstream.status_code
             store.review(rid,upstream.headers.get('X-Request-Id','')[:200] or None)
+            await close_response(upstream)
             request.state.provider_cost_uncertain=True
             raise provider_dispatch_error(status)
         try:
-            data=upstream.json();usage=data['usage'];choices=data.get('choices')
+            async with asyncio.timeout(settings.timeout):
+                data=await read_bounded_json(upstream)
+            usage=parse_usage(data['usage']);choices=data.get('choices')
             if not isinstance(choices,list) or not 1<=len(choices)<=body.n:raise ValueError('Invalid completion shape')
             for choice in choices:
                 message=choice.get('message',{}) if isinstance(choice,dict) else {}
@@ -827,15 +831,19 @@ def create_app(settings=None, db_path=':memory:', transport=None):
                 if content is None and not isinstance(tools,list):raise ValueError('Assistant response has no content or tool call')
             if data.get('model',body.model)!=body.model:raise ValueError('Upstream model substitution was not requested')
             prompt,completion=usage['prompt_tokens'],usage['completion_tokens']
-            if type(prompt) is not int or type(completion) is not int or not 0<=prompt<=10**7 or not 0<=completion<=10**7:raise ValueError('Invalid usage')
             actual=prompt*input_rate+completion*output_rate
             upstream_id=str(data.get('id',''))[:200]
             store.settle(rid,actual,prompt=prompt,completion=completion,upstream_id=upstream_id)
             return JSONResponse(data,headers={'X-Request-Id':rid,'X-Slipvolt-Cost-NUSD':str(actual)})
         except HTTPException:raise
+        except asyncio.CancelledError:
+            store.review(rid,upstream.headers.get('X-Request-Id','')[:200] or None)
+            raise
         except Exception:
             store.review(rid,upstream.headers.get('X-Request-Id','')[:200] or None)
             error('Upstream usage could not be reconciled; reservation retained for review',502)
+        finally:
+            await close_response(upstream)
 
     public=Path(__file__).resolve().parents[1]/'public'
     if public.exists(): app.mount('/',StaticFiles(directory=public,html=True),name='public')

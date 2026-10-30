@@ -11,7 +11,14 @@ import pytest
 from gridraft.broker import MODEL_METADATA_URL, Broker
 from gridraft.gonka import GonkaRPC, RPCError
 from gridraft.integrations import SolanaRPC, bounded_json
-from gridraft.http_boundary import read_bounded_json
+from gridraft.http_boundary import read_bounded_json, close_response
+
+
+def test_explicit_cleanup_failure_does_not_replace_request_result():
+    class Response:
+        async def aclose(self):
+            raise RuntimeError('fixture transport close failed')
+    run(close_response(Response()))
 
 
 def run(coro):

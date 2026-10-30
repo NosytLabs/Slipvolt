@@ -1,6 +1,6 @@
 """Treasury-funded text completions. Credentials remain on the server."""
 from .request_policy import input_budget
-from .http_boundary import isolated_request
+from .http_boundary import isolated_request, close_response
 import asyncio
 import json
 import uuid
@@ -91,7 +91,8 @@ class MemberGateway:
         try:
             req=isolated_request('POST','https://api.openbroker.gonka.gg/v1/chat/completions',
                 headers={'Authorization':'Bearer '+s.upstream_key},json=payload,timeout=s.timeout)
-            upstream=await self.client.send(req,stream=True,auth=None,follow_redirects=False)
+            async with asyncio.timeout(s.timeout):
+                upstream=await self.client.send(req,stream=True,auth=None,follow_redirects=False)
             upstream_id=upstream.headers.get('x-request-id','')[:200] or None
         except asyncio.CancelledError:
             self.ledger.review(rid);raise
@@ -100,10 +101,7 @@ class MemberGateway:
         if not upstream.is_success:
             status=upstream.status_code
             self.ledger.review(rid,upstream_id)
-            try:
-                await upstream.aclose()
-            except Exception:
-                pass  # The review hold is already durable even if cleanup fails.
+            await close_response(upstream)
             request.state.provider_cost_uncertain=True
             raise provider_dispatch_error(status)
         if body.stream:
@@ -140,7 +138,7 @@ class MemberGateway:
         except Exception:
             self.ledger.review(rid,upstream_id)
             raise HTTPException(502,'Provider response or usage uncertain; allowance is held for review.')
-        finally:await upstream.aclose()
+        finally:await close_response(upstream)
 
     async def stream(self,upstream,rid,model,upstream_id,budget_rate,requested_choices):
         done=False;usage=None;uid=upstream_id;response_id=None;size=0;frame=[];terminal_usage=False
@@ -192,7 +190,9 @@ class MemberGateway:
         except asyncio.CancelledError:
             raise
         except Exception:
-            yield 'data: '+json.dumps({'error':{'message':'Stream incomplete; allowance retained for review. Do not retry blindly.','request_id':rid}})+'\n\n'
+            yield 'data: '+json.dumps({'error':{'message':'Stream incomplete; allowance retained for review. Do not retry blindly.','type':'slipvolt_error','code':502,'request_id':rid}})+'\n\n'
         finally:
-            if not done:self.ledger.review(rid,uid)
-            await upstream.aclose()
+            try:
+                if not done:self.ledger.review(rid,uid)
+            finally:
+                await close_response(upstream)

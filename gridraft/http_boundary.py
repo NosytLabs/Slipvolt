@@ -6,6 +6,20 @@ their allowlisted destinations, deadlines and error handling.
 from contextlib import asynccontextmanager
 import json
 import httpx
+import anyio
+
+
+async def close_response(response):
+    """Close even inside a cancelled streaming response task.
+
+    Cleanup must not replace a durable settlement or its original error. Bound
+    it so a broken transport cannot indefinitely delay client disconnects.
+    """
+    with anyio.move_on_after(5, shield=True):
+        try:
+            await response.aclose()
+        except Exception:
+            pass
 
 
 def isolated_request(method, url, *, headers=None, params=None, json=None, timeout=8):
@@ -21,7 +35,7 @@ async def isolated_stream(client, method, url, **kwargs):
     try:
         yield response
     finally:
-        await response.aclose()
+        await close_response(response)
 
 
 async def read_bounded_json(response, maximum=2_000_000, *,
