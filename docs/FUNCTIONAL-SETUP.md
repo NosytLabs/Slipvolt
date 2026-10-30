@@ -45,7 +45,7 @@ Use a live model ID from `GET /v1/models`. Preserve `X-Request-Id`, respect `Ret
 
 ## Status and support
 
-`/status/` loads configuration, the model catalog, optional treasury telemetry and source-labelled OpenBroker-wide statistics independently. Missing data remains unavailable. A configured mint is not a confirmed launch; a catalog row is not an inference benchmark; a native reserve is not provider credit; OpenBroker network traffic is not Slipvolt customer activity.
+`/status/` loads configuration, the model catalog, optional treasury telemetry and source-labelled OpenBroker-wide statistics independently. Missing data remains unavailable. A configured mint is not a confirmed launch; a catalog row is not an inference benchmark; a native reserve is not provider credit; OpenBroker network traffic is not Holdbyte customer activity.
 
 **Review support report** displays an allowlisted report before copying: build version, selected public model ID, a recognized preflight reason and a validated local UUID request ID. It excludes prompts, responses, wallets, keys, cookies, endpoints, arbitrary exception strings and browser storage. For sensitive account or security matters, use the operator's private channel rather than a public issue.
 

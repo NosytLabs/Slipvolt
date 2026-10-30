@@ -4,6 +4,7 @@ No real provider, wallet, money, or admin secret is used.
 import os
 from pathlib import Path
 from playwright.sync_api import sync_playwright
+from browser_support import launch_chromium
 ROOT=Path(__file__).resolve().parents[1]
 HTML=(ROOT/'public/admin/index.html').read_text();CSS=(ROOT/'public/admin/styles.css').read_text();JS=(ROOT/'public/admin/app.js').read_text()
 CONJS=(ROOT/'public/admin/connections.js').read_text()
@@ -115,7 +116,7 @@ def check_response_ownership(page):
 def run():
     passed=0
     with sync_playwright() as p:
-        b=p.chromium.launch(executable_path=os.getenv('CHROMIUM_PATH') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path),headless=True,args=['--no-sandbox'])
+        b=launch_chromium(p)
         for width in (320,390,768,1280,1600):
             users['data'][0].update({'requests':10,'disabled':False,'daily_tokens_override':None,'note':''})
             keys['data'][0]['revoked']=False

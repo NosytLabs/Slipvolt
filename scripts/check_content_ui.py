@@ -6,10 +6,10 @@ security headers are covered separately by tests/test_public_content.py.
 """
 import json
 import mimetypes
-import os
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 from playwright.sync_api import sync_playwright, Error as BrowserError
+from browser_support import launch_chromium
 
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = ROOT / 'public'
@@ -44,8 +44,7 @@ def run():
                       content_type=mimetypes.guess_type(str(target))[0] or 'application/octet-stream')
 
     with sync_playwright() as p:
-        chromium = os.getenv('CHROMIUM_PATH') or ('/usr/bin/chromium' if Path('/usr/bin/chromium').exists() else p.chromium.executable_path)
-        browser = p.chromium.launch(executable_path=chromium, headless=True, args=['--no-sandbox'])
+        browser = launch_chromium(p)
         transport = 'intercepted local static files'
         probe = browser.new_page()
         probe.route('**/*', serve)
