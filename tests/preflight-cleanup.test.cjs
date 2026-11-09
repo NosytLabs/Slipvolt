@@ -6,27 +6,30 @@ const vm=require('node:vm');
 const tools=require('../public/request-tools.js');
 const core=require('../public/core.js');
 
-function setup({model='MiniMaxAI/MiniMax-M2.7'}={}){
+function setup({model='MiniMaxAI/MiniMax-M2.7',rejectOnAbort=true}={}){
   const elements=new Map(),listeners=new Map(),calls=[];
+  let expire;
   function el(id){
     if(!elements.has(id))elements.set(id,{value:'',textContent:'',disabled:false,dataset:{},handlers:{},
       classList:{remove(){}},addEventListener(type,fn){this.handlers[type]=fn},
       removeAttribute(name){if(name==='data-verdict')delete this.dataset.verdict},showModal(){},close(){}});
     return elements.get(id);
   }
-  const ctx={AbortController,AbortSignal,URL,DOMException,setTimeout,clearTimeout,SlipvoltRequestTools:tools,SlipvoltCore:core,
+  const ctx={AbortController,AbortSignal,URL,DOMException,
+    setTimeout(callback,delay){expire=callback;return setTimeout(callback,delay);},clearTimeout,
+    SlipvoltRequestTools:tools,SlipvoltCore:core,
     S:{epoch:1,key:'sv_'+'a'.repeat(43),status:{}},location:{origin:'https://slipvolt.test'},
     requestedOutput:()=>512,gnk:n=>n===null||n===undefined?'Unavailable':String(n),copy(){},toast(){},
     conversationMessages:prompt=>core.chatMessages([{user:'earlier prompt',assistant:'earlier answer'}],prompt),clearVisibleResponse(){},renderConversationContext(){},
     document:{documentElement:{dataset:{}},getElementById:el,
       querySelector:()=>model?{dataset:{model}}:null,addEventListener(type,fn){listeners.set(type,fn)}},
-    fetch(path,options){return new Promise((resolve,reject)=>{calls.push({path,options,resolve,reject});options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true});})}};
+    fetch(path,options){return new Promise((resolve,reject)=>{calls.push({path,options,resolve,reject});if(rejectOnAbort)options.signal.addEventListener('abort',()=>reject(options.signal.reason),{once:true});})}};
   vm.createContext(ctx);vm.runInContext(fs.readFileSync('public/launch-tools.js','utf8'),ctx);
   el('prompt').value='test prompt';
   el('output-tokens').max='4096';
   const click=()=>el('check-request').handlers.click();
   const respond=(index,ok=true)=>calls[index].resolve(new Response(ok?JSON.stringify({allowed:true,estimated_ai_tokens:1000,estimated_budget_ngonka:15000}):JSON.stringify({error:{message:'Unavailable'}}),{status:ok?200:503,headers:{'content-type':'application/json'}}));
-  return {el,calls,click,respond,clearAccount:()=>listeners.get('slipvolt:account-cleared')(),conversationChanged:()=>listeners.get('slipvolt:conversation-changed')()};
+  return {el,calls,click,respond,expire:()=>expire(),clearAccount:()=>listeners.get('slipvolt:account-cleared')(),conversationChanged:()=>listeners.get('slipvolt:conversation-changed')()};
 }
 test('editing aborts obsolete request checks and restores the button',async()=>{
   const t=setup(),pending=t.click();assert(t.el('check-request').disabled);
@@ -100,4 +103,12 @@ test('editing cannot re-enable preflight when the selected model has no usable o
   await t.click();
   assert.equal(t.calls.length,0);
   assert.match(t.el('preflight-result').textContent,/limit|model/i);
+});
+for(const ok of [true,false])test(`a timed-out preflight cannot publish a queued ${ok?'success':'failure'}`,async()=>{
+  const t=setup({rejectOnAbort:false}),pending=t.click();
+  t.expire();assert.equal(t.calls[0].options.signal.aborted,true);
+  t.respond(0,ok);await pending;
+  assert.equal(t.el('preflight-result').dataset.verdict,undefined);
+  assert.equal(t.el('preflight-result').textContent,'The check timed out. No inference was requested.');
+  assert.equal(t.el('check-request').disabled,false);
 });

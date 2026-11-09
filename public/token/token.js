@@ -22,7 +22,7 @@ const helpers={tokenAmount,explorerLink,snapshotReady};root.HoldbyteToken=helper
 if(typeof module==='object'&&module.exports)module.exports=helpers;
 if(typeof document==='undefined')return;
 const $=id=>document.getElementById(id);
-let serial=0;
+let serial=0,activeController=null;
 function linkValue(id,value,empty='Unavailable'){
   const target=$(id);target.replaceChildren();
   const url=explorerLink(value,'account');
@@ -65,17 +65,30 @@ function render(data){
     article.append(a,amount,note);$('receipt-list').append(article);
   }
 }
+function invalidate(){
+  serial++;const previous=activeController;activeController=null;previous?.abort();
+}
 async function refresh(){
-  const mine=++serial;$('refresh').disabled=true;$('state').textContent='Checking the configured token…';
+  invalidate();const mine=serial,controller=new AbortController();activeController=controller;
+  render({status:'unavailable'});$('refresh').disabled=true;$('state').textContent='Checking the configured token…';
+  const timeout=setTimeout(()=>controller.abort(),22000);
   try{
-    const response=await fetch('/api/token',{credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(22000)});
+    const response=await fetch('/api/token',{credentials:'omit',cache:'no-store',signal:controller.signal});
     if(!response.ok)throw new Error('Token evidence unavailable');
-    const data=await response.json();if(mine===serial)render(data);
+    const data=await response.json();
+    if(mine!==serial)return;
+    if(controller.signal.aborted)throw new Error('Token check timed out');
+    render(data);
   }catch{
     if(mine===serial){render({status:'unavailable'});$('state').textContent='Could not load token evidence. No transaction was sent. Try again later.';}
-  }finally{if(mine===serial)$('refresh').disabled=false;}
+  }finally{clearTimeout(timeout);if(activeController===controller){activeController=null;$('refresh').disabled=false;}}
 }
 $('refresh').addEventListener('click',refresh);
+window.addEventListener('pagehide',()=>{
+  invalidate();render({status:'unavailable'});$('refresh').disabled=false;
+  $('state').textContent='Token evidence has not been checked. Refresh to check the configured token.';
+});
+window.addEventListener('pageshow',event=>{if(event.persisted)refresh();});
 helpers.refresh=refresh;
 refresh();
 })(typeof globalThis==='object'?globalThis:this);

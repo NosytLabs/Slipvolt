@@ -454,30 +454,36 @@ $('send').addEventListener('click',async()=>{
   finally{if(current()){S.controller=null;setRequestPhase(outcome);}}
 });
 
-async function init(){
-  renderModels();clearUsage();setRequestPhase('idle');
-  if(OFFLINE){$('setup-note').textContent='Offline preview';return;}
-  const [statusResult,catalogResult]=await Promise.allSettled([api('/api/status'),api('/api/models')]);
-  if(statusResult.status==='fulfilled'){
-    S.status=statusResult.value;
+async function loadPublicStatus(signal){
+  const epoch=S.epoch;
+  try{
+    const status=await api('/api/status',{signal});signal.throwIfAborted();S.status=status;
     const displayBrand=typeof S.status.brand==='string'&&/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/.test(S.status.brand)?S.status.brand:'Holdbyte';
     document.querySelectorAll('[data-site-name]').forEach(element=>element.textContent=displayBrand);
     document.title=displayBrand+' — Funded AI for token holders';renderTokenLaunch();
     if(typeof refreshRequestControls==='function')refreshRequestControls();
     const limits=S.status.limits||{};
     $('policy-wallet-rate').textContent=safeInteger(limits.wallet_rpm)&&safeInteger(limits.wallet_concurrency)?whole(limits.wallet_rpm)+' requests/min · '+whole(limits.wallet_concurrency)+' concurrent':'Unavailable';
-    if(S.status.holder_gate_configured){const publishedBuy=canonicalBuyUrl(S.status.token_buy_url,S.status.holder_mint);$('stage').textContent=S.status.token_launched===true&&publishedBuy?'TOKEN LINK PUBLISHED':'PILOT · TOKEN GATE CONFIGURED';$('holding-requirement').textContent=rawTokens(S.status.min_holding_raw,S.status.holder_token_decimals)+' '+S.status.holder_token_symbol;$('allowance-label').textContent=compact(S.status.holder_daily_tokens)+' AI tokens / day';$('allowance-note').textContent='Shared pool: '+compact(S.status.global_daily_tokens)+' AI tokens/day. Funding and capacity limits apply.';$('access-message').textContent='Connect to verify your holdings.';}
+    if(S.status.holder_gate_configured){const publishedBuy=canonicalBuyUrl(S.status.token_buy_url,S.status.holder_mint);$('stage').textContent=S.status.token_launched===true&&publishedBuy?'TOKEN LINK PUBLISHED':'PILOT · TOKEN GATE CONFIGURED';$('holding-requirement').textContent=rawTokens(S.status.min_holding_raw,S.status.holder_token_decimals)+' '+S.status.holder_token_symbol;$('allowance-note').textContent='Shared pool: '+compact(S.status.global_daily_tokens)+' AI tokens/day. Funding and capacity limits apply.';}
     else $('allowance-note').textContent='Pilot setting: '+compact(S.status.holder_daily_tokens)+' AI tokens/day; final terms are not published.';
+    if(!S.wallet&&S.epoch===epoch){publicAllowance();$('access-message').textContent=publicAccessMessage();}
     $('setup-note').textContent=S.status.provider_configured?'Provider configured · funding checked per call':'Setup mode · provider credential needed';
-  }else $('setup-note').textContent='Backend unavailable';
-  if(catalogResult.status==='fulfilled'){
-    const catalog=catalogResult.value;
+  }catch{$('setup-note').textContent='Backend unavailable';}
+}
+async function loadPublicCatalog(signal){
+  try{
+    const catalog=await api('/api/models',{signal});signal.throwIfAborted();
     S.catalogLive=catalog.live===true;
     S.models=Array.isArray(catalog.data)?catalog.data.map(item=>({...snapshot.find(model=>model.id===item.id),...item})):[];renderModels();
     $('model-source').textContent=catalog.live?'Live OpenBroker catalog · reviewed service limits':'Documented model catalog · live availability unavailable';
-  }else{
+  }catch{
     S.catalogLive=false;S.models=snapshot;renderModels();$('model-source').textContent='Documented model catalog · live availability unavailable';
   }
-  await refreshMember();
+}
+async function init(){
+  renderModels();clearUsage();setRequestPhase('idle');
+  if(OFFLINE){$('setup-note').textContent='Offline preview';return;}
+  const signal=AbortSignal.timeout(15000);
+  await Promise.allSettled([loadPublicStatus(signal),loadPublicCatalog(signal),refreshMember()]);
 }
 init();

@@ -226,9 +226,14 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         except Exception:
             error('Cannot verify finalized holder balance; access is closed until RPC recovers',503)
 
+    def apply_catalog_policy(models, metadata, cfg):
+        disabled=set(cfg.get('disabled_models',[]))
+        return [merge_upstream_metadata(m['id'],metadata.get(m['id']),cfg['max_output_tokens'],settings.model_limit_overrides.get(m['id']))
+            for m in models if m['id'] not in disabled]
+
     async def catalog():
         async with catalog_lock:
-            cfg=runtime();ttl=60 if cache['live'] else 10
+            ttl=60 if cache['live'] else 10
             fresh=cache['models'] is not None and time.time()-cache['at']<ttl
             if not fresh:
                 try:
@@ -246,10 +251,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
                 except Exception:
                     models=[{'id':m['id']} for m in SNAPSHOT]
                     cache.update(models=models,metadata={},metadata_live=False,at=time.time(),live=False)
-            disabled=set(cfg.get('disabled_models',[]))
-            metadata=cache.get('metadata') or {}
-            return [merge_upstream_metadata(m['id'],metadata.get(m['id']),cfg['max_output_tokens'],settings.model_limit_overrides.get(m['id']))
-                for m in cache['models'] if m['id'] not in disabled],cache['live']
+            return apply_catalog_policy(cache['models'],cache.get('metadata') or {},runtime()),cache['live']
 
     async def provider_health(ttl=15):
         async with health_lock:
@@ -325,7 +327,11 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     @app.get('/api/models')
     async def models(request:Request):
         throttle(request,'model-catalog',60)
-        rows,live=await catalog();cfg=runtime();health=await provider_health() if live else None
+        _,live=await catalog()
+        # Keep this external evidence snapshot while health loads; local policy is overlaid afterwards.
+        listed=cache['models'];metadata=cache.get('metadata') or {};metadata_live=cache.get('metadata_live')
+        health=await provider_health() if live else None
+        cfg=runtime();rows=apply_catalog_policy(listed,metadata,cfg)
         health_by={m.get('model'):m for m in (health or {}).get('models',[]) if isinstance(m,dict)}
         data=[]
         for row in rows:
@@ -338,7 +344,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
                 if key in h:item[key]=h[key]
             data.append(item)
         if live:
-            source=('OpenBroker live catalogue + separate Gonka proxy discovery metadata' if cache.get('metadata_live') else
+            source=('OpenBroker live catalogue + separate Gonka proxy discovery metadata' if metadata_live else
                 'OpenBroker live catalogue + reviewed local model policy; separate Gonka proxy discovery unavailable')
         else:source='Reviewed local model policy snapshot; live OpenBroker catalogue unavailable'
         return {'data':data,'source':source,
@@ -440,6 +446,10 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         if runtime()['maintenance_mode']:error('Inference access is temporarily paused for maintenance',503)
         if settings.access_mode!='holder_allowance':error('Holder allowance mode is not enabled',503)
         if not (await eligibility(wallet))['eligible']:error('Hold the configured project token to create a key',403)
+        # Eligibility may outlive the session or operator policy; recheck before issuing authority.
+        if session(request)!=wallet:error('Sign in with your Solana wallet',401)
+        require_enabled_user(wallet)
+        if runtime()['maintenance_mode']:error('Inference access is temporarily paused for maintenance',503)
         try:
             result=store.issue_key(wallet,'My API key',10**15)
             result.pop('limit_nusd',None)
@@ -493,6 +503,8 @@ def create_app(settings=None, db_path=':memory:', transport=None):
     async def new_key(body:KeyInput,request:Request):
         wallet=session(request);require_enabled_user(wallet)
         if not (await eligibility(wallet))['eligible']: error('Holder threshold is not met',403)
+        if session(request)!=wallet:error('Sign in with your Solana wallet',401)
+        require_enabled_user(wallet)
         try:
             limit=number(body.limit_usd,positive=True,maximum='100000')*10**9
             if limit!=limit.to_integral_value(): raise ValueError('Too many decimal places')

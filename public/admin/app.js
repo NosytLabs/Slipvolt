@@ -11,12 +11,39 @@ let serverConfig = null;
 let userDetailGeneration = 0;
 let userSavePending = false;
 let unlocking = false;
-const formWrites = new WeakSet();
+let formWrites = new WeakSet();
+let sessionGeneration = 0;
+function currentAdminSession() {
+  const generation=sessionGeneration;
+  return () => generation===sessionGeneration;
+}
 const refreshGenerations = Object.create(null);
 function nextRefresh(name, parent = () => true) {
+  const ownsSession=currentAdminSession();
   const generation = (refreshGenerations[name] || 0) + 1;
   refreshGenerations[name] = generation;
-  return () => parent() && refreshGenerations[name] === generation;
+  return () => ownsSession() && parent() && refreshGenerations[name] === generation;
+}
+
+// Restore only display containers; keep the controls and their event handlers.
+const lockedViews=['metrics','usage-chart','business-chart','usage-chart-empty','business-chart-empty',
+  'provider-state','model-health','fund-summary','business-net','business-summary','business-table',
+  'config-state','users','user-count','user-detail-title','user-keys','requests','audit-log',
+  'connection-list','connections-note','connections-result','quote-result','readiness-state',
+  'readiness-list','readiness-capacity','readiness-accounting','readiness-time'].map(id=>{
+    const node=$(id);return {node,html:node.innerHTML,className:node.className,hidden:node.hidden};
+  });
+function lockConsole() {
+  ++sessionGeneration;key='';unlocking=false;configSavePending=false;userSavePending=false;
+  formWrites=new WeakSet();snapshot=null;serverConfig=null;selectedWallet='';++userDetailGeneration;configDirty=false;
+  $('console').hidden=true;$('login').hidden=false;$('admin-key').value='';$('unlock').disabled=false;
+  $('login-msg').textContent='Locked. Unlock again to continue. Pending writes may still complete; check their records before retrying.';
+  clearTimeout(notice.timer);$('notice').textContent='';
+  document.querySelectorAll('#console form').forEach(form=>{form.reset();setFormPending(form,false);});
+  document.querySelectorAll('#console input').forEach(input=>{input.value=input.defaultValue;input.checked=input.defaultChecked;});
+  for(const view of lockedViews){view.node.innerHTML=view.html;view.node.className=view.className;view.node.hidden=view.hidden;}
+  $('user-detail').hidden=true;$('save-config').disabled=true;$('discard-config').disabled=true;setSettingsEnabled(false);
+  for(const id of ['connections-check','priority-check'])$(id).disabled=false;
 }
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
@@ -33,6 +60,7 @@ function notice(message) {
 }
 
 async function api(path, options = {}) {
+  if(!key)throw new Error('Unlock the console to continue.');
   const headers = {
     Authorization: 'Bearer ' + key,
     ...(options.body ? { 'Content-Type': 'application/json' } : {}),
@@ -56,12 +84,14 @@ function setFormPending(form, pending) {
 }
 async function recordFromForm(form, path, payload, message) {
   if (formWrites.has(form)) return;
+  const ownsSession=currentAdminSession();
   formWrites.add(form);setFormPending(form,true);
   try {
     await api(path,{method:'POST',body:JSON.stringify(payload)});
-    form.reset();await load();notice(message);
-  } catch (error) { notice(error.message); }
-  finally { formWrites.delete(form);setFormPending(form,false); }
+    if(!ownsSession())return;
+    form.reset();await load();if(ownsSession())notice(message);
+  } catch (error) { if(ownsSession())notice(error.message); }
+  finally { if(ownsSession()){formWrites.delete(form);setFormPending(form,false);} }
 }
 
 function metric(label, value, cls = '') {
@@ -243,8 +273,9 @@ async function loadUsers(isCurrent = nextRefresh('users')) {
 }
 
 async function manageUser(wallet, user = {}) {
+  const ownsSession=currentAdminSession();
   const generation = ++userDetailGeneration;
-  const isCurrent = () => selectedWallet === wallet && generation === userDetailGeneration;
+  const isCurrent = () => ownsSession() && selectedWallet === wallet && generation === userDetailGeneration;
   selectedWallet = wallet;
   $('user-detail').hidden = false;
   $('user-detail-title').textContent = wallet;
@@ -275,12 +306,15 @@ async function loadUserKeys(wallet, parent) {
       if (!isCurrent() || button.disabled) return;
       if (!confirm('Revoke this API key immediately?')) return;
       button.disabled = true;
+      const ownsSession=currentAdminSession();
       try {
         await api('/api/admin/users/' + encodeURIComponent(wallet) + '/keys/' + encodeURIComponent(button.dataset.id), { method: 'DELETE' });
+        if(!ownsSession())return;
         if (isCurrent()) await loadUserKeys(wallet, parent);
+        if(!ownsSession())return;
         await loadSecondary(loadAudit, 'audit-log', 'Audit log');
-        notice('API key revoked.');
-      } catch (error) { notice(error.message); }
+        if(ownsSession())notice('API key revoked.');
+      } catch (error) { if(ownsSession())notice(error.message); }
       finally { if (isCurrent()) button.disabled = false; }
     };
   });
@@ -353,6 +387,7 @@ function configPayload(disabled) {
 }
 async function saveConfig(disabled) {
   if (configSavePending) return false;
+  const ownsSession=currentAdminSession();
   const payload = configPayload(disabled);
   configSavePending = true;
   // A GET started before this write must not restore an older policy.
@@ -364,34 +399,39 @@ async function saveConfig(disabled) {
   try {
     await api('/api/admin/config', { method: 'PUT', body: JSON.stringify(payload) });
   } catch (error) {
+    if(!ownsSession())return false;
     configSavePending=false;setSettingsEnabled(true);markConfigDirty();
     document.querySelectorAll('.model-toggle').forEach(button=>{button.disabled=false;});
     throw error;
   }
+  if(!ownsSession())return false;
   configSavePending=false;markConfigClean();
   await load();
-  return true;
+  return ownsSession();
 }
 async function unlock() {
   if (unlocking) return;
   key = $('admin-key').value.trim() || key;
   if (!key) return;
+  const ownsSession=currentAdminSession();
   unlocking = true;
   $('unlock').disabled = true;
   $('login-msg').textContent = 'Checking…';
   try {
     await api('/api/admin/config');
+    if(!ownsSession())return;
     $('admin-key').value='';
     $('login').hidden = true;
     $('console').hidden = false;
     await load();
-  } catch (error) { $('login-msg').textContent = error.message; }
-  finally { unlocking = false; $('unlock').disabled = false; }
+  } catch (error) { if(ownsSession()){key='';$('login-msg').textContent = error.message;} }
+  finally { if(ownsSession()){unlocking = false; $('unlock').disabled = false;} }
 }
 
 $('unlock').onclick = unlock;
 $('admin-key').addEventListener('keydown', event => { if (event.key === 'Enter') unlock(); });
-$('logout').onclick = () => { key=''; location.reload(); };
+$('logout').onclick = lockConsole;
+window.addEventListener('pagehide',lockConsole);
 $('refresh').onclick = () => load().catch(error => notice(error.message));
 $('window-days').onchange = () => load().catch(error => notice(error.message));
 $('save-config').onclick = async () => { try { if (await saveConfig()) notice('Runtime policy saved.'); } catch (error) { notice(error.message); } };
@@ -423,17 +463,20 @@ $('user-policy-form').onsubmit = async event => {
   event.preventDefault();
   if (!selectedWallet || userSavePending) return;
   const wallet = selectedWallet;
+  const ownsSession=currentAdminSession();
   const generation = userDetailGeneration;
-  const isCurrent = () => selectedWallet === wallet && generation === userDetailGeneration;
+  const isCurrent = () => ownsSession() && selectedWallet === wallet && generation === userDetailGeneration;
   userSavePending = true;
   const form = $('user-policy-form');
   setFormPending(form,true);
   try {
     const daily = $('user-daily').value.trim();
     const updated=await api('/api/admin/users/' + encodeURIComponent(wallet), { method: 'PUT', body: JSON.stringify({ disabled: $('user-disabled').checked, daily_tokens_override: daily ? Number(daily) : null, note: $('user-note').value }) });
+    if(!ownsSession())return;
     await Promise.all([loadSecondary(loadUsers,'users','Users','user-count'),loadSecondary(loadAudit,'audit-log','Audit log')]);
+    if(!ownsSession())return;
     if (isCurrent()) await manageUser(wallet,updated);
-    notice('User policy updated.');
-  } catch (error) { notice(error.message); }
-  finally { userSavePending = false; setFormPending(form,false); }
+    if(ownsSession())notice('User policy updated.');
+  } catch (error) { if(ownsSession())notice(error.message); }
+  finally { if(ownsSession()){userSavePending = false; setFormPending(form,false);} }
 };

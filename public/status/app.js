@@ -4,12 +4,19 @@
  const amount=value=>{try{if(!/^\d{1,20}$/.test(String(value)))return 'Unavailable';const n=BigInt(value);return (n/1000000000n).toLocaleString()+(n%1000000000n?'.'+(n%1000000000n).toString().padStart(9,'0').replace(/0+$/,''):'')+' GNK';}catch{return 'Unavailable';}};
  const num=n=>Number.isSafeInteger(n)&&n>=0?n.toLocaleString():'Unreported';
  const states=new Set(['healthy','degraded','unavailable','listed','unverified']);
+ let serial=0,activeController=null;
  function clearNetworkChart(message='No provider trend available.') { const chart=el('network-chart');if(chart)chart.replaceChildren();const empty=el('network-chart-empty');if(empty){empty.textContent=message;empty.hidden=false;} }
  function renderNetworkChart(rows){const empty=el('network-chart-empty');const ok=!!globalThis.SlipvoltCharts?.renderLine?.(el('network-chart'),rows,{x:'day',series:[{key:'requests',label:'Requests'}],ariaLabel:'Daily OpenBroker network requests',format:'compact'});if(empty)empty.hidden=ok;return ok;}
- async function read(path){const r=await fetch(path,{credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(12000)});if(!r.ok)throw Error('Unavailable');return r.json();}
- function reset(){for(const id of ['service-state','reserve-value','provider-value','network-value'])write(id,'Checking…');write('service-detail','');write('service-limits','');write('mint-detail','');write('catalog-source','Checking the current catalog…');el('status-models').replaceChildren();write('network-detail','Provider-wide activity, not this app’s usage.');clearNetworkChart('Checking provider trend…');}
- async function refresh(){el('status-refresh').disabled=true;reset();let failures=0;
-  const results=await Promise.allSettled(['/api/status','/api/models','/api/treasury','/api/network'].map(read));
+ async function read(path,signal){const r=await fetch(path,{credentials:'omit',cache:'no-store',signal});if(!r.ok)throw Error('Unavailable');const value=await r.json();if(signal.aborted)throw Error('Status check was cancelled');return value;}
+ function reset(state='Checking…'){for(const id of ['service-state','reserve-value','provider-value','network-value'])write(id,state);write('service-detail','');write('service-limits','');write('mint-detail','');write('catalog-source',state);el('status-models').replaceChildren();write('network-detail','Provider-wide activity, not this app’s usage.');clearNetworkChart(state);}
+ function invalidate(){serial++;const previous=activeController;activeController=null;previous?.abort();}
+ async function refresh(){
+  invalidate();const mine=serial,controller=new AbortController();activeController=controller;
+  el('status-refresh').disabled=true;reset();write('status-observed','Checking current sources…');let failures=0;
+  const timeout=setTimeout(()=>controller.abort(),12000);
+  try{
+  const results=await Promise.allSettled(['/api/status','/api/models','/api/treasury','/api/network'].map(path=>read(path,controller.signal)));
+  if(mine!==serial)return;
   const get=i=>{if(results[i].status==='fulfilled'&&results[i].value&&typeof results[i].value==='object')return results[i].value;failures++;return null;};
   const s=get(0);
   if(s){if(typeof s.brand==='string'&&/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/.test(s.brand)){document.querySelectorAll('[data-site-name]').forEach(node=>node.textContent=s.brand);document.title='Service status · '+s.brand;}write('service-state',s.maintenance_mode?'Maintenance':s.holder_gate_configured&&s.provider_configured?'Configured · not launch-certified':'Setup incomplete');write('service-detail',s.billing_review_required?'Provider cost reconciliation is blocking new calls.':'Holding unlocks a daily allowance, subject to the shared budget. Token links on the home page are published separately.');write('service-limits',num(s.holder_daily_tokens)+' AI tokens per wallet/day · '+num(s.global_daily_tokens)+' shared/day. Reset: 00:00 UTC.');if(typeof s.holder_mint==='string'&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s.holder_mint))write('mint-detail','Configured Solana mint: '+s.holder_mint);else write('mint-detail','No project mint published. Do not buy a ticker-only imitation.');}
@@ -18,8 +25,13 @@
   else write('catalog-source','Catalog unavailable. No live availability claim.');
   const t=get(2);write('reserve-value',t?.self_custody_balance?amount(t.self_custody_balance.amount_ngonka):!t||t.self_custody_status==='unavailable'?'Unavailable':'Not published');write('provider-value',t?.broker_balance?amount(t.broker_balance.available_ngonka):!t||t.status==='unavailable'?'Unavailable':'Not published');
   const n=get(3);if(n?.totals){write('network-value',num(n.totals.requests)+' requests');write('network-detail',(n.stale?'Stale snapshot. ':'')+num(n.totals.tokens)+' AI tokens across all returned provider records. Not this app’s activity.');if(Array.isArray(n.daily)&&n.daily.length)renderNetworkChart(n.daily);else clearNetworkChart();}else{write('network-value','Unavailable');write('network-detail','No usable provider network snapshot was returned.');clearNetworkChart('Provider trend unavailable.');}
-  write('status-observed','Checked '+new Date().toLocaleTimeString()+(failures?' · '+failures+' source(s) unavailable':' · read-only'));el('status-refresh').disabled=false;
+  write('status-observed','Checked '+new Date().toLocaleTimeString()+(failures?' · '+failures+' source(s) unavailable':' · read-only'));
+  }catch{
+   if(mine!==serial)return;reset('Unavailable');write('status-observed','Status check failed. No inference sent.');
+  }finally{clearTimeout(timeout);if(activeController===controller){activeController=null;el('status-refresh').disabled=false;}}
  }
- el('status-refresh').addEventListener('click',()=>refresh().catch(()=>{write('status-observed','Status check failed. No inference sent.');el('status-refresh').disabled=false;}));
- refresh().catch(()=>{write('status-observed','Status check failed. No inference sent.');el('status-refresh').disabled=false;});
+ el('status-refresh').addEventListener('click',refresh);
+ window.addEventListener('pagehide',()=>{invalidate();reset('Not checked');write('status-observed','Refresh to check current sources.');el('status-refresh').disabled=false;});
+ window.addEventListener('pageshow',event=>{if(event.persisted)refresh();});
+ refresh();
 })();
