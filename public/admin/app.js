@@ -11,6 +11,7 @@ let serverConfig = null;
 let userDetailGeneration = 0;
 let userSavePending = false;
 let unlocking = false;
+const formWrites = new WeakSet();
 const refreshGenerations = Object.create(null);
 function nextRefresh(name, parent = () => true) {
   const generation = (refreshGenerations[name] || 0) + 1;
@@ -47,6 +48,20 @@ async function api(path, options = {}) {
   }
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('The server returned an unreadable response. Refresh and try again.');
   return data;
+}
+
+function setFormPending(form, pending) {
+  form.setAttribute('aria-busy',String(pending));
+  form.querySelectorAll('input,select,button').forEach(control=>{control.disabled=pending;});
+}
+async function recordFromForm(form, path, payload, message) {
+  if (formWrites.has(form)) return;
+  formWrites.add(form);setFormPending(form,true);
+  try {
+    await api(path,{method:'POST',body:JSON.stringify(payload)});
+    form.reset();await load();notice(message);
+  } catch (error) { notice(error.message); }
+  finally { formWrites.delete(form);setFormPending(form,false); }
 }
 
 function metric(label, value, cls = '') {
@@ -236,7 +251,7 @@ async function manageUser(wallet, user = {}) {
   $('user-disabled').checked = !!user.disabled;
   $('user-daily').value = user.daily_tokens_override ?? '';
   $('user-note').value = user.note || '';
-  $('user-policy-form').querySelector('button').disabled = userSavePending;
+  setFormPending($('user-policy-form'),userSavePending);
   $('user-keys').textContent = 'Loading keys…';
   await loadUserKeys(wallet, isCurrent);
 }
@@ -384,17 +399,15 @@ $('discard-config').onclick = discardConfig;
 document.querySelectorAll('#settings-form input, #settings-form select, #price-input, #price-output').forEach(input=>input.addEventListener('input',markConfigDirty));
 $('fund-form').onsubmit = async event => {
   event.preventDefault();
-  try {
-    await api('/api/admin/allowance/fund', { method: 'POST', body: JSON.stringify({ gnk: $('fund-gnk').value, reference: $('fund-ref').value, confirm_funded: true }) });
-    event.target.reset(); await load(); notice('Local GNK allocation recorded. No crypto was moved.');
-  } catch (error) { notice(error.message); }
+  await recordFromForm(event.target,'/api/admin/allowance/fund',
+    {gnk:$('fund-gnk').value,reference:$('fund-ref').value,confirm_funded:true},
+    'Local GNK allocation recorded. No crypto was moved.');
 };
 $('business-form').onsubmit = async event => {
   event.preventDefault();
-  try {
-    await api('/api/admin/business', { method: 'POST', body: JSON.stringify({ category: $('biz-category').value, amount_usd: $('biz-amount').value, reference: $('biz-ref').value, note: $('biz-note').value }) });
-    event.target.reset(); await load(); notice('Business ledger entry recorded.');
-  } catch (error) { notice(error.message); }
+  await recordFromForm(event.target,'/api/admin/business',
+    {category:$('biz-category').value,amount_usd:$('biz-amount').value,reference:$('biz-ref').value,note:$('biz-note').value},
+    'Business ledger entry recorded.');
 };
 $('user-search-btn').onclick = () => loadSecondary(loadUsers,'users','Users','user-count');
 $('user-search').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); loadSecondary(loadUsers,'users','Users','user-count'); } });
@@ -413,8 +426,8 @@ $('user-policy-form').onsubmit = async event => {
   const generation = userDetailGeneration;
   const isCurrent = () => selectedWallet === wallet && generation === userDetailGeneration;
   userSavePending = true;
-  const button = $('user-policy-form').querySelector('button');
-  button.disabled = true;
+  const form = $('user-policy-form');
+  setFormPending(form,true);
   try {
     const daily = $('user-daily').value.trim();
     const updated=await api('/api/admin/users/' + encodeURIComponent(wallet), { method: 'PUT', body: JSON.stringify({ disabled: $('user-disabled').checked, daily_tokens_override: daily ? Number(daily) : null, note: $('user-note').value }) });
@@ -422,5 +435,5 @@ $('user-policy-form').onsubmit = async event => {
     if (isCurrent()) await manageUser(wallet,updated);
     notice('User policy updated.');
   } catch (error) { notice(error.message); }
-  finally { userSavePending = false; button.disabled = false; }
+  finally { userSavePending = false; setFormPending(form,false); }
 };

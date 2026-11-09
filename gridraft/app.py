@@ -265,10 +265,11 @@ def create_app(settings=None, db_path=':memory:', transport=None):
                 # A failed refresh invalidates health claims, not a fresh catalog.
                 return None
 
-    def normalize_completion_request(body, models):
-        cfg=runtime();by_id={m['id']:m for m in models}
+    def normalize_completion_request(body, models, cfg=None):
+        cfg=runtime() if cfg is None else cfg
+        by_id={m['id']:m for m in models}
         meta=by_id.get(body.model)
-        if not meta:error('Model not in current OpenBroker catalogue',400)
+        if not meta or body.model in cfg.get('disabled_models',[]):error('Model not in current OpenBroker catalogue',400)
         requested=body.max_completion_tokens if body.max_completion_tokens is not None else body.max_tokens
         model_cap=meta.get('max_completion_tokens')
         if not isinstance(model_cap,int) or model_cap<1:
@@ -285,6 +286,14 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         if estimate+requested>context:
             error(f'Request exceeds the conservative context admission budget ({context} tokens including output). Reduce input/output. UTF-8 estimation can overcount; no content was truncated.',400)
         return meta
+
+    def current_admission_policy(body, models, wallet, maintenance_message='Inference is temporarily paused for maintenance'):
+        """Recheck local policy after external reads, without yielding before admission."""
+        cfg=runtime()
+        require_enabled_user(wallet)
+        if cfg['maintenance_mode']:error(maintenance_message,503)
+        normalize_completion_request(body,models,cfg)
+        return cfg
 
     @app.get('/healthz')
     async def health():
@@ -741,6 +750,7 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         context_limit=meta['context_length']
         try:available=(await broker.balance())['available_ngonka']
         except Exception:error('Cannot verify provider funding; no inference was run',503)
+        cfg=current_admission_policy(body,rows,wallet,'Inference is paused for maintenance')
         result=membership.preview(key['id'] if key else None,wallet,body.model,'',tokens,
             wallet_daily=cfg['holder_daily_tokens'],global_daily=cfg['global_daily_tokens'],
             ngonka_per_token=cfg['ngonka_per_token_budget'],upstream_available=available,
@@ -782,7 +792,8 @@ def create_app(settings=None, db_path=':memory:', transport=None):
                 error('Model is temporarily unavailable upstream; choose another model or retry shortly',503)
         if not (await eligibility(key['wallet']))['eligible']:error('Holding requirement no longer met',403)
         if settings.access_mode=='holder_allowance':
-            return await member_gateway.call(body,request,key)
+            return await member_gateway.call(body,request,key,
+                admission_policy=lambda:current_admission_policy(body,rows,key['wallet']))
 
         # Legacy prepaid mode. Holder allowance is the recommended production flow.
         if body.stream:error('Streaming is enabled only for holder-allowance mode in this build',400)
@@ -791,14 +802,15 @@ def create_app(settings=None, db_path=':memory:', transport=None):
         if len(encoded)>settings.max_request_bytes:error('Request exceeds the configured payload limit',413)
         idem=request.headers.get('idempotency-key') or str(uuid.uuid4())
         if len(idem)>100 or not idem.isprintable():error('Invalid Idempotency-Key',400)
-        input_rate=cfg['retail_input_nusd_per_token'];output_rate=cfg['retail_output_nusd_per_token']
-        # Reserve a tokenizer-independent input upper bound plus the requested output.
-        reserve=input_budget(payload)*input_rate + body.max_tokens*body.n*output_rate
         try:
             available=(await broker.balance())['available_ngonka']
             if available<=0:error('Operator upstream balance is unavailable',503)
         except HTTPException:raise
         except Exception:error('Cannot verify upstream funds; inference is paused',503)
+        cfg=current_admission_policy(body,rows,key['wallet'])
+        input_rate=cfg['retail_input_nusd_per_token'];output_rate=cfg['retail_output_nusd_per_token']
+        # Keep this policy snapshot through settlement; later changes apply to new reservations.
+        reserve=input_budget(payload)*input_rate + body.max_tokens*body.n*output_rate
         try:
             rid=store.reserve(key['id'],key['wallet'],reserve,idem,body.model,cfg['wallet_rpm'],
                 daily_budget_nusd=settings.daily_budget_nusd,wallet_daily_budget_nusd=settings.wallet_daily_budget_nusd)

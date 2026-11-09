@@ -40,14 +40,15 @@ $('copy-response').addEventListener('click', async () => {
 });
 $('revoke-all-keys').addEventListener('click', async () => {
   if (OFFLINE) return toast('Offline preview. No keys were changed.');
+  if(S.keyOperation||!S.wallet)return;
   if (!confirm('Revoke all API keys for this wallet? Existing applications will stop making new calls. In-flight requests may finish.')) return;
-  const button=$('revoke-all-keys'),epoch=S.epoch,wallet=S.wallet;if(button.disabled)return;button.disabled=true;
+  const operation=beginKeyOperation('revoke-all');if(!operation)return;
   try {
     const result = await api('/api/keys/revoke-all', {method:'POST'});
-    if(S.epoch!==epoch||S.wallet!==wallet)return;clearSecrets(); await refreshMember();
-    if(S.epoch===epoch&&S.wallet===wallet)toast(`${result.revoked_count} keys revoked. Usage history was kept.`);
-  } catch (error) { if(S.epoch===epoch&&S.wallet===wallet)toast(error.message); }
-  finally{if(S.epoch===epoch&&S.wallet===wallet)button.disabled=false;}
+    if(!currentKeyOperation(operation))return;clearSecrets(); await refreshMember();
+    if(currentKeyOperation(operation))toast(`${result.revoked_count} keys revoked. Usage history was kept.`);
+  } catch (error) { if(currentKeyOperation(operation))toast(error.message); }
+  finally{finishKeyOperation(operation);}
 });
 $('logout-everywhere').addEventListener('click', async () => {
   if (OFFLINE) return toast('Offline preview. No sessions were changed.');

@@ -54,8 +54,8 @@ class MemberGateway:
             raise HTTPException(413,'Request too large')
         return payload,input_budget(payload)+body.max_tokens*body.n
 
-    async def call(self,body,request,key):
-        s=self.settings;cfg=self.runtime()
+    async def call(self,body,request,key,*,admission_policy=None):
+        s=self.settings
         payload,reserve_tokens=self.prepare(body)
         idem=request.headers.get('idempotency-key') or str(uuid.uuid4())
         if len(idem)>100 or not idem.isprintable():raise HTTPException(400,'Invalid Idempotency-Key')
@@ -64,6 +64,8 @@ class MemberGateway:
         # add chat-template headroom instead of the old 4x byte multiplier that over-reserved capacity.
         try:available=(await self.broker.balance())['available_ngonka']
         except Exception:raise HTTPException(503,'Cannot verify GNK funding. No model request was sent.')
+        # The local guard and reservation must not yield. Keep the admitted rates for settlement.
+        cfg=admission_policy() if admission_policy is not None else self.runtime()
         try:
             rid=self.ledger.reserve(key['id'],key['wallet'],body.model,idem,reserve_tokens,
                 wallet_daily=cfg['holder_daily_tokens'],global_daily=cfg['global_daily_tokens'],

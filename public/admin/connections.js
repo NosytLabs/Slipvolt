@@ -26,20 +26,19 @@ async function loadConnections(parent = () => true) {
 function showReadOnlyResult(id,result) {
   document.getElementById(id).textContent=typeof result==='string'?result:JSON.stringify(result,null,2);
 }
-const checkButton=document.getElementById('connections-check');
-checkButton.addEventListener('click',async()=>{
-  checkButton.disabled=true;
-  showReadOnlyResult('connections-result','Checking the configured RPC…');
-  try{showReadOnlyResult('connections-result',await api('/api/admin/connections/check',{method:'POST'}));}
-  catch(e){showReadOnlyResult('connections-result',e.message);}
-  finally{checkButton.disabled=false;}
-});
-document.getElementById('priority-check').addEventListener('click',async event=>{
-  event.target.disabled=true;
-  try{showReadOnlyResult('connections-result',await api('/api/admin/connections/priority-fee',{method:'POST'}));}
-  catch(e){showReadOnlyResult('connections-result',e.message);}
-  finally{event.target.disabled=false;}
-});
+async function runConnectionCheck(button,path,message) {
+  if(button.disabled)return;
+  const isCurrent=nextRefresh('connections-result');
+  button.disabled=true;showReadOnlyResult('connections-result',message);
+  try{
+    const result=await api(path,{method:'POST'});
+    if(isCurrent())showReadOnlyResult('connections-result',result);
+  }catch(e){if(isCurrent())showReadOnlyResult('connections-result',e.message);}
+  finally{button.disabled=false;}
+}
+const checkButton=document.getElementById('connections-check'),priorityButton=document.getElementById('priority-check');
+checkButton.addEventListener('click',()=>runConnectionCheck(checkButton,'/api/admin/connections/check','Checking the configured RPC…'));
+priorityButton.addEventListener('click',()=>runConnectionCheck(priorityButton,'/api/admin/connections/priority-fee','Checking priority fee estimates…'));
 let quoteGeneration=0;
 const quoteForm=document.getElementById('quote-form');
 quoteForm.addEventListener('input',()=>{quoteGeneration++;showReadOnlyResult('quote-result','Inputs changed. Request a fresh quote.');});
