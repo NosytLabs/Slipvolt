@@ -12,6 +12,7 @@ function setup(){
     return elements.get(id);
   };
   const context={document:{getElementById:el},key:'fixture',setTimeout,clearTimeout,
+    currentAdminSession(){return()=>true;},
     nextRefresh(name){const generation=(generations.get(name)||0)+1;generations.set(name,generation);return()=>generations.get(name)===generation;},
     api(path,options){return new Promise((resolve,reject)=>calls.push({path,options,resolve,reject}));}};
   vm.createContext(context);vm.runInContext(fs.readFileSync('public/admin/connections.js','utf8'),context);

@@ -33,13 +33,19 @@
         headers:{'Content-Type':'application/json',...(key?{Authorization:'Bearer '+key}:{})},signal:controller.signal,
         body:JSON.stringify({model,messages:conversationMessages(text),max_tokens:output,stream:!!state?.status?.capabilities?.streaming})});
       const data=await globalThis.SlipvoltCore.readApiResponse(response);if(mine!==serial||epoch!==state?.epoch)return;
+      if(controller.signal.aborted)throw controller.signal.reason;
       lastCode=data.reason_code;
       el('preflight-result').dataset.verdict=data.allowed?'fits':'blocked';
       const estimatedTokens=globalThis.SlipvoltCore.safeCount(data.estimated_ai_tokens);
       el('preflight-result').textContent=(data.allowed?'Fits the current limits. ':T.explain(data.reason_code)+' ')+
         'Estimated reservation: '+(estimatedTokens===null?'Unavailable':estimatedTokens.toLocaleString())+' AI tokens / '+gnk(data.estimated_budget_ngonka)+' GNK. '+
         'Nothing was spent or reserved. Sending checks again.';
-    }catch(e){if(mine===serial)el('preflight-result').textContent=e.name==='TimeoutError'?'The check timed out. No inference was requested.':e.message;}
+    }catch(e){
+      if(mine===serial&&epoch===state?.epoch){
+        const failure=controller.signal.aborted?controller.signal.reason:e;
+        el('preflight-result').textContent=failure.name==='TimeoutError'?'The check timed out. No inference was requested.':failure.message;
+      }
+    }
     finally{clearTimeout(timeoutHandle);if(activeCheck===controller){activeCheck=null;button.disabled=!canCheck();}}
   });
   function kit(){return T.connectionKit(document.documentElement.dataset.preview==='offline'?'https://YOUR_DEPLOYED_HOST':location.origin,selected());}

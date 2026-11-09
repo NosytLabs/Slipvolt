@@ -28,32 +28,32 @@ function showReadOnlyResult(id,result) {
 }
 async function runConnectionCheck(button,path,message) {
   if(button.disabled)return;
+  const ownsSession=currentAdminSession();
   const isCurrent=nextRefresh('connections-result');
   button.disabled=true;showReadOnlyResult('connections-result',message);
   try{
     const result=await api(path,{method:'POST'});
     if(isCurrent())showReadOnlyResult('connections-result',result);
   }catch(e){if(isCurrent())showReadOnlyResult('connections-result',e.message);}
-  finally{button.disabled=false;}
+  finally{if(ownsSession())button.disabled=false;}
 }
 const checkButton=document.getElementById('connections-check'),priorityButton=document.getElementById('priority-check');
 checkButton.addEventListener('click',()=>runConnectionCheck(checkButton,'/api/admin/connections/check','Checking the configured RPC…'));
 priorityButton.addEventListener('click',()=>runConnectionCheck(priorityButton,'/api/admin/connections/priority-fee','Checking priority fee estimates…'));
-let quoteGeneration=0;
 const quoteForm=document.getElementById('quote-form');
-quoteForm.addEventListener('input',()=>{quoteGeneration++;showReadOnlyResult('quote-result','Inputs changed. Request a fresh quote.');});
+quoteForm.addEventListener('input',()=>{nextRefresh('quote-result');showReadOnlyResult('quote-result','Inputs changed. Request a fresh quote.');});
 quoteForm.addEventListener('submit',async event=>{
-  event.preventDefault();const generation=++quoteGeneration;
-  const button=quoteForm.querySelector('button');button.disabled=true;
+  event.preventDefault();const button=quoteForm.querySelector('button');if(button.disabled)return;
+  const isCurrent=nextRefresh('quote-result'),ownsSession=currentAdminSession();button.disabled=true;
   showReadOnlyResult('quote-result','Requesting an indicative quote…');
   try {
     const d=await api('/api/admin/swap/quote',{method:'POST',body:JSON.stringify({
       asset:document.getElementById('quote-asset').value,
       amount:document.getElementById('quote-amount').value,
       slippage_bps:50})});
-    if(generation!==quoteGeneration)return;
+    if(!isCurrent())return;
     showReadOnlyResult('quote-result',`${d.input_amount} ${d.asset} → ${d.expected_usdc} USDC\nMinimum at 0.5% slippage: ${d.minimum_usdc} USDC\n${d.notice}`);
-    setTimeout(()=>{if(generation===quoteGeneration)showReadOnlyResult('quote-result','Quote expired. Request a fresh quote.');},Math.max(0,d.local_expires_at*1000-Date.now()));
-  }catch(e){if(generation===quoteGeneration)showReadOnlyResult('quote-result',e.message);}
-  finally{button.disabled=false;}
+    setTimeout(()=>{if(isCurrent())showReadOnlyResult('quote-result','Quote expired. Request a fresh quote.');},Math.max(0,d.local_expires_at*1000-Date.now()));
+  }catch(e){if(isCurrent())showReadOnlyResult('quote-result',e.message);}
+  finally{if(ownsSession())button.disabled=false;}
 });
