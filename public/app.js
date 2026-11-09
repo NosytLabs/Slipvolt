@@ -7,7 +7,9 @@ const snapshot=[
   {id:'deepseek-ai/DeepSeek-V4-Flash-0731',name:'DeepSeek V4 Flash',label:'Reasoning & generation',mark:'D / 02'},
   {id:'zai-org/GLM-5.3-Flash',name:'GLM 5.3 Flash',label:'General-purpose AI',mark:'G / 03'}
 ];
-const S={models:snapshot,selected:snapshot[0].id,catalogLive:OFFLINE,status:null,wallet:null,provider:null,key:'',epoch:0,memberSerial:0,requestSerial:0,authOps:0,busy:false,authBusy:false,controller:null,memberController:null,revoke:null,handlers:null,conversation:[],conversationFull:false,outputBudgetEdited:false};
+const S={models:snapshot,selected:snapshot[0].id,catalogLive:OFFLINE,status:null,wallet:null,provider:null,key:'',epoch:0,memberSerial:0,requestSerial:0,authOps:0,requestPhase:'idle',controller:null,memberController:null,revoke:null,handlers:null,conversation:[],conversationFull:false,outputBudgetEdited:false,
+  get busy(){return this.requestPhase==='generating'||this.requestPhase==='stopping';},
+  get authBusy(){return this.authOps>0;}};
 const CHAT_LIMITS=Object.freeze({maxTurns:24,maxChars:250000});
 let toastTimer;
 
@@ -20,7 +22,23 @@ function rawTokens(raw,decimals){try{const n=nonnegativeBigInt(raw);if(n===null|
 const safeInteger=C.safeCount;
 async function api(path,options={}){if(OFFLINE)throw Error('This is the offline preview. Run the included server to connect your wallet.');const r=await fetch(path,{...options,credentials:'same-origin',headers:{...(options.body?{'Content-Type':'application/json'}:{}),...options.headers}});return C.readApiResponse(r);}
 async function copy(value){if(!value)return toast('Nothing to copy yet.');try{await navigator.clipboard.writeText(value);toast('Copied.');}catch{toast('Clipboard unavailable here. Select the text and copy it manually.');}}
-function beginAuthOperation(){S.authOps++;S.authBusy=true;let active=true;return()=>{if(!active)return;active=false;S.authOps=Math.max(0,S.authOps-1);S.authBusy=S.authOps>0;};}
+function beginAuthOperation(){S.authOps++;let active=true;return()=>{if(!active)return;active=false;S.authOps=Math.max(0,S.authOps-1);};}
+
+function setRequestPhase(phase){
+  S.requestPhase=phase;
+  document.querySelector('.result-wrap')?.classList.toggle('is-thinking',S.busy);
+  $('result').dataset.requestState=phase;
+  $('result').setAttribute('aria-busy',String(S.busy));
+  $('stop-request').hidden=!S.busy;
+  $('stop-request').disabled=phase==='stopping';
+  $('send').textContent=phase==='stopping'?'Stopping…':S.busy?'Generating…':'Send prompt ↑';
+  syncRequestActions();
+}
+function stopRequest(){
+  if(S.requestPhase!=='generating'||!S.controller)return;
+  setRequestPhase('stopping');S.controller.abort();
+  $('request-note').textContent='Stopping this browser request. Provider charges may still need reconciliation.';
+}
 
 function conversationMessages(prompt){return C.chatMessages(S.conversation,prompt);}
 function clearVisibleResponse(){
@@ -43,9 +61,9 @@ function renderConversationContext(note=''){
   if($('download-chat'))$('download-chat').disabled=stats.turns===0;
 }
 function resetConversation({clearDraft=true,note=''}={}){
-  document.querySelector('.result-wrap')?.classList.remove('is-thinking');S.requestSerial++;const controller=S.controller;S.controller=null;controller?.abort();S.busy=false;S.conversation=[];S.conversationFull=false;
-  if(clearDraft)$('prompt').value='';clearVisibleResponse();$('stop-request').hidden=true;$('send').textContent='Send prompt ↑';
-  document.dispatchEvent(new Event('slipvolt:conversation-reset'));renderConversationContext(note);syncRequestActions();
+  S.requestSerial++;const controller=S.controller;S.controller=null;controller?.abort();S.conversation=[];S.conversationFull=false;
+  if(clearDraft)$('prompt').value='';clearVisibleResponse();setRequestPhase('idle');
+  document.dispatchEvent(new Event('slipvolt:conversation-reset'));renderConversationContext(note);
 }
 function rememberConversationTurn(prompt,answer){
   const update=C.appendChatTurn(S.conversation,prompt,answer,CHAT_LIMITS);S.conversation=update.turns;S.conversationFull=update.full===true;
@@ -364,7 +382,7 @@ $('logout').addEventListener('click',async()=>{if(S.authBusy)return;const releas
 
 async function readStream(response,epoch,request){
   return SlipvoltRequestTools.readCompletionStream(response,output=>{
-    if(epoch!==S.epoch||request!==S.requestSerial)return;
+    if(epoch!==S.epoch||request!==S.requestSerial||S.controller?.signal.aborted)return;
     $('result').textContent=output;
     if(output)$('result').classList.add('partial-output');
   });
@@ -380,7 +398,9 @@ $('send').addEventListener('click',async()=>{
   if(!prompt)return toast('Write a prompt first.');
   if(OFFLINE)return toast('Offline preview. No model request was sent.');
   const messages=conversationMessages(prompt);
-  S.busy=true;document.querySelector('.result-wrap')?.classList.add('is-thinking');$('stop-request').hidden=false;clearVisibleResponse();const epoch=S.epoch,request=++S.requestSerial,controller=new AbortController();S.controller=controller;syncRequestActions();$('send').textContent='Generating…';$('result').textContent='Connecting to your model…';
+  clearVisibleResponse();const epoch=S.epoch,request=++S.requestSerial,controller=new AbortController();S.controller=controller;setRequestPhase('generating');
+  document.dispatchEvent(new Event('slipvolt:request-started'));$('result').textContent='Connecting to your model…';
+  let outcome='failed';
   const current=()=>epoch===S.epoch&&request===S.requestSerial;
   try{
     const response=await fetch('/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key,'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify({model,messages,max_tokens:outputBudget,stream:!!S.status?.capabilities?.streaming}),signal:controller.signal});
@@ -393,14 +413,14 @@ $('send').addEventListener('click',async()=>{
       $('result').classList.remove('partial-output');
       if(answer.trim()){$('result').textContent=answer;$('result').classList.add('has-output');if($('download-response'))$('download-response').disabled=false;rememberConversationTurn(prompt,answer);if($('prompt').value.trim()===prompt)$('prompt').value='';}
       else{$('result').textContent='The request completed without a text answer.';$('result').classList.remove('has-output');}
-      $('request-note').textContent='Complete. Measured usage was deducted from your allowance.';if(S.wallet)await refreshMember();
+      outcome='complete';$('request-note').textContent='Complete. Measured usage was deducted from your allowance.';if(S.wallet)await refreshMember();
     }
-  }catch(error){if(current()){$('result').classList.remove('has-output','partial-output');if($('download-response'))$('download-response').disabled=true;$('result').textContent=error.name==='AbortError'?'Request stopped. Check your allowance before retrying.':error.message;$('request-note').textContent='No automatic retry. Check usage before resubmitting.';}}
-  finally{if(current()){document.querySelector('.result-wrap')?.classList.remove('is-thinking');$('stop-request').hidden=true;S.busy=false;S.controller=null;$('send').textContent='Send prompt ↑';syncRequestActions();}}
+  }catch(error){if(current()){outcome=error.name==='AbortError'?'stopped':'failed';$('result').classList.remove('has-output','partial-output');if($('download-response'))$('download-response').disabled=true;$('result').textContent=outcome==='stopped'?'Request stopped. Check your allowance before retrying.':error.message;$('request-note').textContent='No automatic retry. Check usage before resubmitting.';}}
+  finally{if(current()){S.controller=null;setRequestPhase(outcome);}}
 });
 
 async function init(){
-  renderModels();clearUsage();
+  renderModels();clearUsage();setRequestPhase('idle');
   if(OFFLINE){$('setup-note').textContent='Offline preview';return;}
   const [statusResult,catalogResult]=await Promise.allSettled([api('/api/status'),api('/api/models')]);
   if(statusResult.status==='fulfilled'){

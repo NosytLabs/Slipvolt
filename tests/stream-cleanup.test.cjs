@@ -12,9 +12,10 @@ assert(start>=0&&end>start);
 function runtime(){
   let rendered='',writes=0;
   const result={set textContent(value){rendered=value;writes++;},classList:{add(){}}};
-  const ctx={TextDecoder,Uint8Array,SlipvoltRequestTools:tools,S:{epoch:1},$:()=>result};
+  const controller=new AbortController();
+  const ctx={TextDecoder,Uint8Array,SlipvoltRequestTools:tools,S:{epoch:1,controller},$:()=>result};
   vm.createContext(ctx);vm.runInContext(source.slice(start,end),ctx);
-  return {read:r=>ctx.readStream(r,1),get text(){return rendered},get writes(){return writes}};
+  return {read:r=>ctx.readStream(r,1),controller,get text(){return rendered},get writes(){return writes}};
 }
 function response(text,width=Infinity){
   const bytes=new TextEncoder().encode(text);let cancelled=0;
@@ -58,4 +59,10 @@ test('malformed JSON cannot be silently accepted',async()=>{
 });
 test('oversized response fails before unchecked buffering',async()=>{
   await assert.rejects(runtime().read(response('data: '+ 'x'.repeat(2000001))),/too large/i);
+});
+test('a buffered chunk arriving after stop cannot restore partial output',async()=>{
+  const app=runtime();let deliver;
+  const body=new ReadableStream({start(controller){deliver=()=>{controller.enqueue(new TextEncoder().encode(frame('late')+'\n\ndata: [DONE]\n\n'));controller.close();};}});
+  const pending=app.read({body});app.controller.abort();deliver();await pending;
+  assert.equal(app.text,'');assert.equal(app.writes,0);
 });
