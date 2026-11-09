@@ -7,7 +7,7 @@ const snapshot=[
   {id:'deepseek-ai/DeepSeek-V4-Flash-0731',name:'DeepSeek V4 Flash',label:'Reasoning & generation',mark:'D / 02'},
   {id:'zai-org/GLM-5.3-Flash',name:'GLM 5.3 Flash',label:'General-purpose AI',mark:'G / 03'}
 ];
-const S={models:snapshot,selected:snapshot[0].id,catalogLive:OFFLINE,status:null,wallet:null,provider:null,key:'',epoch:0,memberSerial:0,requestSerial:0,authOps:0,requestPhase:'idle',controller:null,memberController:null,revoke:null,handlers:null,conversation:[],conversationFull:false,outputBudgetEdited:false,
+const S={models:snapshot,selected:snapshot[0].id,catalogLive:OFFLINE,status:null,wallet:null,provider:null,key:'',epoch:0,memberSerial:0,requestSerial:0,authOps:0,requestPhase:'idle',controller:null,memberController:null,memberEligible:false,keyOperation:null,revoke:null,handlers:null,conversation:[],conversationFull:false,outputBudgetEdited:false,
   get busy(){return this.requestPhase==='generating'||this.requestPhase==='stopping';},
   get authBusy(){return this.authOps>0;}};
 const CHAT_LIMITS=Object.freeze({maxTurns:24,maxChars:250000});
@@ -278,12 +278,28 @@ function renderTokenLaunch(){
   if(note)note.textContent=buyUrl?'Token launch is published. Verify this exact mint before opening the external market.':mint?'Mint configured · buying is not published here. Verify the mint, not a ticker.':'No project mint is published. Do not rely on a ticker alone.';
 }
 $('copy-token-mint')?.addEventListener('click',()=>copy(validMint(S.status?.holder_mint)?S.status.holder_mint:''));
+function syncKeyActions(){
+  const blocked=!S.wallet||Boolean(S.keyOperation);
+  $('create-key').disabled=blocked||!S.memberEligible;
+  for(const id of ['confirm-revoke','revoke-all-keys'])$(id).disabled=blocked;
+  document.querySelectorAll('#key-list button').forEach(button=>{button.disabled=blocked;});
+}
+function beginKeyOperation(kind){
+  if(S.keyOperation||!S.wallet||(kind==='create'&&!S.memberEligible))return null;
+  const operation={kind,epoch:S.epoch,wallet:S.wallet};
+  S.keyOperation=operation;syncKeyActions();return operation;
+}
+function currentKeyOperation(operation){return S.keyOperation===operation&&S.epoch===operation.epoch&&S.wallet===operation.wallet;}
+function finishKeyOperation(operation){
+  if(S.keyOperation!==operation)return;
+  S.keyOperation=null;syncKeyActions();
+}
 function clearMemberData(){
+  S.memberEligible=false;
   S.revoke=null;
   if($('revoke-dialog').open)$('revoke-dialog').close();
   $('key-list').replaceChildren();
-  $('create-key').disabled=true;
-  for(const id of ['confirm-revoke','revoke-all-keys','logout-everywhere'])$(id).disabled=false;
+  syncKeyActions();$('logout-everywhere').disabled=false;
   $('quota-used').textContent='—';$('quota-left').textContent='—';$('quota-bar').max=1;$('quota-bar').value=0;
   publicAllowance();
 }
@@ -292,7 +308,7 @@ function clearSecrets(){
   resetConversation();S.key='';$('created-key').value='';$('created-key').type='password';$('show-key').textContent='Show';$('existing-key').value='';$('new-key').hidden=true;
 }
 function clearAccount(){
-  S.epoch++;S.memberSerial++;const memberController=S.memberController;S.memberController=null;memberController?.abort();S.wallet=null;clearSecrets();clearMemberData();clearUsage();$('main-connect').hidden=false;$('member-actions').hidden=true;$('keys-detail').hidden=true;$('access-pill').textContent='Not connected';$('access-title').textContent='Your wallet is your login.';$('access-description').textContent='No email or checkout. Sign a login message to prove the wallet is yours.';$('access-message').textContent=publicAccessMessage();$('request-note').textContent='Create a key above to start.';for(const button of document.querySelectorAll('.connect'))button.textContent='Connect wallet ↗';
+  S.epoch++;S.memberSerial++;const memberController=S.memberController;S.memberController=null;memberController?.abort();S.wallet=null;S.keyOperation=null;clearSecrets();clearMemberData();clearUsage();$('main-connect').hidden=false;$('member-actions').hidden=true;$('keys-detail').hidden=true;$('access-pill').textContent='Not connected';$('access-title').textContent='Your wallet is your login.';$('access-description').textContent='No email or checkout. Sign a login message to prove the wallet is yours.';$('access-message').textContent=publicAccessMessage();$('request-note').textContent='Create a key above to start.';for(const button of document.querySelectorAll('.connect'))button.textContent='Connect wallet ↗';
 }
 function detachProvider(){if(S.provider?.removeListener&&S.handlers){S.provider.removeListener('accountChanged',S.handlers.change);S.provider.removeListener('disconnect',S.handlers.disconnect);}S.provider=null;S.handlers=null;}
 async function invalidate(message){
@@ -350,7 +366,7 @@ async function refreshMember(){
 
     const options={signal:controller.signal};const [membership,totals,keys]=await Promise.all([api('/api/membership',options),api('/api/usage/summary',options),api('/api/keys',options)]);if(!current())return;
     const eligible=Boolean(membership.eligibility?.eligible&&membership.funded_allowance_mode);
-    $('create-key').disabled=!eligible;
+    S.memberEligible=eligible;syncKeyActions();
     $('quota-used').textContent=compact(membership.used_tokens)+' used'+(safeInteger(membership.reserved_tokens)>0?' · '+compact(membership.reserved_tokens)+' reserved':'');
     $('quota-left').textContent=compact(membership.remaining_tokens)+' tokens left';
     $('quota-bar').max=Math.max(1,safeInteger(membership.daily_tokens)||1);$('quota-bar').value=(safeInteger(membership.used_tokens)||0)+(safeInteger(membership.reserved_tokens)||0);
@@ -371,13 +387,32 @@ async function refreshMember(){
 function renderKeys(keys){
   $('key-list').replaceChildren();const live=keys.filter(key=>!key.revoked);
   if(!live.length){$('key-list').textContent='No keys yet.';return;}
-  for(const key of live){const row=document.createElement('div');row.className='key-item';const text=document.createElement('span');text.textContent=key.name+' · '+key.prefix+'…';const button=document.createElement('button');button.textContent='Revoke';button.addEventListener('click',()=>{S.revoke=key.id;$('revoke-dialog').showModal();});row.append(text,button);$('key-list').append(row);}
+  for(const key of live){const row=document.createElement('div');row.className='key-item';const text=document.createElement('span');text.textContent=key.name+' · '+key.prefix+'…';const button=document.createElement('button');button.textContent='Revoke';button.addEventListener('click',()=>{if(S.keyOperation||!S.wallet)return;S.revoke=key.id;$('revoke-dialog').showModal();});row.append(text,button);$('key-list').append(row);}
+  syncKeyActions();
 }
 
-$('create-key').addEventListener('click',async()=>{const button=$('create-key'),epoch=S.epoch,wallet=S.wallet;let created=false;button.disabled=true;try{const key=await api('/api/member-key',{method:'POST'});if(S.epoch!==epoch||S.wallet!==wallet)return;created=true;resetConversation({clearDraft:false,note:'New key ready · previous turns were cleared. Your draft is still editable.'});$('existing-key').value='';S.key=key.key;$('created-key').value=key.key;$('new-key').hidden=false;$('request-note').textContent='Key ready. This request uses your daily allowance.';toast('Key created. Save it now—it is shown only once.');await refreshMember();}catch(error){if(S.epoch===epoch&&S.wallet===wallet)toast(error.message);}finally{if(S.epoch===epoch&&S.wallet===wallet&&!created)button.disabled=false;}});
+$('create-key').addEventListener('click',async()=>{
+  const operation=beginKeyOperation('create');if(!operation)return;
+  try{
+    const key=await api('/api/member-key',{method:'POST'});if(!currentKeyOperation(operation))return;
+    resetConversation({clearDraft:false,note:'New key ready · previous turns were cleared. Your draft is still editable.'});
+    $('existing-key').value='';S.key=key.key;$('created-key').value=key.key;$('new-key').hidden=false;$('request-note').textContent='Key ready. This request uses your daily allowance.';
+    toast('Key created. Save it now—it is shown only once.');await refreshMember();
+  }catch(error){if(currentKeyOperation(operation))toast(error.message);}
+  finally{finishKeyOperation(operation);}
+});
 $('show-key').addEventListener('click',()=>{const reveal=$('created-key').type==='password';$('created-key').type=reveal?'text':'password';$('show-key').textContent=reveal?'Hide':'Show';});
 $('copy-key').addEventListener('click',()=>copy(S.key));
-$('confirm-revoke').addEventListener('click',async()=>{const button=$('confirm-revoke'),epoch=S.epoch,wallet=S.wallet,keyId=S.revoke;if(!keyId||button.disabled)return;button.disabled=true;try{await api('/api/keys/'+encodeURIComponent(keyId),{method:'DELETE'});if(S.epoch!==epoch||S.wallet!==wallet)return;clearSecrets();$('revoke-dialog').close();S.revoke=null;await refreshMember();if(S.epoch===epoch&&S.wallet===wallet)toast('Key revoked.');}catch(error){if(S.epoch===epoch&&S.wallet===wallet)toast(error.message);}finally{if(S.epoch===epoch&&S.wallet===wallet)button.disabled=false;}});
+$('confirm-revoke').addEventListener('click',async()=>{
+  const keyId=S.revoke;if(!keyId)return;
+  const operation=beginKeyOperation('revoke');if(!operation)return;
+  try{
+    await api('/api/keys/'+encodeURIComponent(keyId),{method:'DELETE'});if(!currentKeyOperation(operation))return;
+    clearSecrets();$('revoke-dialog').close();S.revoke=null;await refreshMember();
+    if(currentKeyOperation(operation))toast('Key revoked.');
+  }catch(error){if(currentKeyOperation(operation))toast(error.message);}
+  finally{finishKeyOperation(operation);}
+});
 $('logout').addEventListener('click',async()=>{if(S.authBusy)return;const releaseAuth=beginAuthOperation(),provider=S.provider;detachProvider();clearAccount();let serverSignedOut=true;try{await api('/api/auth/logout',{method:'POST'});}catch{serverSignedOut=false;}try{await provider?.disconnect?.();}catch{}finally{releaseAuth();}toast(serverSignedOut?'Disconnected. Temporary keys, prompts, and usage were cleared.':'Local data cleared. Server sign-out could not be confirmed.');});
 
 async function readStream(response,epoch,request){

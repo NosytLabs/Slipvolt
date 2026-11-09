@@ -2,7 +2,8 @@
 (function(){
   'use strict';
   function start(){
-    const $=id=>document.getElementById(id),S={serial:0,controller:null,busy:false,config:null,plan:null,timer:null,accounts:null};
+    const $=id=>document.getElementById(id),S={serial:0,operation:null,config:null,plan:null,timer:null,accounts:null,
+      get busy(){return this.operation!==null;}};
     // This helper is loaded before app.js by the treasury page.
     const A=globalThis.HoldbyteTreasuryAccounts;
     const address=v=>typeof v==='string'&&/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(v);
@@ -16,7 +17,16 @@
       $('load-creator-claims').disabled=S.busy||!S.config?.treasury_owner;
       $('download-plan').disabled=!S.plan||S.busy||Math.floor(Date.now()/1000)>=S.plan.local_review_expires_at;
     }
-    function cancel(){S.serial++;S.controller?.abort();S.controller=null;S.busy=false;sync();}
+    function cancel(){
+      S.serial++;const operation=S.operation;S.operation=null;
+      if(operation){
+        clearTimeout(operation.timeout);operation.controller.abort();
+        $(operation.output).textContent=operation.recordsEvidence?
+          'Request stopped. It may already have recorded evidence; check recorded receipts or claims before retrying.':
+          'Check stopped. Start a fresh check when ready.';
+      }
+      sync();
+    }
     function clearPlan(){clearTimeout(S.timer);S.timer=null;S.plan=null;$('review').hidden=true;$('plan-json').textContent='';$('warnings').replaceChildren();for(const id of ['amount-review','balance-review','remaining-review','slot-review'])$(id).textContent='—';sync();}
     function clearAccounts(){
       S.accounts=null;const option=document.createElement('option');option.value='';option.textContent='Load accounts to choose a source';
@@ -29,18 +39,21 @@
       return (value/1000000000n).toLocaleString('en')+(tail?'.'+tail:'');
     }
     function key(){const v=$('operator-key').value.trim();if(!v||v.startsWith('obk-')||v.startsWith('sv_')||v.startsWith('grd_'))throw Error('Use the separate admin API key, not a provider or customer key.');return v;}
-    async function run(path,body,output,done){
+    async function run(path,body,output,done,{recordsEvidence=false}={}){
       let secret;try{secret=key();}catch(e){$(output).textContent=e.message;return;}
-      cancel();const serial=S.serial,controller=new AbortController();S.controller=controller;S.busy=true;sync();
-      const timeout=setTimeout(()=>controller.abort(),25000);$(output).textContent='Checking…';
+      cancel();const serial=S.serial,controller=new AbortController();
+      const operation={controller,output,recordsEvidence,timeout:setTimeout(()=>controller.abort(),25000)};
+      S.operation=operation;sync();$(output).textContent='Checking…';
       try{
         const r=await fetch(path,{method:body===null?'GET':'POST',credentials:'omit',cache:'no-store',signal:controller.signal,
           headers:{Authorization:'Bearer '+secret,...(body===null?{}:{'Content-Type':'application/json'})},...(body===null?{}:{body:JSON.stringify(body)})});
         if(!r.ok)throw Error('Request failed ('+r.status+'). Check configuration, permissions and source account. No transaction was sent.');
         const text=await r.text();if(text.length>50000)throw Error('Unexpected response size.');const value=JSON.parse(text);
-        if(serial!==S.serial)return;done(value);
-      }catch(e){if(serial===S.serial)$(output).textContent=e.name==='AbortError'?'Request stopped or timed out. Check recorded receipts before retrying.':e instanceof SyntaxError?'Invalid service response.':e.message;}
-      finally{clearTimeout(timeout);if(serial===S.serial){S.controller=null;S.busy=false;sync();}}
+        if(serial!==S.serial)return;
+        if(controller.signal.aborted)throw new DOMException('Request stopped or timed out.','AbortError');
+        done(value);
+      }catch(e){if(serial===S.serial)$(output).textContent=e.name==='AbortError'?'Request stopped or timed out. Check recorded receipts or claims before retrying.':e instanceof SyntaxError?'Invalid service response.':e.message;}
+      finally{clearTimeout(operation.timeout);if(serial===S.serial){S.operation=null;sync();}}
     }
     $('operator-key').addEventListener('input',()=>{reset();$('access-status').textContent='Credential changed. Reload treasury configuration.';});
     $('lock').addEventListener('click',()=>{reset();$('operator-key').value='';$('access-status').textContent='Locked. Credentials and review data cleared from this tab.';});
@@ -117,9 +130,9 @@
       run('/api/admin/token/burns',{signature},'receipt-status',value=>{
         if(!value||typeof value.recorded!=='boolean'||value.transactions_sent!==0||value.receipt?.signature!==signature)throw Error('Unexpected receipt response. Check the token dashboard.');
         $('receipt-status').textContent=value.recorded?'Finalized burn recorded. No transaction was sent by this page.':'This burn was already recorded. Totals were not increased.';
-      });
+      },{recordsEvidence:true});
     });
-    $('signature').addEventListener('input',()=>{cancel();$('receipt-status').textContent='No receipt submitted for this signature.';});
+    $('signature').addEventListener('input',()=>{cancel();$('receipt-status').textContent='Signature changed. If a prior check was running, check recorded burns before retrying.';});
     $('creator-claim-form').addEventListener('submit',event=>{
       event.preventDefault();const signature=$('claim-signature').value.trim(),creator=S.config?.treasury_owner;
       if(!creator)return;
@@ -132,7 +145,7 @@
           A.parseRaw(receipt.amount_lamports)<=0n)throw Error('Unexpected claim evidence. Check recorded claims.');
         $('claim-status').textContent=(value.recorded?'Claim recorded: ':'Already recorded: ')+solAmount(receipt.amount_lamports)+' SOL. Attribution unverified; not project revenue.';
         $('claim-summary').textContent='Refresh recorded claims to see the current total.';
-      });
+      },{recordsEvidence:true});
     });
     $('claim-signature').addEventListener('input',()=>{cancel();$('claim-status').textContent='Signature changed. If a prior check was running, refresh recorded claims before retrying.';});
     $('load-creator-claims').addEventListener('click',()=>{
