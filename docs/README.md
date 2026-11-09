@@ -35,6 +35,7 @@ Start with the guide for the task. Proposed mechanics and historical research ar
 | Guide | Scope |
 | --- | --- |
 | [Design](DESIGN.md) | Product and application architecture |
+| [State machines](STATE-MACHINES.md) | Transition owners, async races, accounting guards and recovery rules |
 | [Operating model](OPERATING-MODEL.md) | Allowance and accounting boundaries |
 | [Token design](TOKEN-DESIGN.md) | Proposed locking, fee allocation and custody; not a deployed vault |
 | [Launch and utility](LAUNCH-AND-UTILITY.md) | Launch research and utility design |

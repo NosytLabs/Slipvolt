@@ -3,10 +3,10 @@
 const $ = id => document.getElementById(id);
 // Master credential stays in memory; refresh locks the console.
 let key = '';
-function writeSession(value){ key=value; }
 let snapshot = null;
 let selectedWallet = '';
 let configDirty = false;
+let configSavePending = false;
 let serverConfig = null;
 let userDetailGeneration = 0;
 let userSavePending = false;
@@ -61,6 +61,7 @@ function renderPanelError(id, message) {
   node.innerHTML=`<div class="panel-error">${esc(message)}</div>`;
 }
 function markConfigDirty() {
+  if (configSavePending) return;
   configDirty=true;
   if (!$('config-state')) return;
   $('config-state').textContent='Unsaved changes';
@@ -90,7 +91,7 @@ function applyConfig(config) {
   $('price-output').value=config.retail_output_per_million_usd;
 }
 function discardConfig() {
-  if (!serverConfig) return;
+  if (!serverConfig || configSavePending) return;
   applyConfig(serverConfig);
   markConfigClean();
   notice('Unsaved policy changes discarded.');
@@ -207,9 +208,7 @@ function render(overview) {
         }
         const current = new Set(snapshot.config.disabled_models || []);
         current.has(button.dataset.model) ? current.delete(button.dataset.model) : current.add(button.dataset.model);
-        await saveConfig([...current]);
-        await load();
-        notice('Model policy updated.');
+        if (await saveConfig([...current])) notice('Model policy updated.');
       } catch (error) { notice(error.message); }
     };
   });
@@ -290,6 +289,7 @@ async function loadAudit(isCurrent = nextRefresh('audit-log')) {
 }
 
 async function load() {
+  if (configSavePending) return false;
   const isCurrent = nextRefresh('overview');
   const days = Number($('window-days').value) || 30;
   let overviewError = null;
@@ -337,7 +337,25 @@ function configPayload(disabled) {
   return validateConfigPayload(payload);
 }
 async function saveConfig(disabled) {
-  return api('/api/admin/config', { method: 'PUT', body: JSON.stringify(configPayload(disabled)) });
+  if (configSavePending) return false;
+  const payload = configPayload(disabled);
+  configSavePending = true;
+  // A GET started before this write must not restore an older policy.
+  nextRefresh('overview');
+  setSettingsEnabled(false);
+  $('save-config').disabled=true;$('discard-config').disabled=true;
+  document.querySelectorAll('.model-toggle').forEach(button=>{button.disabled=true;});
+  $('config-state').textContent='Saving…';$('config-state').className='pill warn';
+  try {
+    await api('/api/admin/config', { method: 'PUT', body: JSON.stringify(payload) });
+  } catch (error) {
+    configSavePending=false;setSettingsEnabled(true);markConfigDirty();
+    document.querySelectorAll('.model-toggle').forEach(button=>{button.disabled=false;});
+    throw error;
+  }
+  configSavePending=false;markConfigClean();
+  await load();
+  return true;
 }
 async function unlock() {
   if (unlocking) return;
@@ -348,7 +366,6 @@ async function unlock() {
   $('login-msg').textContent = 'Checking…';
   try {
     await api('/api/admin/config');
-    writeSession(key);
     $('admin-key').value='';
     $('login').hidden = true;
     $('console').hidden = false;
@@ -359,10 +376,10 @@ async function unlock() {
 
 $('unlock').onclick = unlock;
 $('admin-key').addEventListener('keydown', event => { if (event.key === 'Enter') unlock(); });
-$('logout').onclick = () => { writeSession(''); location.reload(); };
+$('logout').onclick = () => { key=''; location.reload(); };
 $('refresh').onclick = () => load().catch(error => notice(error.message));
 $('window-days').onchange = () => load().catch(error => notice(error.message));
-$('save-config').onclick = async () => { try { await saveConfig(); markConfigClean(); await load(); notice('Runtime policy saved.'); } catch (error) { markConfigDirty(); notice(error.message); } };
+$('save-config').onclick = async () => { try { if (await saveConfig()) notice('Runtime policy saved.'); } catch (error) { notice(error.message); } };
 $('discard-config').onclick = discardConfig;
 document.querySelectorAll('#settings-form input, #settings-form select, #price-input, #price-output').forEach(input=>input.addEventListener('input',markConfigDirty));
 $('fund-form').onsubmit = async event => {
@@ -407,4 +424,3 @@ $('user-policy-form').onsubmit = async event => {
   } catch (error) { notice(error.message); }
   finally { userSavePending = false; button.disabled = false; }
 };
-if (key) { $('admin-key').value = key; unlock(); }

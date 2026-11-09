@@ -32,11 +32,7 @@ $('output-tokens').addEventListener('change', () => {
   S.outputBudgetEdited=true;
   try { requestedOutput(); renderCode(); } catch (error) { toast(error.message); }
 });
-$('stop-request').addEventListener('click', () => {
-  if(!S.controller)return;
-  S.controller.abort();
-  $('request-note').textContent = 'Stopping this browser request. Provider charges may still need reconciliation.';
-});
+$('stop-request').addEventListener('click', () => stopRequest());
 $('copy-response').addEventListener('click', async () => {
   if (!$('result').classList.contains('has-output')) return toast('There is no completed response to copy yet.');
   try { await navigator.clipboard.writeText($('result').textContent); toast('Response copied.'); }

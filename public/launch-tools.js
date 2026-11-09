@@ -3,8 +3,8 @@
   'use strict';
   const el=id=>document.getElementById(id),T=globalThis.SlipvoltRequestTools;
   let serial=0,lastCode=null,activeCheck=null;
-  const canCheck=()=>Boolean(selected())&&!el('output-tokens').disabled&&Number(el('output-tokens').max)>=1&&!modelState()?.conversationFull;
-  const clear=()=>{serial++;lastCode=null;activeCheck?.abort();activeCheck=null;el('check-request').disabled=Boolean(modelState()?.busy)||!canCheck();el('preflight-result').textContent='Check the current request without running the model.';el('preflight-result').removeAttribute('data-verdict');};
+  const canCheck=()=>!modelState()?.busy&&Boolean(selected())&&!el('output-tokens').disabled&&Number(el('output-tokens').max)>=1&&!modelState()?.conversationFull;
+  const clear=()=>{serial++;lastCode=null;activeCheck?.abort();activeCheck=null;el('check-request').disabled=!canCheck();el('preflight-result').textContent='Check the current request without running the model.';el('preflight-result').removeAttribute('data-verdict');};
   function selected(){return document.querySelector('.model-tab[aria-pressed="true"]')?.dataset.model||'';}
   function modelState(){return typeof S!=='undefined'?S:null;}
   for(const id of ['prompt','output-tokens','existing-key'])el(id)?.addEventListener('input',clear);
@@ -12,8 +12,10 @@
   document.addEventListener('slipvolt:account-cleared',clear);
   document.addEventListener('slipvolt:conversation-reset',clear);
   document.addEventListener('slipvolt:conversation-changed',clear);
+  document.addEventListener('slipvolt:request-started',clear);
   el('check-request').addEventListener('click',async()=>{
     const button=el('check-request'),state=modelState();
+    if(state?.busy)return;
     clear();
     if(document.documentElement.dataset.preview==='offline'){el('preflight-result').textContent='Offline preview. Start the server and sign in to check a request. No inference was sent.';return;}
     const text=el('prompt').value.trim(),key=el('existing-key').value.trim()||state?.key||'';
@@ -38,7 +40,7 @@
         'Estimated reservation: '+(estimatedTokens===null?'Unavailable':estimatedTokens.toLocaleString())+' AI tokens / '+gnk(data.estimated_budget_ngonka)+' GNK. '+
         'Nothing was spent or reserved. Sending checks again.';
     }catch(e){if(mine===serial)el('preflight-result').textContent=e.name==='TimeoutError'?'The check timed out. No inference was requested.':e.message;}
-    finally{clearTimeout(timeoutHandle);if(activeCheck===controller){activeCheck=null;button.disabled=Boolean(state?.busy)||!canCheck();}}
+    finally{clearTimeout(timeoutHandle);if(activeCheck===controller){activeCheck=null;button.disabled=!canCheck();}}
   });
   function kit(){return T.connectionKit(document.documentElement.dataset.preview==='offline'?'https://YOUR_DEPLOYED_HOST':location.origin,selected());}
   function renderKit(){try{el('connection-kit').textContent=JSON.stringify(kit(),null,2);}catch{el('connection-kit').textContent='Connection settings need the deployed service origin and a selected model.';}}

@@ -6,6 +6,8 @@ Work in `NosytLabs/Slipvolt`; do not overwrite the separate OMA-AI deployment or
 
 Start with `docs/README.md` for setup, operations and design references. Configuration loading and validation belong in `gridraft/settings.py`, request schemas in `gridraft/schemas.py`, and ASGI body-size/nesting checks in `gridraft/body_boundary.py`; their existing names remain re-exported from `gridraft.app` for compatibility. The offline setup doctor imports settings directly without loading the application. Shared optional-route infrastructure belongs in `gridraft/route_support.py`; keep module-specific validation and RPC clients separate. Preserve published paths, rate-limit buckets and legacy API/database identifiers when cleaning up code.
 
+Use `docs/STATE-MACHINES.md` to find transition owners and recovery rules before changing async or persisted state. Browser cancellation is not evidence that a provider reservation can be released. Keep stale-response guards and accounting transitions separate; update the inventory when changing a lifecycle.
+
 ## Gonka and provider boundaries
 
 - Gonka chain reads: `https://rpc.gonka.gg`. No API key or account is needed. Use `gridraft.gonka.GonkaRPC` and read `docs/GONKA-RPC.md` first.
