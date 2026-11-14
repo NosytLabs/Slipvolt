@@ -1,4 +1,4 @@
-fastapi==0.141.1
+fastapi==0.162.4
 starlette==1.6.0
 uvicorn==0.48.0
 httpx==0.28.1
