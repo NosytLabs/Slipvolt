@@ -109,7 +109,10 @@ def create_backup(source_path, destination_path):
         verified = verify_database(temporary)
         # The destination must never exist before this atomic create.
         # A same-directory stage also keeps the operation on one filesystem.
-        with temporary.open('rb') as stream:
+        # Opened read-write so os.fsync works on Windows too: _commit() there
+        # rejects read-only handles with EBADF, and the flush must happen
+        # before the atomic link regardless of platform.
+        with temporary.open('rb+') as stream:
             os.fsync(stream.fileno())
         os.link(temporary, destination)
         return {**verified, 'status': 'created'}
